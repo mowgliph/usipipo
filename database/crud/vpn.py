@@ -279,3 +279,25 @@ async def total_bandwidth_gb(session: AsyncSession) -> float:
     except SQLAlchemyError:
         logger.exception("Error calculando ancho de banda total", extra={"user_id": None})
         raise
+
+
+async def count_vpn_configs_by_user(session: AsyncSession, user_id: str) -> int:
+    """Cuenta el número de configuraciones VPN para un usuario dado."""
+    try:
+        stmt = select(func.count()).select_from(models.VPNConfig).where(models.VPNConfig.user_id == user_id)
+        res = await session.execute(stmt)
+        return int(res.scalar_one())
+    except SQLAlchemyError:
+        logger.exception("Error contando VPNs por usuario", extra={"user_id": None, "target_user_id": user_id})
+        raise
+
+
+async def last_vpn_config_by_user(session: AsyncSession, user_id: str) -> Optional[models.VPNConfig]:
+    """Obtiene la última configuración VPN creada para un usuario dado."""
+    try:
+        stmt = select(models.VPNConfig).where(models.VPNConfig.user_id == user_id).order_by(models.VPNConfig.created_at.desc()).limit(1)
+        res = await session.execute(stmt)
+        return res.scalars().one_or_none()
+    except SQLAlchemyError:
+        logger.exception("Error obteniendo última VPNConfig por usuario", extra={"user_id": None, "target_user_id": user_id})
+        raise

@@ -264,14 +264,14 @@ async def revoke_role_from_user(
         logger.exception("Error en revoke_role_from_user", extra={"user_id": acting_user_id})
         raise
 
-async def list_audit_logs(
-    session: AsyncSession,
-    limit: int = 50,
-    offset: int = 0,
-) -> List[models.AuditLog]:
+async def list_admins(session: AsyncSession) -> List[models.User]:
+    """
+    Lista todos los usuarios que son administradores o superadministradores.
+    """
     try:
-        logs = await crud_logs.get_audit_logs(session, limit=limit, offset=offset)
-        return logs
+        admins = await crud_users.get_admins(session)
+        return admins
     except SQLAlchemyError:
-        logger.exception("Error en list_audit_logs", extra={"user_id": None})
+        logger.exception("Error en list_admins", extra={"user_id": None})
         raise
+

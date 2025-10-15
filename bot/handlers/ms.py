@@ -3,9 +3,9 @@ from telegram import Update
 from telegram.ext import ContextTypes
 import logging
 
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_users
-from services.notification import send_broadcast_message
+from services.notifications import send_broadcast_message
 from utils.permissions import require_admin
 from utils.helpers import send_success, send_usage_error, send_generic_error, send_info
 

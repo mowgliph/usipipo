@@ -1,8 +1,9 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from database.db import SessionLocal
-from database import crud
+from database.crud import users as crud_user
 from utils.helpers import log_and_notify, log_error_and_notify
+from database import models
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -11,15 +12,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """
     tg_user = update.effective_user
     db = SessionLocal()
+    db_user = None
 
     try:
         # Buscar usuario en DB
-        db_user = crud.get_user_by_tg_id(db, tg_user.id)
+        db_user = await crud_user.get_user_by_telegram_id(db, tg_user.id)
         user_id = db_user.id if db_user else None
 
         # Verificar si es admin o superadmin
-        is_admin = crud.is_user_admin(db, user_id) if user_id else False
-        is_superadmin = crud.is_user_superadmin(db, user_id) if user_id else False
+        is_admin = crud_user.is_user_admin(db, user_id) if user_id else False
+        is_superadmin = crud_user.is_user_superadmin(db, user_id) if user_id else False
 
         # Base para todos los usuarios
         help_msg = (
@@ -54,9 +56,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             )
 
         # Log + notificación
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        bot = context.bot
         await log_and_notify(
-            update,
-            user_id,
+            db,
+            bot,
+            chat_id,
+            str(user_id) if user_id else None,
             "command_help",
             "Usuario ejecutó /help",
             help_msg,
@@ -64,8 +70,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
 
     except Exception as e:
-        uid = db_user.id if 'db_user' in locals() and db_user else None
-        await log_error_and_notify(update, uid, "command_help", e)
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        bot = context.bot
+        uid = db_user.id if 'db_user' in locals() and 'db_user' in locals() and isinstance(db_user, models.User) else None
+        await log_error_and_notify(db, bot, chat_id, str(uid) if uid else None, "command_help", e)
 
     finally:
         db.close()

@@ -5,13 +5,14 @@ import sys
 import platform
 import gzip
 import shutil
+from typing import cast, BinaryIO
 from logging.handlers import TimedRotatingFileHandler
 import asyncio
 
 # DB imports (async)
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from database import models
 from config.config import BOT_VERSION
 
@@ -27,8 +28,11 @@ def namer(name):
 
 
 def rotator(source, dest):
+    # gzip.open has overloaded return types (GzipFile | TextIOWrapper) which
+    # confuses static type checkers. We know we open in binary mode, so cast
+    # to BinaryIO to satisfy pylance/pyright for shutil.copyfileobj.
     with open(source, "rb") as fin, gzip.open(dest, "wb") as fout:
-        shutil.copyfileobj(fin, fout)
+        shutil.copyfileobj(fin, cast(BinaryIO, fout))
     os.remove(source)
 
 
@@ -185,6 +189,6 @@ async def get_last_logs_db(n=10, user_id=None):
                 formatted.append(
                     f"{log.created_at.strftime('%Y-%m-%d %H:%M:%S')} | {who} | {log.action} | {log.details or ''}"
                 )
-            return list(reversed(formatted))  # más antiguo primero, estilo tail
+            return list(reversed(formatted))
         except Exception as e:
             return [f"Error al leer audit logs: {e}"]

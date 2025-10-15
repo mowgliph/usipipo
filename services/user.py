@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import User as TelegramUser
 
 from database import models
-from database.crud import users as crud_users, logs as crud_logs
+from database.crud import users as crud_users, logs as crud_logs, settings as crud_settings
 from utils.helpers import log_and_notify
 
 logger = logging.getLogger("usipipo")
@@ -27,11 +27,11 @@ async def promote_to_admin(session: AsyncSession, user_id: int) -> Optional[mode
     Asigna permisos de administrador a un usuario y registra la auditoría.
     Hace commit dentro de los CRUD helpers.
     """
-    user = await crud_users.set_user_admin(session, user_id, True, commit=True)
+    user = await crud_users.set_user_admin(session, str(user_id), True, commit=True)
     if not user:
         return None
     try:
-        await crud_logs.create_audit_log(session, user_id, "promote_admin", "Usuario promovido a administrador")
+        await crud_logs.create_audit_log(session, str(user_id), "promote_admin", "Usuario promovido a administrador")
         await session.commit()
     except Exception:
         logger.exception("failed_audit_promote_admin", extra={"user_id": user_id})
@@ -43,11 +43,11 @@ async def promote_to_admin(session: AsyncSession, user_id: int) -> Optional[mode
     return user
 
 async def demote_from_admin(session: AsyncSession, user_id: int) -> Optional[models.User]:
-    user = await crud_users.set_user_admin(session, user_id, False, commit=True)
+    user = await crud_users.set_user_admin(session, str(user_id), False, commit=True)
     if not user:
         return None
     try:
-        await crud_logs.create_audit_log(session, user_id, "demote_admin", "Usuario degradado de administrador")
+        await crud_logs.create_audit_log(session, str(user_id), "demote_admin", "Usuario degradado de administrador")
         await session.commit()
     except Exception:
         logger.exception("failed_audit_demote_admin", extra={"user_id": user_id})
@@ -62,12 +62,12 @@ async def list_all_users(session: AsyncSession, limit: int = 50) -> List[models.
     return await crud_users.list_users(session, limit=limit)
 
 async def get_user_settings(session: AsyncSession, user_id: int):
-    return await crud_users.get_user_settings(session, user_id)
+    return await crud_settings.list_user_settings(session, str(user_id))
 
 async def update_user_setting(session: AsyncSession, user_id: int, key: str, value: str):
-    setting = await crud_users.set_user_setting(session, user_id, key, value)
+    setting = await crud_settings.set_user_setting(session, str(user_id), key, value)
     try:
-        await crud_logs.create_audit_log(session, user_id, "update_setting", f"{key}={value}")
+        await crud_logs.create_audit_log(session, str(user_id), "update_setting", f"{key}={value}")
         await session.commit()
     except Exception:
         logger.exception("failed_audit_update_setting", extra={"user_id": user_id})

@@ -1,5 +1,5 @@
 # bot/handlers/info.py
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from utils.helpers import log_and_notify, log_error_and_notify, safe_chat_id_from_update
 
@@ -26,10 +26,10 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
     keyboard = [
-        [KeyboardButton("/register"), KeyboardButton("/newvpn")],
-        [KeyboardButton("/trialvpn wireguard"), KeyboardButton("/trialvpn outline")],
+        [InlineKeyboardButton("Registrar", callback_data='/register'), InlineKeyboardButton("Nueva VPN", callback_data='/newvpn')],
+        [InlineKeyboardButton("Trial Wireguard", callback_data='/trialvpn wireguard'), InlineKeyboardButton("Trial Outline", callback_data='/trialvpn outline')],
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     try:
         # Registrar auditoría / log (no enviar desde helpers para añadir botones)

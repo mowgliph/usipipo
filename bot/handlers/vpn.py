@@ -9,9 +9,9 @@ from telegram.constants import ParseMode
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_users, vpn as crud_vpn, payments as crud_payments
-from services import activation_vpn as vpn_service, payments as payments_service, trial as trial_service, wireguard as wireguard_service
+from services import vpn as vpn_service, payments as payments_service, trial as trial_service, wireguard as wireguard_service
 from utils.permissions import require_registered, require_admin
 from utils.helpers import (
     send_usage_error,
@@ -123,7 +123,11 @@ async def revokevpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 return
 
             vpn = await crud_vpn.get_vpn_config(session, vpn_id)
-            if not vpn or vpn.user_id != db_user.id:
+            if not vpn:
+                await send_warning(update, "VPN no encontrada.")
+                return
+
+            if vpn.user_id != db_user.id:
                 if not await crud_users.is_user_admin(session, db_user.id):
                     await send_warning(update, "No tienes permisos para revocar esta VPN.")
                     return

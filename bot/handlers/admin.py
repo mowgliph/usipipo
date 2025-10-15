@@ -8,9 +8,10 @@ from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_users
-from services import admin as admin_service
+from services import admin as admin_service, user as user_service, vpn as vpn_service, roles as role_service
+from services.audit import audit_service, format_logs
 from utils.helpers import log_and_notify, log_error_and_notify, safe_chat_id_from_update, send_usage_error
 from utils.permissions import require_superadmin
 
@@ -33,7 +34,7 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     limit = int(args[0]) if args and args[0].isdigit() else 50
 
-    async with get_session() as session:  # type: AsyncSession
+    async with get_session() as session:
         try:
             users = await admin_service.list_users_paginated(session, limit=limit, offset=0)
             if not users:
@@ -267,7 +268,7 @@ async def listadmins_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error("No chat_id en update", extra={"user_id": None})
         return
 
-    async with get_session() as session:  # type: AsyncSession
+    async with get_session() as session:
         try:
             admins = await admin_service.list_admins(session)
             if not admins:
@@ -387,19 +388,19 @@ async def audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     async with get_session() as session:
         try:
-            logs = await admin_service.list_audit_logs(session, limit=limit, offset=0)
+            # audit_service (compat) administra su propia sesión internamente
+            result = await audit_service.get_logs(limit=limit, offset=0)
+            if not result["ok"]:
+                await update.message.reply_html(f"❌ Error al obtener logs: {result['message']}")
+                return
+
+            logs = result["data"]["items"]
             if not logs:
                 text = "No hay logs de auditoría."
             else:
-                lines = []
-                for l in logs:
-                    pid = l.user_id or "SYSTEM"
-                    payload = l.payload if l.payload else {}
-                    lines.append(
-                        f"• <b>{l.action}</b> by <code>{pid}</code> at {l.created_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
-                        f"  {payload}"
-                    )
-                text = "<b>Audit Logs</b>\n\n" + "\n\n".join(lines)
+                # Usar la función de formato exportada por services.audit
+                text = format_logs(logs)
+
             await log_and_notify(
                 session=session,
                 bot=bot,
@@ -421,7 +422,7 @@ async def audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 public_message="Error consultando audit logs."
             )
 
-def register_admin_handlers(app: Application) -> None:
+def register_admin_handlers(app):
     """
     Registra todos los handlers de comandos administrativos.
     """

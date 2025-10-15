@@ -9,7 +9,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from database.crud import logs as crud_logs, users as crud_users
 from services.audit import audit_service
 from utils.helpers import (
@@ -117,7 +117,8 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 chat_id=chat_id,
                 user_id=update.effective_user.id if update.effective_user else None,
                 action="admin.logs",
-                details=f"Consultó {len(log_entries)} registros de auditoría (página {page})"
+                details=f"Consultó {len(log_entries)} registros de auditoría (página {page})",
+                message=f"✅ Se han consultado {len(log_entries)} registros de auditoría."
             )
             
         except Exception as e:
@@ -203,7 +204,8 @@ async def mylogs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 chat_id=chat_id,
                 user_id=user.id,
                 action="user.mylogs",
-                details=f"Consultó sus registros de auditoría (página {page})"
+                details=f"Consultó sus registros de auditoría (página {page})",
+                message=f"✅ Se han consultado tus registros de auditoría."
             )
             
         except Exception as e:

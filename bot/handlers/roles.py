@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from services import roles as roles_service
 from services import user as user_service
 from utils.permissions import require_admin, require_registered

@@ -3,7 +3,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 import logging
 
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from services.user import get_user_telegram_info
 from utils.helpers import send_success, send_generic_error
 

@@ -37,6 +37,29 @@ if not DATABASE_ASYNC_URL:
     logger.error("DATABASE_ASYNC_URL no está definido en el entorno.", extra={"user_id": None})
     raise RuntimeError("Missing DATABASE_ASYNC_URL")
 
+# Validar driver async compatible para MariaDB/MySQL
+SUPPORTED_DRIVERS = ("asyncmy", "aiomysql")
+def _extract_driver(url: str) -> str | None:
+    # Espera esquemas como: dialect+driver://...
+    try:
+        prefix = url.split("://", 1)[0]
+        if "+" in prefix:
+            return prefix.split("+", 1)[1]
+        # si no hay driver explícito, devolver None
+        return None
+    except Exception:
+        return None
+
+driver = _extract_driver(DATABASE_ASYNC_URL) or ""
+if not any(d in driver for d in SUPPORTED_DRIVERS):
+    # permitir el caso donde el usuario no especificó driver: advertir
+    logger.warning(
+        "El driver async no parece ser uno de los recomendados (%s). Se detectó: %s. Intentando continuar.",
+        SUPPORTED_DRIVERS,
+        driver or "(no especificado)",
+        extra={"user_id": None},
+    )
+
 # Connect args recomendados para MariaDB / MySQL drivers async
 connect_args: dict = {
     "charset": os.getenv("DB_CHARSET", "utf8mb4"),
@@ -64,15 +87,50 @@ else:
         }
     )
 
-logger.info("Creando AsyncEngine (driver async recomendado: asyncmy/aiomysql).", extra={"user_id": None})
-
-async_engine: AsyncEngine = create_async_engine(
-    DATABASE_ASYNC_URL,
-    echo=ECHO_SQL,
-    future=True,
-    connect_args=connect_args,
-    **pool_kwargs,
+logger.info(
+    "Creando AsyncEngine (driver async recomendado: asyncmy/aiomysql).",
+    extra={"user_id": None},
 )
+
+# Crear engine con manejo de excepciones para dar mensajes claros en fallos de conexión/driver
+try:
+    async_engine: AsyncEngine = create_async_engine(
+        DATABASE_ASYNC_URL,
+        echo=ECHO_SQL,
+        future=True,
+        connect_args=connect_args,
+        **pool_kwargs,
+    )
+except Exception as exc:  # pragma: no cover - fallo en creación de engine
+    logger.exception(
+        "Fallo al crear AsyncEngine. Revise DATABASE_ASYNC_URL y los drivers instalados.",
+        extra={"user_id": None},
+    )
+    raise
+
+
+# Helpers útiles para tests y shutdown
+async def test_connection(timeout: int = 5) -> bool:
+    """
+    Intenta una conexión rápida a la base de datos para verificar disponibilidad.
+    Retorna True si la conexión y una simple consulta funciona, False en caso contrario.
+    """
+    try:
+        async with async_engine.connect() as conn:
+            await conn.execute("SELECT 1")
+            return True
+    except Exception:
+        logger.exception("test_connection: no se pudo conectar a la base de datos", extra={"user_id": None})
+        return False
+
+
+async def close_engine() -> None:
+    """Cierra y libera recursos del engine async (útil en shutdown de la app)."""
+    try:
+        await async_engine.dispose()
+        logger.info("AsyncEngine disposed correctamente", extra={"user_id": None})
+    except Exception:
+        logger.exception("Error al liberar AsyncEngine", extra={"user_id": None})
 
 # async_sessionmaker con comportamiento seguro para servicios
 AsyncSessionLocal = async_sessionmaker(

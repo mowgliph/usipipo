@@ -11,8 +11,7 @@ from telegram import Update, Bot, InputFile
 from telegram.constants import ParseMode
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.crud import users as crud_users
-from database.crud import logs as crud_logs
+from database.crud import users as crud_users, logs as crud_logs
 from database import models
 
 logger = logging.getLogger("usipipo.helpers")
@@ -86,7 +85,7 @@ async def log_and_notify(
     if session is not None:
         try:
             payload = {"details": details}
-            await crud_logs.create_audit_log(session=session, user_id=user_id, action=action, details=None, payload=payload, commit=False)
+            await crud_logs.create_audit_log(session=session, user_id=user_id, action=action, details=details, payload=payload, commit=False)
         except Exception:
             logger.exception("audit_log_failed", extra={"user_id": user_id})
 
@@ -129,7 +128,7 @@ async def log_error_and_notify(
     # 1) Audit DB
     if session is not None:
         try:
-            await crud_logs.create_audit_log(session=session, user_id=user_id, action=f"{action}_error", details=None, payload=payload, commit=False)
+            await crud_logs.create_audit_log(session=session, user_id=user_id, action=f"{action}_error", details=details, payload=payload, commit=False)
         except Exception:
             logger.exception("audit_log_failed_on_error", extra={"user_id": user_id})
 
@@ -234,33 +233,75 @@ async def format_vpn_list(vpns: List[models.VPNConfig]) -> str:
     return "<b>Tus configuraciones VPN:</b>\n" + "\n".join(lines)
 
 
-async def send_vpn_config(update: Update, vpn: models.VPNConfig, qr_bytes: Optional[bytes] = None) -> None:
-    """Envía config VPN según tipo (file/QR para wireguard, text para outline)."""
+# Send VPN config 
+
+async def send_vpn_config(
+    update: Update,
+    vpn: models.VPNConfig,
+    qr_bytes: Optional[bytes] = None,
+    conf_file: Optional[InputFile] = None,
+) -> None:
+    """
+    Envía la configuración de VPN al usuario según el tipo.
+    
+    Args:
+        update: El objeto Update de Telegram.
+        vpn: El objeto models.VPNConfig con los datos de la configuración.
+        qr_bytes: Bytes de la imagen QR (solo WireGuard).
+        conf_file: Objeto InputFile con el contenido del archivo .conf (solo WireGuard).
+    """
     if not update.message:
-        logger.error("No message in update for send_vpn_config", extra={"user_id": None})
         return
 
+    chat_id = safe_chat_id_from_update(update)
+    bot = update.message.bot
+    
+    expires_str = vpn.expires_at.strftime("%Y-%m-%d %H:%M UTC") if vpn.expires_at else "N/A"
+    
     if vpn.vpn_type == "wireguard":
-        conf_bytes = io.BytesIO(vpn.config_data.encode("utf-8"))
-        conf_bytes.name = f"{vpn.config_name}.conf"
-        await update.message.reply_document(
-            document=InputFile(conf_bytes),
-            filename=conf_bytes.name,
-            caption="✅ Aquí está tu configuración WireGuard (.conf)",
-            parse_mode=ParseMode.HTML,
+        
+        # MENSAJE DE INTRODUCCIÓN PARA WIREGUARD
+        msg = (
+            f"🚀 ¡Tu VPN WireGuard está lista! Expira el <code>{expires_str}</code>.\\n\\n"
+            f"1. Descarga la app <b>WireGuard</b>.\\n"
+            f"2. Escanea el <b>código QR</b> o descarga el archivo <b>.conf</b> adjunto.\\n"
+            f"3. ¡Conéctate!"
         )
+        await bot.send_message(chat_id, msg, parse_mode=ParseMode.HTML)
+        
+        # ENVÍO DEL ARCHIVO .CONF
+        if conf_file:
+            await bot.send_document(chat_id, document=conf_file, caption="Archivo de configuración WireGuard (.conf)")
+            
+        # ENVÍO DEL CÓDIGO QR
         if qr_bytes:
-            await update.message.reply_photo(
-                photo=io.BytesIO(qr_bytes),
-                caption="Escanea este QR en tu app WireGuard 📱",
-                parse_mode=ParseMode.HTML,
+            await bot.send_photo(
+                chat_id, 
+                photo=InputFile(io.BytesIO(qr_bytes), filename=f"{vpn.config_name}.png"),
+                caption="Código QR (para escanear directamente con la app WireGuard)"
             )
+
     elif vpn.vpn_type == "outline":
-        await update.message.reply_text(
-            f"✅ Tu configuración Outline ha sido creada.\n\n"
-            f"<b>Access Key:</b>\n<code>{html.escape(vpn.config_data)}</code>",
-            parse_mode=ParseMode.HTML,
-        )
+        
+        # MENSAJE Y ENVÍO DE KEY PARA OUTLINE
+        access_url = vpn.config_data 
+        if access_url:
+            msg = (
+                f"🚀 ¡Tu VPN Outline está lista! Expira el <code>{expires_str}</code>.\\n\\n"
+                f"1. Descarga la app <b>Outline</b>.\\n"
+                f"2. Copia la clave de acceso que se muestra a continuación:\\n\\n"
+                f"🔑 <code>{html.escape(access_url)}</code>\\n\\n"
+                f"3. Abre la app Outline y añade la clave."
+            )
+            await bot.send_message(chat_id, msg, parse_mode=ParseMode.HTML)
+        else:
+            await bot.send_message(chat_id, "⚠️ Error: No se encontró la URL de acceso de Outline.", parse_mode=ParseMode.HTML)
+
+    else:
+        # TIPO NO SOPORTADO
+        await bot.send_message(chat_id, "⚠️ No se puede entregar la configuración. Tipo de VPN no reconocido.", parse_mode=ParseMode.HTML)
+        
+    await bot.send_message(chat_id, f"💡 Usa /myvpns para ver tus configuraciones.", parse_mode=ParseMode.HTML)
 
 
 async def format_expiration_message(vpn: models.VPNConfig) -> str:

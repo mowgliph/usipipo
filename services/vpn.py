@@ -1,4 +1,4 @@
-# services/activation_vpn.py
+# services/vpn.py
 
 from __future__ import annotations
 from typing import Optional, Literal
@@ -38,11 +38,11 @@ async def activate_vpn_for_user(
     """
     try:
         if vpn_type == "wireguard":
-            result = await wireguard_service.create_peer(session, user_id=user_id, duration_months=months, commit=False)
-            vpn_obj = result.get("vpn")  # Estandarizado a clave "vpn"
+            result = await wireguard_service.create_peer(session, user_id=int(user_id), duration_months=months, commit=False)
+            vpn_obj = result.get("vpn")
         elif vpn_type == "outline":
             result = await outline_service.create_access(session, user_id=user_id, duration_months=months)
-            vpn_obj = result.get("vpn") or result.get("vpn_obj")  # Soporta ambas claves por compatibilidad
+            vpn_obj = result.get("vpn") or result.get("vpn_obj") 
         else:
             raise ValueError(f"Tipo VPN no soportado: {vpn_type}")
 
@@ -83,7 +83,7 @@ async def revoke_vpn(
     """
     try:
         if vpn_type == "wireguard":
-            vpn_obj = await wireguard_service.revoke_peer(session, vpn_id=vpn_id, commit=False)
+            vpn_obj = await wireguard_service.revoke_peer(session, vpn_id=int(vpn_id), commit=False)
         elif vpn_type == "outline":
             vpn_obj = await outline_service.revoke_access(session, vpn_id=vpn_id)
         else:

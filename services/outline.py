@@ -28,14 +28,22 @@ def _fetch_remote_cert_sha256(host: str, port: int) -> str:
     with socket.create_connection((host, port), timeout=10) as sock:
         with ctx.wrap_socket(sock, server_hostname=host) as ssock:
             der_cert = ssock.getpeercert(binary_form=True)
+            if der_cert is None:
+                raise RuntimeError("No se pudo obtener el certificado remoto")
             return hashlib.sha256(der_cert).hexdigest().upper()
 
 
 async def _verify_outline_cert() -> bool:
     """Verifica el fingerprint SHA256 del certificado TLS de Outline (ejecuta socket en executor)."""
+    if not OUTLINE_API_URL:
+        logger.error("OUTLINE_API_URL no está configurado.")
+        return False
     parsed = urllib.parse.urlparse(OUTLINE_API_URL)
     host = parsed.hostname
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    if not host:
+        logger.error("No se pudo extraer el host de OUTLINE_API_URL.")
+        return False
     loop = asyncio.get_running_loop()
     try:
         sha256 = await loop.run_in_executor(None, _fetch_remote_cert_sha256, host, port)
@@ -58,6 +66,8 @@ async def _outline_request(method: str, path: str, *, json: Optional[Dict[str, A
     if not await _verify_outline_cert():
         raise RuntimeError("Certificado TLS de Outline no coincide con el esperado")
 
+    if not OUTLINE_API_URL:
+        raise RuntimeError("OUTLINE_API_URL no está configurado.")
     url = f"{OUTLINE_API_URL.rstrip('/')}{path}"
     try:
         # No verification on aiohttp side since we validated fingerprint manually
@@ -78,7 +88,7 @@ async def _outline_request(method: str, path: str, *, json: Optional[Dict[str, A
 # ---- Public API: create_access / revoke_access / list_user_accesses ----
 async def create_access(
     session: AsyncSession,
-    user_id: int,
+    user_id: str,
     duration_months: int = DEFAULT_DURATION_MONTHS,
 ) -> Dict[str, Any]:
     """
@@ -113,7 +123,7 @@ async def create_access(
     return {"config_data": access_url, "extra_data": extra, "vpn_obj": vpn_obj}
 
 
-async def revoke_access(session: AsyncSession, vpn_id: int) -> Optional[models.VPNConfig]:
+async def revoke_access(session: AsyncSession, vpn_id: str) -> Optional[models.VPNConfig]:
     """
     Revoca un access key en Outline (si existe) y marca el registro como revoked (commit controlado por caller).
     """
@@ -137,5 +147,5 @@ async def list_user_accesses(session: AsyncSession, user_id: int) -> List[models
     """
     Lista accesos Outline de un usuario consultando CRUD asíncrono.
     """
-    all_configs = await crud_vpn.get_vpn_configs(session, user_id)
-    return [v for v in all_configs if v.vpntype == "outline"]
+    all_configs = await crud_vpn.get_vpn_configs_for_user(session, str(user_id))
+    return [v for v in all_configs if v.vpn_type == "outline"]

@@ -321,6 +321,25 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 		fi
 		echo -e "${ORANGE}If you don't have internet connectivity from your client, try to reboot the server.${NC}"
 	fi
+	# ==============================================
+	# Mostrar variables WireGuard para uSipipo
+	# ==============================================
+	echo -e "${GREEN}
+	------ VARIABLES WIREGUARD PARA TU .env DE USIPIPO ------${NC}"
+	echo ""
+	cat << EOF
+	WG_INTERFACE="${SERVER_WG_NIC}"
+	WG_CONFIG_DIR="/etc/wireguard"
+	SERVER_PUBLIC_KEY="${SERVER_PUB_KEY}"
+	SERVER_ENDPOINT="${SERVER_PUB_IP}:${SERVER_PORT}"
+	WG_SUBNET_PREFIX="$(echo "${SERVER_WG_IPV4}" | cut -d'.' -f1-3)"
+	WG_IP_START=2
+	WG_IP_END=254
+	EOF
+	echo ""
+	echo -e "${GREEN}----------------------------------------------------------${NC}"
+	echo -e "¡Copia estas variables de WireGuard a tu archivo .env de uSipipo!
+	"
 }
 
 function newClient() {

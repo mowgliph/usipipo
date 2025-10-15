@@ -1,13 +1,35 @@
 # Instalación y Configuración de uSipipo
 
-Este documento proporciona un paso a paso detallado para instalar y configurar uSipipo en un VPS personal.
+Este documento detalla cómo instalar y configurar uSipipo, un bot de Telegram basado en Python 3.11+, SQLAlchemy ORM, y python-telegram-bot v20+. Sigue la arquitectura models-crud-services-handlers para un código limpio, escalable y mantenible. El bot gestiona WireGuard, Outline VPN, y MTProto Proxy, con un backend robusto.
 
 ## Requisitos Previos
 
-- Un servidor VPS con Ubuntu 20.04+ o Debian 10+
-- Acceso root o sudo al servidor
-- Un nombre de dominio apuntando a la IP de tu VPS
-- Python 3.8+ instalado
+**Sistema Operativo:** Ubuntu 20.04+/Debian 10+ (recomendado), macOS, o Windows con WSL2.
+
+**Python:** 3.11+ (requerido para python-telegram-bot v20+ con soporte async). Descarga desde [python.org](https://www.python.org/).
+
+**Base de Datos:** MariaDB (recomendado para producción y desarrollo). Instala MariaDB:
+```bash
+sudo apt install mariadb-server mariadb-client
+```
+
+**Git:** Para clonar el repositorio.
+
+**Dependencias del Sistema:** python3-pip, python3-venv, git, qrencode, curl, wget.
+
+**Claves API:** Obtén un `TELEGRAM_BOT_TOKEN` de BotFather. Para Outline, configura una API URL y certificado SHA256.
+
+**Dominio:** Un dominio apuntando a la IP del VPS (opcional para producción).
+
+---
+
+### Verifica Python
+
+```bash
+python3 --version  # Debe mostrar 3.11+
+```
+
+---
 
 ## Paso 1: Configuración Inicial del Servidor
 
@@ -16,17 +38,24 @@ Este documento proporciona un paso a paso detallado para instalar y configurar u
 sudo apt update && sudo apt upgrade -y
 ```
 
-### 1.2 Instalar Dependencias
+### 1.2 Instalar Dependencias del Sistema
 ```bash
-sudo apt install -y python3-pip python3-venv git sqlite3 qrencode curl wget
+sudo apt install -y python3-pip python3-venv git qrencode curl wget
 ```
 
+#### Para MariaDB:
+```bash
+sudo apt install -y mariadb-server mariadb-client
+sudo systemctl enable mariadb
+sudo systemctl start mariadb
+sudo mysql_secure_installation
+```
+
+---
 
 ## Paso 2: Instalación de uSipipo
 
-
 ### 2.1 Clonar el Repositorio
-
 ```bash
 cd /opt
 sudo git clone https://github.com/mowgliph/usipipo.git
@@ -34,109 +63,77 @@ sudo chown -R $USER:$USER usipipo
 cd usipipo
 ```
 
-
 ### 2.2 Configurar Entorno Virtual
-
 ```bash
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # Linux/macOS
+# Windows (WSL): source venv/bin/activate
+# Windows (CMD): venv\Scripts\activate
 ```
 
+#### Alternativa con Poetry
+```bash
+pip install poetry
+poetry install
+poetry shell
+```
 
 ### 2.3 Instalar Dependencias de Python
-
 ```bash
 pip install -r requirements.txt
 ```
 
-
-### 2.1.1 Instalar WireGuard VPN
-
-Ejecuta el script de instalación de WireGuard:
-```bash
-sudo bash scripts/wireguard-install.sh
+Ejemplo de `requirements.txt`:
+```
+python-telegram-bot>=20.0
+sqlalchemy>=2.0
+pymysql
+python-dotenv
+aiohttp
 ```
 
-
-### 2.1.2 Instalar Outline VPN Server Manager
-
-Ejecuta el script de instalación de Outline:
-```bash
-sudo bash scripts/outline-install.sh
-```
-
-### 2.1.3 Instalar MTProto Proxy
-
-Ejecuta el script de instalación de MTProto Proxy:
-```bash
-sudo bash scripts/mtproto-install.sh
-```
+---
 
 ## Paso 3: Configuración de la Base de Datos
 
-
-
-
-### 3.1 Inicializar la Base de Datos
+### 3.1 Configurar Variables de Entorno
 ```bash
+cp example.env .env
+nano .env
+```
+Configura las variables:
+```
+TELEGRAM_BOT_TOKEN=tu-token-aqui
+DATABASE_URL=mysql+pymysql://user:pass@localhost/usipipo
+...
+```
+
+### 3.2 Inicializar la Base de Datos
+```bash
+sudo mysql -u root -p -e "CREATE DATABASE usipipo; CREATE USER 'usipipo_user'@'localhost' IDENTIFIED BY 'tu-contrasena'; GRANT ALL PRIVILEGES ON usipipo.* TO 'usipipo_user'@'localhost'; FLUSH PRIVILEGES;"
 python scripts/init_db.py
 ```
 
+---
 
-### 3.2 Configurar Variables de Entorno
-Copia el archivo de ejemplo de configuración:
-
-```bash
-cp example.env.md .env
-```
-
-Edita el archivo `.env` con tus configuraciones:
-```bash
-nano .env
-```
-
-
-Asegúrate de configurar todas las variables necesarias:
-
-- `TELEGRAM_BOT_TOKEN`: Token de tu bot de Telegram
-- `TELEGRAM_PROVIDER_TOKEN`: Token de proveedor de Telegram (opcional)
-- `DATABASE_URL`: Ruta a tu base de datos SQLite
-- `OUTLINE_API_URL`: URL de tu servidor Outline
-- `OUTLINE_CERT_SHA256`: SHA256 del certificado SSL de Outline
-- `BOT_VERSION`: Versión del bot
-- `WG_INTERFACE`: Interfaz de WireGuard (ej: wg0)
-- `WG_CONFIG_DIR`: Directorio de configuración de WireGuard
-- `SERVER_PUBLIC_KEY`: Clave pública del servidor WireGuard
-- `SERVER_ENDPOINT`: Endpoint público del servidor
-- `WG_SUBNET_PREFIX`: Prefijo de subred WireGuard
-- `WG_IP_START`: IP inicial para asignar a clientes
-- `WG_IP_END`: IP final para asignar a clientes
-
-
-
-## Paso 4: Configurar Servicio Systemd para el Bot
-
+## Paso 4: Configurar Servicio Systemd
 
 ### 4.1 Crear Archivo de Servicio
-
 ```bash
 sudo nano /etc/systemd/system/usipipo.service
 ```
-
-
-Añade la siguiente configuración:
-
-
-```ini
+Agrega:
+```
 [Unit]
 Description=uSipipo Telegram Bot
 After=network.target
 
 [Service]
 Type=simple
-User=www-data
+User=$USER
 WorkingDirectory=/opt/usipipo
 Environment=PATH=/opt/usipipo/venv/bin
+EnvironmentFile=/opt/usipipo/.env
 ExecStart=/opt/usipipo/venv/bin/python bot/main.py
 Restart=always
 RestartSec=10
@@ -147,78 +144,63 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
-
-
-### 4.2 Habilitar y Iniciar el Servicio
-
+### 4.2 Habilitar e Iniciar el Servicio
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable usipipo
 sudo systemctl start usipipo
 ```
 
-## Paso 5: Configuración Final
+---
 
+## Paso 5: Verificación
 
-
-
-### 5.1 Configurar Variables de Entorno de Producción
-Edita tu archivo `.env` para incluir:
-
-```env
-DEBUG=False
-ENVIRONMENT=production
-```
-
-
-
-
-### 5.2 Inicializar Base de Datos
-```bash
-python scripts/init_db.py
-```
-
-
-
-
-### 5.3 Reiniciar Servicios
-```bash
-sudo systemctl restart usipipo
-```
-
-## Paso 6: Verificación
-
-
-
-### 6.1 Verificar Servicios
+### 5.1 Verificar Servicios
 ```bash
 sudo systemctl status usipipo
 sudo systemctl status wg-quick@wg0
 ```
 
+### 5.2 Probar el Bot
+Envía `/start` al bot en Telegram.
 
-
-### 6.2 Probar la Aplicación
-Envía un mensaje a tu bot de Telegram para verificar que está funcionando correctamente.
-
-
-
-### 6.3 Configurar Administrador
-Usa los comandos del bot para configurar tu cuenta de administrador:
-
-
-- Inicia el bot y sigue las instrucciones
-- Usa el comando `/admin` para configurar permisos de administrador
-
-
-## Soporte
-
-Si encuentras problemas durante la instalación, por favor:
-
-1. Revisa los logs de los servicios
-2. Consulta la documentación del proyecto
-3. Abre un issue en el repositorio de GitHub
+### 5.3 Verificar Logs
+Logs: `logs/bot.log`
 
 ---
 
-¡Felicidades! Ahora tienes uSipipo instalado y funcionando en tu VPS personal.
+## Paso 6: Configuración de Producción
+
+- Logging Centralizado con `utils/helpers.py`  
+- Escalabilidad con Docker  
+- Seguridad mediante secrets manager  
+
+Ejemplo de `Dockerfile`:
+```
+FROM python:3.11-slim
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+CMD ["python", "bot/main.py"]
+```
+
+---
+
+## Troubleshooting
+
+- “Permission denied” en scripts → `chmod +x script.sh`  
+- Bot no responde → revisa `TELEGRAM_BOT_TOKEN`  
+- DB error → revisa `DATABASE_URL`  
+- Logs vacíos → `LOG_LEVEL=INFO`
+
+---
+
+## Soporte
+
+- Ver logs: `journalctl -u usipipo`
+- Consultar repositorio o abrir issue en GitHub
+
+---
+
+**¡Felicidades! uSipipo está instalado y listo en tu VPS.**  
+Última actualización: Octubre 2025.
