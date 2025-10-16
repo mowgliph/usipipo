@@ -1,13 +1,29 @@
 #!/bin/bash
 
-# Secure WireGuard server installer
-# https://github.com/angristan/wireguard-install
+# Secure WireGuard server installer for uSipipo
+# Refactored to generate uSipipo .env variables and manage trial IPs
+# Based on: https://github.com/angristan/wireguard-install
 
 RED='\033[0;31m'
 ORANGE='\033[0;33m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
+# --- Constantes ---
+WG_CONFIG_DIR="/etc/wireguard"
+WG_INTERFACE_DEFAULT="wg0"
+WG_IPV4_SUBNET_DEFAULT="10.66.66" # Cambiado a /24 para facilitar trial
+WG_IPV6_SUBNET_DEFAULT="fd42:42:42::"
+WG_PORT_DEFAULT="" # Se generará aleatoriamente
+CLIENT_DNS_1_DEFAULT="1.1.1.1"
+CLIENT_DNS_2_DEFAULT="1.0.0.1"
+ALLOWED_IPS_DEFAULT="0.0.0.0/0,::/0"
+TRIAL_IP_START=2  # Primera IP usable
+TRIAL_IP_END=26   # Última IP para trial (25 IPs: 2 a 26)
+PAID_IP_START=27  # Primera IP para usuarios pagos
+PAID_IP_END=254   # Última IP usable (254 es el límite común)
+
+# --- Funciones de Validación ---
 function isRoot() {
 	if [ "${EUID}" -ne 0 ]; then
 		echo "You need to run this script as root"
@@ -121,7 +137,7 @@ function initialCheck() {
 }
 
 function installQuestions() {
-	echo "Welcome to the WireGuard installer!"
+	echo "Welcome to the WireGuard installer for uSipipo!"
 	echo "The git repository is available at: https://github.com/angristan/wireguard-install"
 	echo ""
 	echo "I need to ask you a few questions before starting the setup."
@@ -143,15 +159,21 @@ function installQuestions() {
 	done
 
 	until [[ ${SERVER_WG_NIC} =~ ^[a-zA-Z0-9_]+$ && ${#SERVER_WG_NIC} -lt 16 ]]; do
-		read -rp "WireGuard interface name: " -e -i wg0 SERVER_WG_NIC
+		read -rp "WireGuard interface name: " -e -i "${WG_INTERFACE_DEFAULT}" SERVER_WG_NIC
 	done
 
-	until [[ ${SERVER_WG_IPV4} =~ ^([0-9]{1,3}\.){3} ]]; do
-		read -rp "Server WireGuard IPv4: " -e -i 10.66.66.1 SERVER_WG_IPV4
+	# Usar solo la parte base de la IP (sin el .1)
+	until [[ ${WG_SUBNET_BASE} =~ ^([0-9]{1,3}\.){3}$ ]]; do
+		read -rp "Server WireGuard IPv4 Subnet Base (e.g., 10.66.66.): " -e -i "${WG_IPV4_SUBNET_DEFAULT}." WG_SUBNET_BASE
 	done
+	# Quitar el punto final si lo tiene
+	WG_SUBNET_BASE=${WG_SUBNET_BASE%.}
+	SERVER_WG_IPV4="${WG_SUBNET_BASE}.1/24"
 
 	until [[ ${SERVER_WG_IPV6} =~ ^([a-f0-9]{1,4}:){3,4}: ]]; do
-		read -rp "Server WireGuard IPv6: " -e -i fd42:42:42::1 SERVER_WG_IPV6
+		read -rp "Server WireGuard IPv6: " -e -i "${WG_IPV6_SUBNET_DEFAULT}1/64" SERVER_WG_IPV6
+		# Quitar /64 si está presente para la IP interna
+		SERVER_WG_IPV6_INTERNAL=$(echo "${SERVER_WG_IPV6}" | cut -d'/' -f1)
 	done
 
 	# Generate random number within private ports range
@@ -162,10 +184,10 @@ function installQuestions() {
 
 	# Adguard DNS by default
 	until [[ ${CLIENT_DNS_1} =~ ^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$ ]]; do
-		read -rp "First DNS resolver to use for the clients: " -e -i 1.1.1.1 CLIENT_DNS_1
+		read -rp "First DNS resolver to use for the clients: " -e -i "${CLIENT_DNS_1_DEFAULT}" CLIENT_DNS_1
 	done
 	until [[ ${CLIENT_DNS_2} =~ ^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$ ]]; do
-		read -rp "Second DNS resolver to use for the clients (optional): " -e -i 1.0.0.1 CLIENT_DNS_2
+		read -rp "Second DNS resolver to use for the clients (optional): " -e -i "${CLIENT_DNS_2_DEFAULT}" CLIENT_DNS_2
 		if [[ ${CLIENT_DNS_2} == "" ]]; then
 			CLIENT_DNS_2="${CLIENT_DNS_1}"
 		fi
@@ -173,14 +195,14 @@ function installQuestions() {
 
 	until [[ ${ALLOWED_IPS} =~ ^.+$ ]]; do
 		echo -e "\nWireGuard uses a parameter called AllowedIPs to determine what is routed over the VPN."
-		read -rp "Allowed IPs list for generated clients (leave default to route everything): " -e -i '0.0.0.0/0,::/0' ALLOWED_IPS
+		read -rp "Allowed IPs list for generated clients (leave default to route everything): " -e -i "${ALLOWED_IPS_DEFAULT}" ALLOWED_IPS
 		if [[ ${ALLOWED_IPS} == "" ]]; then
-			ALLOWED_IPS="0.0.0.0/0,::/0"
+			ALLOWED_IPS="${ALLOWED_IPS_DEFAULT}"
 		fi
 	done
 
 	echo ""
-	echo "Okay, that was all I needed. We are ready to setup your WireGuard server now."
+	echo "Okay, that was all I needed. We are ready to setup your WireGuard server for uSipipo now."
 	echo "You will be able to generate a client at the end of the installation."
 	read -n1 -r -p "Press any key to continue..."
 }
@@ -229,9 +251,9 @@ function installWireGuard() {
 	fi
 
 	# Make sure the directory exists (this does not seem the be the case on fedora)
-	mkdir /etc/wireguard >/dev/null 2>&1
+	mkdir -p "${WG_CONFIG_DIR}"
 
-	chmod 600 -R /etc/wireguard/
+	chmod 600 -R "${WG_CONFIG_DIR}/"
 
 	SERVER_PRIV_KEY=$(wg genkey)
 	SERVER_PUB_KEY=$(echo "${SERVER_PRIV_KEY}" | wg pubkey)
@@ -240,26 +262,27 @@ function installWireGuard() {
 	echo "SERVER_PUB_IP=${SERVER_PUB_IP}
 SERVER_PUB_NIC=${SERVER_PUB_NIC}
 SERVER_WG_NIC=${SERVER_WG_NIC}
+WG_SUBNET_BASE=${WG_SUBNET_BASE}
 SERVER_WG_IPV4=${SERVER_WG_IPV4}
-SERVER_WG_IPV6=${SERVER_WG_IPV6}
+SERVER_WG_IPV6=${SERVER_WG_IPV6_INTERNAL}/64 # Almacenar con /64 para conf
 SERVER_PORT=${SERVER_PORT}
 SERVER_PRIV_KEY=${SERVER_PRIV_KEY}
 SERVER_PUB_KEY=${SERVER_PUB_KEY}
 CLIENT_DNS_1=${CLIENT_DNS_1}
 CLIENT_DNS_2=${CLIENT_DNS_2}
-ALLOWED_IPS=${ALLOWED_IPS}" >/etc/wireguard/params
+ALLOWED_IPS=${ALLOWED_IPS}" >"${WG_CONFIG_DIR}/params"
 
 	# Add server interface
 	echo "[Interface]
-Address = ${SERVER_WG_IPV4}/24,${SERVER_WG_IPV6}/64
+Address = ${SERVER_WG_IPV4},${SERVER_WG_IPV6_INTERNAL}/64
 ListenPort = ${SERVER_PORT}
-PrivateKey = ${SERVER_PRIV_KEY}" >"/etc/wireguard/${SERVER_WG_NIC}.conf"
+PrivateKey = ${SERVER_PRIV_KEY}" >"${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf"
 
 	if pgrep firewalld; then
 		FIREWALLD_IPV4_ADDRESS=$(echo "${SERVER_WG_IPV4}" | cut -d"." -f1-3)".0"
-		FIREWALLD_IPV6_ADDRESS=$(echo "${SERVER_WG_IPV6}" | sed 's/:[^:]*$/:0/')
+		FIREWALLD_IPV6_ADDRESS=$(echo "${SERVER_WG_IPV6_INTERNAL}" | sed 's/:[^:]*$/:0/')
 		echo "PostUp = firewall-cmd --zone=public --add-interface=${SERVER_WG_NIC} && firewall-cmd --add-port ${SERVER_PORT}/udp && firewall-cmd --add-rich-rule='rule family=ipv4 source address=${FIREWALLD_IPV4_ADDRESS}/24 masquerade' && firewall-cmd --add-rich-rule='rule family=ipv6 source address=${FIREWALLD_IPV6_ADDRESS}/24 masquerade'
-PostDown = firewall-cmd --zone=public --add-interface=${SERVER_WG_NIC} && firewall-cmd --remove-port ${SERVER_PORT}/udp && firewall-cmd --remove-rich-rule='rule family=ipv4 source address=${FIREWALLD_IPV4_ADDRESS}/24 masquerade' && firewall-cmd --remove-rich-rule='rule family=ipv6 source address=${FIREWALLD_IPV6_ADDRESS}/24 masquerade'" >>"/etc/wireguard/${SERVER_WG_NIC}.conf"
+PostDown = firewall-cmd --zone=public --remove-interface=${SERVER_WG_NIC} && firewall-cmd --remove-port ${SERVER_PORT}/udp && firewall-cmd --remove-rich-rule='rule family=ipv4 source address=${FIREWALLD_IPV4_ADDRESS}/24 masquerade' && firewall-cmd --remove-rich-rule='rule family=ipv6 source address=${FIREWALLD_IPV6_ADDRESS}/24 masquerade'" >>"${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf"
 	else
 		echo "PostUp = iptables -I INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
 PostUp = iptables -I FORWARD -i ${SERVER_PUB_NIC} -o ${SERVER_WG_NIC} -j ACCEPT
@@ -272,7 +295,7 @@ PostDown = iptables -D FORWARD -i ${SERVER_PUB_NIC} -o ${SERVER_WG_NIC} -j ACCEP
 PostDown = iptables -D FORWARD -i ${SERVER_WG_NIC} -j ACCEPT
 PostDown = iptables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
 PostDown = ip6tables -D FORWARD -i ${SERVER_WG_NIC} -j ACCEPT
-PostDown = ip6tables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE" >>"/etc/wireguard/${SERVER_WG_NIC}.conf"
+PostDown = ip6tables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE" >>"${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf"
 	fi
 
 	# Enable routing on the server
@@ -291,6 +314,37 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 		systemctl start "wg-quick@${SERVER_WG_NIC}"
 		systemctl enable "wg-quick@${SERVER_WG_NIC}"
 	fi
+
+	# --- Generación de IPs para la base de datos ---
+	# Crear un archivo con las IPs disponibles para el sistema uSipipo
+	ENV_FILE_WG=".env.wireguard.generated"
+	ENV_FILE_IPS=".env.ips.generated"
+
+	echo "# --- uSipipo WireGuard Server Configuration ---" > "${ENV_FILE_WG}"
+	echo "WG_INTERFACE=\"${SERVER_WG_NIC}\"" >> "${ENV_FILE_WG}"
+	echo "WG_CONFIG_DIR=\"${WG_CONFIG_DIR}\"" >> "${ENV_FILE_WG}"
+	echo "WG_SERVER_PRIV_KEY=\"${SERVER_PRIV_KEY}\"" >> "${ENV_FILE_WG}"
+	echo "WG_SERVER_PUB_KEY=\"${SERVER_PUB_KEY}\"" >> "${ENV_FILE_WG}"
+	echo "WG_SERVER_IP=\"${SERVER_PUB_IP}\"" >> "${ENV_FILE_WG}"
+	echo "WG_PORT=\"${SERVER_PORT}\"" >> "${ENV_FILE_WG}"
+	echo "WG_SUBNET_BASE=\"${WG_SUBNET_BASE}\"" >> "${ENV_FILE_WG}"
+	echo "WG_DNS=\"${CLIENT_DNS_1},${CLIENT_DNS_2}\"" >> "${ENV_FILE_WG}"
+	echo "WG_ALLOWED_IPS=\"${ALLOWED_IPS}\"" >> "${ENV_FILE_WG}"
+	echo "" >> "${ENV_FILE_WG}"
+
+	echo "# --- uSipipo IP Management for WireGuard ---" > "${ENV_FILE_IPS}"
+	for i in $(seq ${TRIAL_IP_START} ${TRIAL_IP_END}); do
+		ip_addr="${WG_SUBNET_BASE}.${i}"
+		echo "WG_TRIAL_IP_${i}=\"${ip_addr}\" # Trial IP ${i}" >> "${ENV_FILE_IPS}"
+	done
+	for i in $(seq ${PAID_IP_START} ${PAID_IP_END}); do
+		ip_addr="${WG_SUBNET_BASE}.${i}"
+		echo "WG_PAID_IP_${i}=\"${ip_addr}\" # Paid IP ${i}" >> "${ENV_FILE_IPS}"
+	done
+	echo "" >> "${ENV_FILE_IPS}"
+	echo "# IP Type Definitions for uSipipo DB (Copy to your Python code)" >> "${ENV_FILE_IPS}"
+	echo "# wg_trial_ips = [\"${WG_SUBNET_BASE}.${TRIAL_IP_START}\" .. \"${WG_SUBNET_BASE}.${TRIAL_IP_END}\"]" >> "${ENV_FILE_IPS}"
+	echo "# wg_paid_ips = [\"${WG_SUBNET_BASE}.${PAID_IP_START}\" .. \"${WG_SUBNET_BASE}.${PAID_IP_END}\"]" >> "${ENV_FILE_IPS}"
 
 	newClient
 	echo -e "${GREEN}If you want to add more clients, you simply need to run this script another time!${NC}"
@@ -321,24 +375,20 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 		fi
 		echo -e "${ORANGE}If you don't have internet connectivity from your client, try to reboot the server.${NC}"
 	fi
+
 	# ==============================================
-	# Mostrar variables WireGuard para uSipipo
+	# Mostrar variables WireGuard y IPs para uSipipo
 	# ==============================================
-	echo -e "${GREEN}
-	------ VARIABLES WIREGUARD PARA TU .env DE USIPIPO ------${NC}"
-	echo ""
-	cat << EOF
-	WG_INTERFACE="${SERVER_WG_NIC}"
-	WG_CONFIG_DIR="/etc/wireguard"
-	SERVER_PUBLIC_KEY="${SERVER_PUB_KEY}"
-	SERVER_ENDPOINT="${SERVER_PUB_IP}:${SERVER_PORT}"
-	WG_SUBNET_PREFIX="$(echo "${SERVER_WG_IPV4}" | cut -d'.' -f1-3)"
-	WG_IP_START=2
-	WG_IP_END=254
-	EOF
-	echo ""
+	echo -e "\n${GREEN}--- VARIABLES WIREGUARD PARA TU .env DE USIPIPO ---${NC}"
+	echo -e "${ORANGE}Archivo de configuración principal:${NC} ${ENV_FILE_WG}"
+	echo -e "${ORANGE}Archivo de IPs generadas:${NC} ${ENV_FILE_IPS}"
 	echo -e "${GREEN}----------------------------------------------------------${NC}"
-	echo -e "¡Copia estas variables de WireGuard a tu archivo .env de uSipipo!
+	echo -e "\n${GREEN}Contenido de ${ENV_FILE_WG}:${NC}"
+	cat "${ENV_FILE_WG}"
+	echo -e "\n${GREEN}Contenido de ${ENV_FILE_IPS}:${NC}"
+	cat "${ENV_FILE_IPS}"
+	echo -e "\n${GREEN}----------------------------------------------------------${NC}"
+	echo -e "¡Copia estas variables a tu archivo .env de uSipipo!
 	"
 }
 
@@ -358,7 +408,7 @@ function newClient() {
 
 	until [[ ${CLIENT_NAME} =~ ^[a-zA-Z0-9_-]+$ && ${CLIENT_EXISTS} == '0' && ${#CLIENT_NAME} -lt 16 ]]; do
 		read -rp "Client name: " -e CLIENT_NAME
-		CLIENT_EXISTS=$(grep -c -E "^### Client ${CLIENT_NAME}\$" "/etc/wireguard/${SERVER_WG_NIC}.conf")
+		CLIENT_EXISTS=$(grep -c -E "^### Client ${CLIENT_NAME}\$" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf")
 
 		if [[ ${CLIENT_EXISTS} != 0 ]]; then
 			echo ""
@@ -367,44 +417,39 @@ function newClient() {
 		fi
 	done
 
-	for DOT_IP in {2..254}; do
-		DOT_EXISTS=$(grep -c "${SERVER_WG_IPV4::-1}${DOT_IP}" "/etc/wireguard/${SERVER_WG_NIC}.conf")
-		if [[ ${DOT_EXISTS} == '0' ]]; then
+	# --- Lógica de Asignación de IP Mejorada ---
+	# Buscar la primera IP disponible en el rango de pagos (PAID_IP_START a PAID_IP_END)
+	CLIENT_WG_IPV4=""
+	for DOT_IP in $(seq ${PAID_IP_START} ${PAID_IP_END}); do
+		IP_CHECK="${WG_SUBNET_BASE}.${DOT_IP}"
+		IP_EXISTS=$(grep -c "${IP_CHECK}/32" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf")
+		if [[ ${IP_EXISTS} == '0' ]]; then
+			CLIENT_WG_IPV4="${IP_CHECK}"
 			break
 		fi
 	done
 
-	if [[ ${DOT_EXISTS} == '1' ]]; then
-		echo ""
-		echo "The subnet configured supports only 253 clients."
+	if [[ -z "${CLIENT_WG_IPV4}" ]]; then
+		echo -e "${RED}No hay IPs disponibles en el rango de pago.${NC}"
 		exit 1
 	fi
 
-	BASE_IP=$(echo "$SERVER_WG_IPV4" | awk -F '.' '{ print $1"."$2"."$3 }')
-	until [[ ${IPV4_EXISTS} == '0' ]]; do
-		read -rp "Client WireGuard IPv4: ${BASE_IP}." -e -i "${DOT_IP}" DOT_IP
-		CLIENT_WG_IPV4="${BASE_IP}.${DOT_IP}"
-		IPV4_EXISTS=$(grep -c "$CLIENT_WG_IPV4/32" "/etc/wireguard/${SERVER_WG_NIC}.conf")
-
-		if [[ ${IPV4_EXISTS} != 0 ]]; then
-			echo ""
-			echo -e "${ORANGE}A client with the specified IPv4 was already created, please choose another IPv4.${NC}"
-			echo ""
+	# Generar IPv6 única (mismo método que el original)
+	BASE_IP=$(echo "$SERVER_WG_IPV6_INTERNAL" | awk -F '::' '{ print $1 }')
+	CLIENT_WG_IPV6=""
+	for HEX_IP in {100..ffff}; do
+		IP_CHECK="${BASE_IP}::${HEX_IP}"
+		IP_EXISTS=$(grep -c "${IP_CHECK}/128" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf")
+		if [[ ${IP_EXISTS} == '0' ]]; then
+			CLIENT_WG_IPV6="${IP_CHECK}"
+			break
 		fi
 	done
 
-	BASE_IP=$(echo "$SERVER_WG_IPV6" | awk -F '::' '{ print $1 }')
-	until [[ ${IPV6_EXISTS} == '0' ]]; do
-		read -rp "Client WireGuard IPv6: ${BASE_IP}::" -e -i "${DOT_IP}" DOT_IP
-		CLIENT_WG_IPV6="${BASE_IP}::${DOT_IP}"
-		IPV6_EXISTS=$(grep -c "${CLIENT_WG_IPV6}/128" "/etc/wireguard/${SERVER_WG_NIC}.conf")
-
-		if [[ ${IPV6_EXISTS} != 0 ]]; then
-			echo ""
-			echo -e "${ORANGE}A client with the specified IPv6 was already created, please choose another IPv6.${NC}"
-			echo ""
-		fi
-	done
+	if [[ -z "${CLIENT_WG_IPV6}" ]]; then
+		echo -e "${RED}No hay IPv6 disponibles.${NC}"
+		exit 1
+	fi
 
 	# Generate key pair for the client
 	CLIENT_PRIV_KEY=$(wg genkey)
@@ -421,7 +466,7 @@ DNS = ${CLIENT_DNS_1},${CLIENT_DNS_2}
 
 # Uncomment the next line to set a custom MTU
 # This might impact performance, so use it only if you know what you are doing
-# See https://github.com/nitred/nr-wg-mtu-finder to find your optimal MTU
+# See https://github.com/nitred/nr-wg-mtu-finder   to find your optimal MTU
 # MTU = 1420
 
 [Peer]
@@ -435,7 +480,7 @@ AllowedIPs = ${ALLOWED_IPS}" >"${HOME_DIR}/${SERVER_WG_NIC}-client-${CLIENT_NAME
 [Peer]
 PublicKey = ${CLIENT_PUB_KEY}
 PresharedKey = ${CLIENT_PRE_SHARED_KEY}
-AllowedIPs = ${CLIENT_WG_IPV4}/32,${CLIENT_WG_IPV6}/128" >>"/etc/wireguard/${SERVER_WG_NIC}.conf"
+AllowedIPs = ${CLIENT_WG_IPV4}/32,${CLIENT_WG_IPV6}/128" >>"${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf"
 
 	wg syncconf "${SERVER_WG_NIC}" <(wg-quick strip "${SERVER_WG_NIC}")
 
@@ -450,18 +495,18 @@ AllowedIPs = ${CLIENT_WG_IPV4}/32,${CLIENT_WG_IPV6}/128" >>"/etc/wireguard/${SER
 }
 
 function listClients() {
-	NUMBER_OF_CLIENTS=$(grep -c -E "^### Client" "/etc/wireguard/${SERVER_WG_NIC}.conf")
+	NUMBER_OF_CLIENTS=$(grep -c -E "^### Client" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf")
 	if [[ ${NUMBER_OF_CLIENTS} -eq 0 ]]; then
 		echo ""
 		echo "You have no existing clients!"
 		exit 1
 	fi
 
-	grep -E "^### Client" "/etc/wireguard/${SERVER_WG_NIC}.conf" | cut -d ' ' -f 3 | nl -s ') '
+	grep -E "^### Client" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf" | cut -d ' ' -f 3 | nl -s ') '
 }
 
 function revokeClient() {
-	NUMBER_OF_CLIENTS=$(grep -c -E "^### Client" "/etc/wireguard/${SERVER_WG_NIC}.conf")
+	NUMBER_OF_CLIENTS=$(grep -c -E "^### Client" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf")
 	if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
 		echo ""
 		echo "You have no existing clients!"
@@ -470,7 +515,7 @@ function revokeClient() {
 
 	echo ""
 	echo "Select the existing client you want to revoke"
-	grep -E "^### Client" "/etc/wireguard/${SERVER_WG_NIC}.conf" | cut -d ' ' -f 3 | nl -s ') '
+	grep -E "^### Client" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf" | cut -d ' ' -f 3 | nl -s ') '
 	until [[ ${CLIENT_NUMBER} -ge 1 && ${CLIENT_NUMBER} -le ${NUMBER_OF_CLIENTS} ]]; do
 		if [[ ${CLIENT_NUMBER} == '1' ]]; then
 			read -rp "Select one client [1]: " CLIENT_NUMBER
@@ -480,10 +525,10 @@ function revokeClient() {
 	done
 
 	# match the selected number to a client name
-	CLIENT_NAME=$(grep -E "^### Client" "/etc/wireguard/${SERVER_WG_NIC}.conf" | cut -d ' ' -f 3 | sed -n "${CLIENT_NUMBER}"p)
+	CLIENT_NAME=$(grep -E "^### Client" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf" | cut -d ' ' -f 3 | sed -n "${CLIENT_NUMBER}"p)
 
 	# remove [Peer] block matching $CLIENT_NAME
-	sed -i "/^### Client ${CLIENT_NAME}\$/,/^$/d" "/etc/wireguard/${SERVER_WG_NIC}.conf"
+	sed -i "/^### Client ${CLIENT_NAME}\$/,/^$/d" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf"
 
 	# remove generated client file
 	HOME_DIR=$(getHomeDirForClient "${CLIENT_NAME}")
@@ -496,7 +541,7 @@ function revokeClient() {
 function uninstallWg() {
 	echo ""
 	echo -e "\n${RED}WARNING: This will uninstall WireGuard and remove all the configuration files!${NC}"
-	echo -e "${ORANGE}Please backup the /etc/wireguard directory if you want to keep your configuration files.\n${NC}"
+	echo -e "${ORANGE}Please backup the ${WG_CONFIG_DIR} directory if you want to keep your configuration files.\n${NC}"
 	read -rp "Do you really want to remove WireGuard? [y/n]: " -e REMOVE
 	REMOVE=${REMOVE:-n}
 	if [[ $REMOVE == 'y' ]]; then
@@ -537,7 +582,7 @@ function uninstallWg() {
 			apk del wireguard-tools libqrencode libqrencode-tools
 		fi
 
-		rm -rf /etc/wireguard
+		rm -rf "${WG_CONFIG_DIR}"
 		rm -f /etc/sysctl.d/wg.conf
 
 		if [[ ${OS} == 'alpine' ]]; then
@@ -565,7 +610,7 @@ function uninstallWg() {
 }
 
 function manageMenu() {
-	echo "Welcome to WireGuard-install!"
+	echo "Welcome to WireGuard-install for uSipipo!"
 	echo "The git repository is available at: https://github.com/angristan/wireguard-install"
 	echo ""
 	echo "It looks like WireGuard is already installed."
@@ -602,8 +647,8 @@ function manageMenu() {
 initialCheck
 
 # Check if WireGuard is already installed and load params
-if [[ -e /etc/wireguard/params ]]; then
-	source /etc/wireguard/params
+if [[ -e ${WG_CONFIG_DIR}/params ]]; then
+	source ${WG_CONFIG_DIR}/params
 	manageMenu
 else
 	installWireGuard

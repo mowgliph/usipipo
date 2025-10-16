@@ -19,7 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.mysql import CHAR, JSON as MYSQL_JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database.db import Base  # declarative base creado para uso async (SQLAlchemy 2.x + AsyncEngine)
+from database.db import Base
 
 
 def gen_uuid_str() -> str:
