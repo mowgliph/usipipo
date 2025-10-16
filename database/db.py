@@ -15,13 +15,16 @@ from sqlalchemy.orm import DeclarativeBase
 logger = logging.getLogger("usipipo")
 
 # Configuración desde entorno
-# DATABASE_ASYNC_URL debe usar el driver async de Python para MariaDB:
+# DATABASE_ASYNC_URL debe usar el driver async de Python para MariaDB/MySQL:
 # - recomendado: mysql+asyncmy://user:pass@host:port/dbname
 # - alternativa: mysql+aiomysql://user:pass@host:port/dbname
 DATABASE_ASYNC_URL = os.getenv("DATABASE_ASYNC_URL")
-DATABASE_SYNC_URL = os.getenv("DATABASE_SYNC_URL")  # opcional, usado para migraciones/CLI
 
-# Parámetros por defecto y flags
+if not DATABASE_ASYNC_URL:
+    logger.error("DATABASE_ASYNC_URL no está definido en el entorno.", extra={"user_id": None})
+    raise RuntimeError("Falta la variable DATABASE_ASYNC_URL en el entorno.")
+
+# Parámetros por defecto y flags para el pool y la conexión
 POOL_PRE_PING = os.getenv("DB_POOL_PRE_PING", "true").lower() in ("1", "true", "yes")
 ECHO_SQL = os.getenv("DB_ECHO_SQL", "false").lower() in ("1", "true", "yes")
 MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
@@ -33,26 +36,23 @@ POOL_CLASS_ENV = os.getenv("DB_POOL_CLASS", "").strip().lower()  # "null" -> Nul
 class Base(DeclarativeBase):
     pass
 
-if not DATABASE_ASYNC_URL:
-    logger.error("DATABASE_ASYNC_URL no está definido en el entorno.", extra={"user_id": None})
-    raise RuntimeError("Missing DATABASE_ASYNC_URL")
-
 # Validar driver async compatible para MariaDB/MySQL
 SUPPORTED_DRIVERS = ("asyncmy", "aiomysql")
-def _extract_driver(url: str) -> str | None:
-    # Espera esquemas como: dialect+driver://...
+
+def _extract_driver(url: str) -> Optional[str]:
+    """Extrae el nombre del driver de la URL de conexión."""
     try:
         prefix = url.split("://", 1)[0]
         if "+" in prefix:
             return prefix.split("+", 1)[1]
-        # si no hay driver explícito, devolver None
+        # Si no hay driver explícito, devolver None
         return None
     except Exception:
         return None
 
-driver = _extract_driver(DATABASE_ASYNC_URL) or ""
-if not any(d in driver for d in SUPPORTED_DRIVERS):
-    # permitir el caso donde el usuario no especificó driver: advertir
+driver = _extract_driver(DATABASE_ASYNC_URL)
+if not driver or not any(d in driver for d in SUPPORTED_DRIVERS):
+    # Advertir si el driver no es uno de los recomendados
     logger.warning(
         "El driver async no parece ser uno de los recomendados (%s). Se detectó: %s. Intentando continuar.",
         SUPPORTED_DRIVERS,
@@ -88,7 +88,8 @@ else:
     )
 
 logger.info(
-    "Creando AsyncEngine (driver async recomendado: asyncmy/aiomysql).",
+    "Creando AsyncEngine (driver async recomendado: %s).",
+    " o ".join(SUPPORTED_DRIVERS),
     extra={"user_id": None},
 )
 
@@ -97,7 +98,6 @@ try:
     async_engine: AsyncEngine = create_async_engine(
         DATABASE_ASYNC_URL,
         echo=ECHO_SQL,
-        future=True,
         connect_args=connect_args,
         **pool_kwargs,
     )
@@ -166,7 +166,7 @@ async def init_db(create: bool = True) -> None:
 
 # Utilidad opcional para obtener la URL sync (para herramientas que no soportan async)
 def get_sync_database_url() -> Optional[str]:
-    return DATABASE_SYNC_URL
+    return os.getenv("DATABASE_SYNC_URL") # Usar os.getenv directamente en lugar de variable global
 
 __all__ = [
     "Base",
@@ -175,4 +175,6 @@ __all__ = [
     "get_session",
     "init_db",
     "get_sync_database_url",
+    "test_connection",
+    "close_engine",
 ]

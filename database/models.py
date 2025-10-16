@@ -15,6 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     Float,
     Integer,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import CHAR, JSON as MYSQL_JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,6 +31,7 @@ def gen_uuid_str() -> str:
 VPN_TYPES = ("outline", "wireguard", "none")
 VPN_STATUSES = ("active", "revoked", "expired", "pending")
 PAYMENT_STATUSES = ("pending", "paid", "failed")
+IP_TYPES = ("wireguard_trial", "outline_trial", "wireguard_paid", "outline_paid") # Añadido para IPManager
 
 
 class User(Base):
@@ -52,6 +54,7 @@ class User(Base):
     roles: Mapped[List["UserRole"]] = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", foreign_keys="[UserRole.user_id]")
     payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="user", cascade="all, delete-orphan")
     logs: Mapped[List["AuditLog"]] = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
+    assigned_ips: Mapped[List["IPManager"]] = relationship("IPManager", back_populates="user", cascade="all, delete-orphan", foreign_keys="[IPManager.assigned_to_user_id]") # Relación con IPManager
 
 
 Index("ix_users_email", User.email)
@@ -101,6 +104,30 @@ class VPNConfig(Base):
     __table_args__ = (
         CheckConstraint(f"vpn_type IN {VPN_TYPES}", name="ck_vpnconfigs_vpn_type"),
         CheckConstraint(f"status IN {VPN_STATUSES}", name="ck_vpnconfigs_status"),
+    )
+
+
+class IPManager(Base):
+    """
+    Gestiona IPs disponibles/ocupadas para VPNs (trial y pago)
+    """
+    __tablename__ = "ip_manager"
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=gen_uuid_str)
+    ip_address: Mapped[str] = mapped_column(String(45), unique=True, nullable=False)  # IPv4 o IPv6
+    ip_type: Mapped[str] = mapped_column(String(20), nullable=False)  # wireguard_trial, outline_trial, etc.
+    assigned_to_user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    extra_data: Mapped[Optional[Dict]] = mapped_column(MYSQL_JSON, nullable=True)
+
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="assigned_ips")
+
+    __table_args__ = (
+        CheckConstraint(f"ip_type IN {IP_TYPES}", name="ck_ip_manager_ip_type"),
+        Index("ix_ip_manager_type_available", "ip_type", "is_available"),
     )
 
 
@@ -156,6 +183,7 @@ __all__ = [
     "UserSetting",
     "AuditLog",
     "VPNConfig",
+    "IPManager", # Añadido a __all__
     "Role",
     "UserRole",
     "Payment",
