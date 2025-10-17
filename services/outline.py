@@ -90,6 +90,7 @@ async def create_access(
     session: AsyncSession,
     user_id: str,
     duration_months: int = DEFAULT_DURATION_MONTHS,
+    commit: bool = False,
 ) -> Dict[str, Any]:
     """
     Crea un access key en Outline y registra el record en la DB (sin commit).
@@ -117,18 +118,18 @@ async def create_access(
         expires_at=expires_at,
         extra_data=extra,
         is_trial=False,
-        commit=False,
+        commit=commit,
     )
 
     return {"config_data": access_url, "extra_data": extra, "vpn_obj": vpn_obj}
 
 
-async def revoke_access(session: AsyncSession, vpn_id: str) -> Optional[models.VPNConfig]:
+async def revoke_access(session: AsyncSession, vpn_id: str, commit: bool = False) -> Optional[models.VPNConfig]:
     """
     Revoca un access key en Outline (si existe) y marca el registro como revoked (commit controlado por caller).
     """
     vpn_entry = await crud_vpn.get_vpn_config(session, vpn_id)
-    if not vpn_entry or vpn_entry.vpntype != "outline":
+    if not vpn_entry or vpn_entry.vpn_type != "outline":
         return None
 
     access_id = (vpn_entry.extra_data or {}).get("id")
@@ -139,13 +140,13 @@ async def revoke_access(session: AsyncSession, vpn_id: str) -> Optional[models.V
             logger.exception("failed_revoke_outline_remote", extra={"user_id": getattr(vpn_entry, "user_id", None)})
             raise RuntimeError(f"No se pudo revocar el acceso en Outline: {e}") from e
 
-    updated = await crud_vpn.update_vpn_status(session, vpn_id, "revoked", commit=False)
+    updated = await crud_vpn.update_vpn_status(session, vpn_id, "revoked", commit=commit)
     return updated
 
 
-async def list_user_accesses(session: AsyncSession, user_id: int) -> List[models.VPNConfig]:
+async def list_user_accesses(session: AsyncSession, user_id: str) -> List[models.VPNConfig]:
     """
     Lista accesos Outline de un usuario consultando CRUD asíncrono.
     """
-    all_configs = await crud_vpn.get_vpn_configs_for_user(session, str(user_id))
+    all_configs = await crud_vpn.get_vpn_configs_for_user(session, user_id)
     return [v for v in all_configs if v.vpn_type == "outline"]

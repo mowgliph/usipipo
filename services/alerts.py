@@ -5,14 +5,22 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 import logging
 import asyncio
 from telegram import Bot
 from telegram.error import TelegramError
+from telegram.ext import ContextTypes
 
 from database import models
 from database.crud import logs as crud_logs, vpn as crud_vpn, users as crud_users
 from utils import helpers
+
+from typing import List
+from config.superadmins import SUPERADMINS
+from services.status import get_status_metrics
+from database.crud.logs import get_audit_logs
+from database.db import AsyncSessionLocal
 
 logger = logging.getLogger("usipipo.alerts")
 
@@ -126,12 +134,14 @@ async def get_expiring_vpns(
     - Usa AsyncSession.
     - Soporta paginación (limit, offset).
     - Evita alertas repetidas con extra_data['alerted'].
+    - Carga la relación user con joinedload para evitar N+1 queries.
     """
     try:
         now = datetime.now(tz=timezone.utc)
         limit_time = now + timedelta(hours=hours)
         stmt = (
             select(models.VPNConfig)
+            .options(joinedload(models.VPNConfig.user))
             .where(
                 models.VPNConfig.status == "active",
                 models.VPNConfig.expires_at.isnot(None),
@@ -142,7 +152,7 @@ async def get_expiring_vpns(
             .offset(offset)
         )
         result = await session.execute(stmt)
-        vpns = result.scalars().all()
+        vpns = result.scalars().unique().all()
 
         for vpn in vpns:
             await crud_logs.create_audit_log(
@@ -175,11 +185,13 @@ async def get_expired_vpns(
     Devuelve VPNs activas ya expiradas.
     - Usa AsyncSession.
     - Soporta paginación.
+    - Carga la relación user con joinedload para evitar N+1 queries.
     """
     try:
         now = datetime.now(tz=timezone.utc)
         stmt = (
             select(models.VPNConfig)
+            .options(joinedload(models.VPNConfig.user))
             .where(
                 models.VPNConfig.status == "active",
                 models.VPNConfig.expires_at.isnot(None),
@@ -189,7 +201,7 @@ async def get_expired_vpns(
             .offset(offset)
         )
         result = await session.execute(stmt)
-        vpns = result.scalars().all()
+        vpns = result.scalars().unique().all()
 
         for vpn in vpns:
             await crud_logs.create_audit_log(
@@ -216,11 +228,15 @@ async def send_expiration_alerts(
     Envía alertas a usuarios con VPNs próximas a expirar.
     - Usa format_expiration_message de helpers.
     - Registra logs y notifica admins en errores.
+    - Usa vpn.user.telegram_id como chat_id (ya que user_id es UUID string).
     """
     try:
         vpns = await get_expiring_vpns(session, hours=hours, limit=limit)
         for vpn in vpns:
-            chat_id = vpn.user_id
+            if not vpn.user:
+                logger.warning("VPN sin usuario relacionado", extra={"user_id": vpn.user_id, "vpn_id": vpn.id})
+                continue
+            chat_id = vpn.user.telegram_id
             msg = await helpers.format_expiration_message(vpn)
             try:
                 await bot.send_message(
@@ -253,3 +269,56 @@ async def send_expiration_alerts(
     except Exception as e:
         logger.exception("Error enviando alertas de expiración", extra={"user_id": None})
         raise
+
+
+# -------------------------
+# Notificaciones del sistema
+# -------------------------
+
+async def format_status_message(metrics: dict, logs: List) -> str:
+    """Formatea el mensaje de status diario con métricas y logs."""
+    message = "📊 **Status Diario del Sistema**\n\n"
+    message += f"👥 Usuarios totales: {metrics['total_users']}\n"
+    message += f"🔒 VPN WireGuard: {metrics['total_wireguard']}\n"
+    message += f"🌐 VPN Outline: {metrics['total_outline']}\n"
+    message += f"📈 Bandwidth total: {metrics['total_bandwidth']} GB\n"
+    message += f"⏱️ Uptime: {metrics['uptime']}\n"
+    message += f"🗄️ DB Status: {metrics['db_status']}\n\n"
+    message += "📝 **Últimos 5 Logs de Auditoría:**\n"
+
+    if logs:
+        for log in logs:
+            user_info = f"@{log.user.username}" if log.user else "Sistema"
+            action = log.action.replace('_', ' ').title()
+            timestamp = log.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+            message += f"• {timestamp} - {user_info}: {action}\n"
+    else:
+        message += "No hay logs recientes.\n"
+
+    return message
+
+
+async def send_daily_status_notification(bot: Bot = None, context: ContextTypes.DEFAULT_TYPE = None) -> None:
+    """
+    Envía notificación de status diario a superadmins.
+    Puede ser llamado con bot (para reinicio) o context (para jobs).
+    """
+    try:
+        if context:
+            bot = context.bot
+
+        async with AsyncSessionLocal() as session:
+            metrics = await get_status_metrics(session)
+            logs = await get_audit_logs(session, limit=5)
+
+            message = await format_status_message(metrics, logs)
+
+            for admin_id in SUPERADMINS:
+                try:
+                    await bot.send_message(chat_id=admin_id, text=message, parse_mode='Markdown')
+                    logger.info("Notificación diaria enviada", extra={"admin_id": admin_id})
+                except Exception as e:
+                    logger.error("Error enviando notificación a superadmin", extra={"admin_id": admin_id, "error": str(e)})
+
+    except Exception as e:
+        logger.exception("Error en send_daily_status_notification")

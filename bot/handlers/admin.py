@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_users
 from services import admin as admin_service, user as user_service, vpn as vpn_service, roles as role_service
-from services.audit import audit_service, format_logs
+from services.audit import get_audit_logs, format_logs
 from utils.helpers import log_and_notify, log_error_and_notify, safe_chat_id_from_update, send_usage_error
 from utils.permissions import require_superadmin
 
@@ -388,13 +388,7 @@ async def audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     async with get_session() as session:
         try:
-            # audit_service (compat) administra su propia sesión internamente
-            result = await audit_service.get_logs(limit=limit, offset=0)
-            if not result["ok"]:
-                await update.message.reply_html(f"❌ Error al obtener logs: {result['message']}")
-                return
-
-            logs = result["data"]["items"]
+            logs = await get_audit_logs(session=session, limit=limit, offset=0)
             if not logs:
                 text = "No hay logs de auditoría."
             else:

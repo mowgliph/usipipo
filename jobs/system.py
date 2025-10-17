@@ -7,8 +7,8 @@ import logging
 from telegram.ext import ContextTypes
 
 from config.config import BOT_VERSION
-from database.db import get_session
-from services.audit import audit_service
+from database.db import AsyncSessionLocal
+from services.audit import log_action_auto_session
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,8 @@ async def ping_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(msg, extra={"user_id": None})
 
     # Log explícito en audit_logs (async)
-    async with get_session() as session:
-        await audit_service.log_action(
-            user_id=None,
-            action="system_ping",
-            details=msg,
-            session=session,
-        )
+    await log_action_auto_session(
+        user_id=None,
+        action="system_ping",
+        payload={"message": msg},
+    )

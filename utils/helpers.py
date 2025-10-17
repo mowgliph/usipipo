@@ -1,7 +1,7 @@
 # utils/helpers.py
 
 from __future__ import annotations
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 import traceback
 import logging
 import html
@@ -85,7 +85,7 @@ async def log_and_notify(
     if session is not None:
         try:
             payload = {"details": details, "timestamp": datetime.now(timezone.utc).isoformat()}
-            await crud_logs.create_audit_log(session=session, user_id=user_id, action=action, details=details, payload=payload, commit=False)
+            await crud_logs.create_audit_log(session=session, user_id=user_id, action=action, payload=payload, commit=False)
         except Exception:
             logger.exception("audit_log_failed", extra={"user_id": user_id})
 
@@ -124,6 +124,7 @@ async def log_error_and_notify(
     details = f"{str(error)}\n{tb}"
     truncated = details if len(details) <= 2000 else details[:2000] + " ... [truncated]"
     payload = {
+        "details": details,
         "error": str(error),
         "trace": truncated,
         "timestamp": datetime.now(timezone.utc).isoformat()
@@ -132,7 +133,7 @@ async def log_error_and_notify(
     # 1) Audit DB
     if session is not None:
         try:
-            await crud_logs.create_audit_log(session=session, user_id=user_id, action=f"{action}_error", details=details, payload=payload, commit=False)
+            await crud_logs.create_audit_log(session=session, user_id=user_id, action=f"{action}_error", payload=payload, commit=False)
         except Exception:
             logger.exception("audit_log_failed_on_error", extra={"user_id": user_id})
 
@@ -179,7 +180,7 @@ async def notify_admins(
                 "admin_count": len(admins),
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-            await crud_logs.create_audit_log(session=session, user_id=None, action=action, details=details or message, payload=payload, commit=False)
+            await crud_logs.create_audit_log(session=session, user_id=None, action=action, payload=payload, commit=False)
         except Exception:
             logger.exception("audit_log_failed_on_notify_admins", extra={"user_id": None})
 

@@ -22,8 +22,7 @@ async def list_users_paginated(
     limit: int = 50,
     offset: int = 0,
 ) -> List[models.User]:
-    stmt_users = await crud_users.list_users(session, limit=limit)
-    return stmt_users
+    return await crud_users.list_users(session, limit=limit)
 
 async def get_user_details(
     session: AsyncSession,

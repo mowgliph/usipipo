@@ -32,6 +32,7 @@ VPN_TYPES = ("outline", "wireguard", "none")
 VPN_STATUSES = ("active", "revoked", "expired", "pending")
 PAYMENT_STATUSES = ("pending", "paid", "failed")
 IP_TYPES = ("wireguard_trial", "outline_trial", "wireguard_paid", "outline_paid") # Añadido para IPManager
+PROXY_STATUSES = ("active", "revoked", "expired")
 
 
 class User(Base):
@@ -54,6 +55,7 @@ class User(Base):
     payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="user", cascade="all, delete-orphan")
     logs: Mapped[List["AuditLog"]] = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     assigned_ips: Mapped[List["IPManager"]] = relationship("IPManager", back_populates="user", cascade="all, delete-orphan", foreign_keys="[IPManager.assigned_to_user_id]") # Relación con IPManager
+    mtproto_proxies: Mapped[List["MTProtoProxy"]] = relationship("MTProtoProxy", back_populates="user", cascade="all, delete-orphan")
 
 
 
@@ -176,6 +178,31 @@ class Payment(Base):
     )
 
 
+class MTProtoProxy(Base):
+    """
+    Gestiona proxies MTProto para Telegram.
+    """
+    __tablename__ = "mtproto_proxies"
+
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=gen_uuid_str)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    host: Mapped[str] = mapped_column(String(45), nullable=False)  # IPv4 o IPv6
+    port: Mapped[int] = mapped_column(Integer, nullable=False)
+    secret: Mapped[str] = mapped_column(String(64), nullable=False)
+    tag: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # Para registro con @MTProxybot
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    extra_data: Mapped[Optional[Dict]] = mapped_column(MYSQL_JSON, nullable=True)
+
+    user: Mapped["User"] = relationship("User", back_populates="mtproto_proxies")
+
+    __table_args__ = (
+        CheckConstraint(f"status IN {PROXY_STATUSES}", name="ck_mtproto_proxies_status"),
+        Index("ix_mtproto_proxies_user_status", "user_id", "status"),
+    )
+
+
 __all__ = [
     "User",
     "UserSetting",
@@ -185,4 +212,5 @@ __all__ = [
     "Role",
     "UserRole",
     "Payment",
+    "MTProtoProxy",
 ]

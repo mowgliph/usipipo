@@ -16,6 +16,7 @@ from bot.handlers.vpn import register_vpn_handlers
 from bot.handlers.register import register_command
 from bot.handlers.start import start_command
 from bot.handlers.ms import ms_handler
+from bot.handlers.proxy import proxy_command
 
 
 def register_handlers(app: Application):
@@ -41,3 +42,8 @@ def register_handlers(app: Application):
     app.add_handler(CommandHandler("whois", whois_command))
     app.add_handler(CommandHandler("register", register_command))
     register_vpn_handlers(app)
+
+    # --------------------------
+    # Proxy MTProto
+    # --------------------------
+    app.add_handler(CommandHandler("proxy", proxy_command))

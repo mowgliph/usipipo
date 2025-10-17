@@ -3,10 +3,10 @@
 from __future__ import annotations
 from telegram.ext import ContextTypes
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from database.crud import logs as crud_logs, vpn as crud_vpn, users as crud_users
 from services import wireguard as wireguard_service, outline as outline_service
 from utils.helpers import notify_admins
@@ -27,7 +27,7 @@ async def maintenance_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     async with get_session() as session:
         try:
             # 1. Eliminar logs antiguos
-            cutoff = datetime.utcnow() - timedelta(days=30)
+            cutoff = datetime.now(tz=timezone.utc) - timedelta(days=30)
             deleted_logs = await crud_logs.delete_old_logs(session, cutoff)
             logger.info(f"[Maintenance] Logs eliminados: {deleted_logs}", extra={"user_id": None})
 
@@ -47,8 +47,7 @@ async def maintenance_job(context: ContextTypes.DEFAULT_TYPE) -> None:
                         session=session,
                         user_id=vpn.user_id,
                         action="trial_revoked",
-                        details=f"Trial {vpn.id} expirado y revocado",
-                        payload={"vpn_id": vpn.id, "vpn_type": vpn.vpn_type},
+                        payload={"details": f"Trial {vpn.id} expirado y revocado", "vpn_id": vpn.id, "vpn_type": vpn.vpn_type},
                         commit=False,
                     )
                     revoked_trials += 1
@@ -59,8 +58,7 @@ async def maintenance_job(context: ContextTypes.DEFAULT_TYPE) -> None:
                         session=session,
                         user_id=vpn.user_id,
                         action="trial_revoke_failed",
-                        details=f"Error al revocar trial {vpn.id}: {str(e)}",
-                        payload={"vpn_id": vpn.id, "vpn_type": vpn.vpn_type},
+                        payload={"details": f"Error al revocar trial {vpn.id}: {str(e)}", "vpn_id": vpn.id, "vpn_type": vpn.vpn_type},
                         commit=False,
                     )
                     logger.error(f"[Maintenance] Error revocando trial {vpn.id}: {e}", extra={"user_id": vpn.user_id, "vpn_id": vpn.id})
@@ -74,7 +72,7 @@ async def maintenance_job(context: ContextTypes.DEFAULT_TYPE) -> None:
                     f"🧹 <b>Mantenimiento completado</b>\n\n"
                     f"🗑️ Logs eliminados: <b>{deleted_logs}</b>\n"
                     f"❌ Trials revocados: <b>{revoked_trials}</b>\n"
-                    f"⏱️ Fecha: <code>{datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</code>"
+                    f"⏱️ Fecha: <code>{datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</code>"
                 )
                 await notify_admins(
                     session=session,
@@ -89,8 +87,7 @@ async def maintenance_job(context: ContextTypes.DEFAULT_TYPE) -> None:
                     session=session,
                     user_id=None,
                     action="maintenance_no_changes",
-                    details="No se eliminaron logs ni se revocaron trials",
-                    payload={},
+                    payload={"details": "No se eliminaron logs ni se revocaron trials"},
                     commit=False,
                 )
                 logger.info("[Maintenance] No hubo cambios en esta ejecución.", extra={"user_id": None})
@@ -101,8 +98,7 @@ async def maintenance_job(context: ContextTypes.DEFAULT_TYPE) -> None:
                 session=session,
                 user_id=None,
                 action="maintenance_error",
-                details=f"Error general en mantenimiento: {str(e)}",
-                payload={},
+                payload={"details": f"Error general en mantenimiento: {str(e)}"},
                 commit=False,
             )
             await session.rollback()

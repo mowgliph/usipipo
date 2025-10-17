@@ -3,10 +3,13 @@
 from __future__ import annotations
 from telegram.ext import ContextTypes
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
 
 from database.db import AsyncSessionLocal as get_session
 from services import alerts as alerts_service
 from utils.helpers import log_and_notify, log_error_and_notify, notify_admins
+
+logger = logging.getLogger("usipipo.alerts")
 
 async def expiration_alerts_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     """

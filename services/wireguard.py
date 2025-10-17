@@ -130,7 +130,7 @@ async def _atomic_write_text(path: str, text: str, encoding: str = "utf-8") -> N
 
 async def create_peer(
     session: AsyncSession,
-    user_id: int,
+    user_id: str,
     duration_months: int = 1,
     dns: str = "1.1.1.1",
     config_name: Optional[str] = None,
@@ -172,7 +172,7 @@ async def create_peer(
     )
 
     # 2. Escribir archivo .conf de forma atómica (si falla no hemos tocado el servidor ni la DB)
-    conf_path = os.path.join(WG_CONFIG_DIR, f"{config_name}.conf")
+    conf_path = os.path.join(WG_CONFIG_DIR or "", f"{config_name}.conf")
     try:
         await _atomic_write_text(conf_path, config_data)
     except Exception as e:
@@ -196,7 +196,6 @@ async def create_peer(
         expires_at=expires_at,
         extra_data=extra,
         is_trial=False,
-        status="creating",
         commit=commit,
     )
 
@@ -207,14 +206,18 @@ async def create_peer(
         logger.exception("failed_add_wg_peer", extra={"user_id": user_id})
         try:
             # Intento de marcar DB como inconsistent/error (no commit automatico si commit=False)
-            await crud_vpn.update_vpn_status(session, getattr(vpn_obj, "id", None), "error", commit=commit)
+            if vpn_obj and vpn_obj.id:
+                await crud_vpn.update_vpn_status(session, vpn_obj.id, "error", commit=commit)
         except Exception:
             logger.exception("failed_mark_vpn_error", extra={"user_id": user_id})
         raise RuntimeError(f"Failed to add peer to WireGuard interface: {e}")
 
     # 5. Actualizar registro a 'active'
     try:
-        updated = await crud_vpn.update_vpn_status(session, getattr(vpn_obj, "id", None), "active", commit=commit)
+        if vpn_obj and vpn_obj.id:
+            updated = await crud_vpn.update_vpn_status(session, vpn_obj.id, "active", commit=commit)
+        else:
+            updated = vpn_obj
     except Exception:
         logger.exception("failed_update_status_active", extra={"user_id": user_id})
         # No propagamos aquí, pero devolvemos vpn_obj tal como esté
@@ -224,14 +227,14 @@ async def create_peer(
     return {"config_data": config_data, "extra_data": extra, "vpn": updated}
 
 
-async def revoke_peer(session: AsyncSession, vpn_id: int, commit: bool = False) -> Optional[models.VPNConfig]:
+async def revoke_peer(session: AsyncSession, vpn_id: str, commit: bool = False) -> Optional[models.VPNConfig]:
     """
     Revoca un peer: remueve del servidor y actualiza estado en DB.
     - Si no existe o no es wireguard devuelve None.
     - commit controla si se hace commit al actualizar la DB.
     """
     vpn_entry = await crud_vpn.get_vpn_config(session, vpn_id)
-    if not vpn_entry or getattr(vpn_entry, "vpntype", None) != "wireguard":
+    if not vpn_entry or getattr(vpn_entry, "vpn_type", None) != "wireguard":
         return None
 
     public_key = (getattr(vpn_entry, "extra_data", {}) or {}).get("public_key")
@@ -246,12 +249,12 @@ async def revoke_peer(session: AsyncSession, vpn_id: int, commit: bool = False) 
     return updated
 
 
-async def list_user_peers(session: AsyncSession, user_id: int) -> List[models.VPNConfig]:
+async def list_user_peers(session: AsyncSession, user_id: str) -> List[models.VPNConfig]:
     """
     Lista todos los peers activos de un usuario consultando el CRUD asíncrono.
     """
-    all_configs = await crud_vpn.get_vpn_configs(session, user_id)
-    return [v for v in all_configs if getattr(v, "status", None) == "active" and getattr(v, "vpntype", None) == "wireguard"]
+    all_configs = await crud_vpn.get_vpn_configs_for_user(session, user_id)
+    return [v for v in all_configs if getattr(v, "status", None) == "active" and getattr(v, "vpn_type", None) == "wireguard"]
 
 
 async def generate_qr(config_data: str) -> bytes:

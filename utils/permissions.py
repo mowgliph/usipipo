@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 import logging
 import os
 
-from database.db import get_session
+from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_users
 from utils.helpers import log_and_notify, log_error_and_notify, safe_chat_id_from_update, send_permission_error, send_generic_error
 from config import superadmins as config_superadmins

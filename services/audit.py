@@ -116,7 +116,8 @@ async def delete_logs_older_than(
     user_id: Optional[str] = None,
     commit: bool = True,
 ) -> int:
-    cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+    from datetime import timezone
+    cutoff_date = datetime.now(tz=timezone.utc) - timedelta(days=days_old)
     return await delete_old_logs(session=session, cutoff=cutoff_date, user_id=user_id, commit=commit)
 
 

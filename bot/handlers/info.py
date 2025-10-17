@@ -1,6 +1,10 @@
 # bot/handlers/info.py
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database.db import AsyncSessionLocal
+from database.crud import users as crud_users
 from utils.helpers import log_and_notify, log_error_and_notify, safe_chat_id_from_update
 
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -11,6 +15,16 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     tg_user = update.effective_user
     bot = context.bot
     chat_id = safe_chat_id_from_update(update)
+
+    # Obtener o crear usuario con sesión async
+    async with AsyncSessionLocal() as session:
+        user = await crud_users.ensure_user(session, {
+            "id": tg_user.id,
+            "username": tg_user.username,
+            "first_name": tg_user.first_name,
+            "last_name": tg_user.last_name,
+        }, commit=False)
+        user_id = user.id  # UUID string
 
     info_msg = (
         f"ℹ️ Información de uSipipo\n\n"
@@ -32,12 +46,12 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     try:
-        # Registrar auditoría / log (no enviar desde helpers para añadir botones)
+        # Registrar auditoría / log con sesión y user_id correcto
         await log_and_notify(
-            None,
-            None,
-            None,
-            None,
+            session,
+            bot,
+            chat_id,
+            user_id,
             "command_info",
             "Usuario ejecutó /info",
             info_msg,
@@ -48,10 +62,10 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     except Exception as e:
         await log_error_and_notify(
-            None,
+            session,
             bot,
             chat_id,
-            None,
+            user_id,
             "command_info",
             e,
             public_message="Ha ocurrido un error mostrando la información. Intenta más tarde.",

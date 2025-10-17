@@ -136,4 +136,51 @@ async def get_user_telegram_info(session: AsyncSession, tg_user: TelegramUser) -
         return text
     except Exception as e:
         logger.exception("Error en get_user_telegram_info", extra={"tg_id": tg_user.id})
+        return "Error obteniendo información de Telegram."
+async def get_help_message(session: AsyncSession, user_id: Optional[str]) -> str:
+    """
+    Genera el mensaje de ayuda según el rol del usuario.
+    Devuelve el mensaje formateado en HTML.
+    """
+    try:
+        # Verificar si es admin o superadmin
+        is_admin = await crud_users.is_user_admin(session, user_id) if user_id else False
+        is_superadmin = await crud_users.is_user_superadmin(session, user_id) if user_id else False
+
+        # Base para todos los usuarios
+        help_msg = (
+            "📖 <b>Comandos disponibles en uSipipo Bot:</b>\n\n"
+            "👤 <b>Usuarios</b>\n"
+            "  • /start – Iniciar el bot y ver bienvenida\n"
+            "  • /register – Registrarte en la base de datos\n"
+            "  • /help – Mostrar este menú de ayuda\n"
+            "  • /myid – Ver tu ID de Telegram\n"
+            "  • /profile – Ver tu perfil\n"
+            "  • /whois &lt;@usuario|id&gt; – Consultar perfil de otro usuario\n\n"
+            "🌐 <b>VPN</b>\n"
+            "  • /trialvpn &lt;wireguard|outline&gt; – Solicitar un VPN de prueba (7 días)\n"
+            "  • /newvpn &lt;wireguard|outline&gt; &lt;meses&gt; – Crear nueva VPN\n"
+            "  • /myvpns – Listar tus configuraciones VPN\n"
+            "  • /revokevpn &lt;id&gt; – Revocar una configuración VPN\n"
+        )
+
+        # Extensión para admins/superadmins
+        if is_admin or is_superadmin:
+            help_msg += (
+                "\n🛠️ <b>Administración</b>\n"
+                "  • /status – Ver estado del bot\n"
+                "  • /logs – Ver acciones recientes\n"
+                "  • /mylogs – Ver tus acciones registradas\n"
+                "  • /promote &lt;id&gt; – Asignar admin\n"
+                "  • /demote &lt;id&gt; – Quitar admin\n"
+                "  • /setsuper &lt;id&gt; – Asignar superadmin\n"
+                "  • /listadmins – Listar administradores\n"
+                "  • /grantrole &lt;id&gt; &lt;rol&gt; – Asignar rol\n"
+                "  • /revokerole &lt;id&gt; &lt;rol&gt; – Revocar rol\n"
+            )
+
+        return help_msg
+    except Exception as e:
+        logger.exception("Error generando mensaje de ayuda", extra={"user_id": user_id})
+        raise
         raise

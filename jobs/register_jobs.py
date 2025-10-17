@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from jobs.system import ping_job
 from jobs.maintenance import maintenance_job
 from bot.handlers.alerts import expiration_alerts_job
+from services.alerts import send_daily_status_notification
 
 def register_jobs(app: Application) -> None:
     """
@@ -22,6 +23,13 @@ def register_jobs(app: Application) -> None:
     # Job diario para alertas de expiración a las 9 AM UTC
     app.job_queue.run_daily(
         callback=expiration_alerts_job,
-        time=datetime.time(hour=9, minute=0, tzinfo=ZoneInfo("UTC")),
+        time=datetime.time(9, 0, tzinfo=ZoneInfo("UTC")),
+        days=(0, 1, 2, 3, 4, 5, 6),
+    )
+
+    # Job diario para notificaciones de status a superadmins a medianoche UTC
+    app.job_queue.run_daily(
+        callback=send_daily_status_notification,
+        time=datetime.time(0, 0, tzinfo=ZoneInfo("UTC")),
         days=(0, 1, 2, 3, 4, 5, 6),
     )
