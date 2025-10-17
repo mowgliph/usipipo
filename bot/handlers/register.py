@@ -5,17 +5,16 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.database import crud_users
-from bot.handlers.helpers import log_and_notify, log_error_and_notify
-from bot.services.register import register_user
-from bot.config import is_superadmin_tg
-from bot.services.exceptions import RegistrationError
+from database.db import get_session
+from database.crud import users as crud_users
+from utils.helpers import log_and_notify, log_error_and_notify
+from config import superadmins as config_superadmins
 import asyncio
 
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     /register handler asíncrono.
-    - Asegura usuario en DB usando services.register.register_user
+    - Asegura usuario en DB usando crud directamente (services no implementados aún)
     - Marca superadmin si corresponde según config/superadmins.py
     - Usa helpers asíncronos para logging y notificaciones
     """
@@ -27,24 +26,26 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     bot = context.bot
     db_user = None
 
-    try:
-        tg_payload = {
-            "id": tg_user.id,
-            "username": tg_user.username,
-            "first_name": tg_user.first_name,
-            "last_name": tg_user.last_name,
-        }
+    async with get_session() as session:  # Usar get_session de database.db
+        try:
+            # Registrar usuario usando service
+            tg_payload = {
+                "id": tg_user.id,
+                "username": tg_user.username,
+                "first_name": tg_user.first_name,
+                "last_name": tg_user.last_name,
+            }
 
-        async with AsyncSession(bot.get("db")) as session:
-            # Registrar al usuario en la base de datos
+            from services.register import register_user
             result = await register_user(
                 session,
                 tg_payload,
                 create_trial=True,
-                trial_days=7,
-                notify=None,
+                trial_days=None,  # Usará valor por defecto de config
+                notify=None,  # Por ahora sin notificaciones
             )
             db_user = result["user"]
+            trial_created = result.get("trial") is not None
 
             # Crear teclado inline con botones de comandos
             keyboard = [
@@ -59,7 +60,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             ]
 
             # Si es superadmin, configurar y mostrar mensaje especial
-            if is_superadmin_tg(tg_user.id):
+            if config_superadmins.is_superadmin_tg(tg_user.id):
                 await crud_users.set_user_superadmin(session, db_user.id, True, commit=True)
                 keyboard.append([
                     InlineKeyboardButton("⚙️ Panel de Administración", callback_data="admin")
@@ -84,7 +85,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             )
 
             # Si no es superadmin, incluir mensaje de registro exitoso
-            if not is_superadmin_tg(tg_user.id):
+            if not config_superadmins.is_superadmin_tg(tg_user.id):
                 welcome_msg = "✅ Usuario registrado correctamente.\n\n" + welcome_msg
 
             # Enviar mensaje con botones
@@ -94,48 +95,26 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 parse_mode="HTML"
             )
 
-            # Para mantener compatibilidad con el log_and_notify existente
-            status_msg = "Mensaje de bienvenida enviado con botones de comandos"
-
-            # Log + notify outside DB context; pass None session if helpers don't need the DB here
+            # Log + notify
+            status_msg = f"Mensaje de bienvenida enviado con botones de comandos. Trial creado: {trial_created}"
             await log_and_notify(
-                None,
+                session,
                 bot,
                 chat_id,
-                getattr(db_user, "id", None),
+                db_user.id,
                 "command_register",
                 "Usuario ejecutó /register",
                 status_msg,
                 parse_mode="HTML",
             )
 
-    except RegistrationError as re:
-        await log_error_and_notify(
-            None,
-            bot,
-            chat_id,
-            getattr(db_user, "id", None),
-            "command_register",
-            re,
-            public_message="Ha ocurrido un error registrando tu usuario. Intenta más tarde.",
-        )
-    except Exception as e:
-        await log_error_and_notify(
-            None,
-            bot,
-            chat_id,
-            getattr(db_user, "id", None),
-            "command_register",
-            e,
-            public_message="Ha ocurrido un error registrando tu usuario. Intenta más tarde.",
-        )
-    except Exception as e:
-        await log_error_and_notify(
-            None,
-            bot,
-            chat_id,
-            getattr(db_user, "id", None),
-            "command_register",
-            e,
-            public_message="Ha ocurrido un error registrando tu usuario. Intenta más tarde.",
-        )
+        except Exception as e:
+            await log_error_and_notify(
+                session,
+                bot,
+                chat_id,
+                getattr(db_user, "id", None),
+                "command_register",
+                e,
+                public_message="Ha ocurrido un error registrando tu usuario. Intenta más tarde.",
+            )

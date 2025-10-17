@@ -1,12 +1,12 @@
 # utils/helpers.py
 
 from __future__ import annotations
-from typing import Optional, Dict, Any, Sequence, Callable, List
+from typing import Optional, Dict, Any, List
 import traceback
 import logging
 import html
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from telegram import Update, Bot, InputFile
 from telegram.constants import ParseMode
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,14 +77,14 @@ async def log_and_notify(
     parse_mode: str = ParseMode.HTML,
 ) -> None:
     """
-    1) Registra auditoría en DB si session provisto (payload + commit=False).
+    1) Registra auditoría en DB si session provisto (commit=False).
     2) Registra en logger central con extra={"user_id": ...}.
     3) Envía mensaje al chat_id si bot y chat_id provistos.
     """
     # 1) Audit DB
     if session is not None:
         try:
-            payload = {"details": details}
+            payload = {"details": details, "timestamp": datetime.now(timezone.utc).isoformat()}
             await crud_logs.create_audit_log(session=session, user_id=user_id, action=action, details=details, payload=payload, commit=False)
         except Exception:
             logger.exception("audit_log_failed", extra={"user_id": user_id})
@@ -123,7 +123,11 @@ async def log_error_and_notify(
     tb = traceback.format_exc()
     details = f"{str(error)}\n{tb}"
     truncated = details if len(details) <= 2000 else details[:2000] + " ... [truncated]"
-    payload = {"error": str(error), "trace": truncated}
+    payload = {
+        "error": str(error),
+        "trace": truncated,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
     # 1) Audit DB
     if session is not None:
@@ -170,7 +174,12 @@ async def notify_admins(
     # Registrar acción en audit (session opcional)
     if session is not None:
         try:
-            await crud_logs.create_audit_log(session=session, user_id=None, action=action, details=details or message, payload={"details": details or message}, commit=False)
+            payload = {
+                "details": details or message,
+                "admin_count": len(admins),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            await crud_logs.create_audit_log(session=session, user_id=None, action=action, details=details or message, payload=payload, commit=False)
         except Exception:
             logger.exception("audit_log_failed_on_notify_admins", extra={"user_id": None})
 
@@ -262,9 +271,9 @@ async def send_vpn_config(
         
         # MENSAJE DE INTRODUCCIÓN PARA WIREGUARD
         msg = (
-            f"🚀 ¡Tu VPN WireGuard está lista! Expira el <code>{expires_str}</code>.\\n\\n"
-            f"1. Descarga la app <b>WireGuard</b>.\\n"
-            f"2. Escanea el <b>código QR</b> o descarga el archivo <b>.conf</b> adjunto.\\n"
+            f"🚀 ¡Tu VPN WireGuard está lista! Expira el <code>{expires_str}</code>.\n\n"
+            f"1. Descarga la app <b>WireGuard</b>.\n"
+            f"2. Escanea el <b>código QR</b> o descarga el archivo <b>.conf</b> adjunto.\n"
             f"3. ¡Conéctate!"
         )
         await bot.send_message(chat_id, msg, parse_mode=ParseMode.HTML)
@@ -284,13 +293,13 @@ async def send_vpn_config(
     elif vpn.vpn_type == "outline":
         
         # MENSAJE Y ENVÍO DE KEY PARA OUTLINE
-        access_url = vpn.config_data 
+        access_url = vpn.config_data
         if access_url:
             msg = (
-                f"🚀 ¡Tu VPN Outline está lista! Expira el <code>{expires_str}</code>.\\n\\n"
-                f"1. Descarga la app <b>Outline</b>.\\n"
-                f"2. Copia la clave de acceso que se muestra a continuación:\\n\\n"
-                f"🔑 <code>{html.escape(access_url)}</code>\\n\\n"
+                f"🚀 ¡Tu VPN Outline está lista! Expira el <code>{expires_str}</code>.\n\n"
+                f"1. Descarga la app <b>Outline</b>.\n"
+                f"2. Copia la clave de acceso que se muestra a continuación:\n\n"
+                f"🔑 <code>{html.escape(access_url)}</code>\n\n"
                 f"3. Abre la app Outline y añade la clave."
             )
             await bot.send_message(chat_id, msg, parse_mode=ParseMode.HTML)
@@ -323,30 +332,62 @@ async def format_expiration_message(vpn: models.VPNConfig) -> str:
 def format_log_entry(log: Any) -> str:
     """
     Formatea una entrada de log para mostrarla en el chat.
-    
+
     Args:
         log: Objeto de log con los campos created_at, user, user_id, action y payload
-        
+
     Returns:
         str: Cadena formateada con emojis y HTML
     """
     timestamp = log.created_at.strftime("%Y-%m-%d %H:%M")
     user_info = f"@{log.user.username}" if log.user and log.user.username else f"ID:{log.user_id}" if log.user_id else "SYSTEM"
-    
+
     # Extraer detalles del payload si existen
     details = ""
     if log.payload and isinstance(log.payload, dict):
         details = log.payload.get("details", "")
         if details and len(details) > 50:
             details = details[:47] + "..."
-    
+
     entry = (
         f"⏰ <b>{timestamp} UTC</b>\n"
         f"👤 {user_info}\n"
-        f"🔹 <code>{log.action}</code>"
+        f"🔹 <code>{html.escape(log.action)}</code>"
     )
-    
+
     if details:
-        entry += f"\n📝 {details}"
-    
+        entry += f"\n📝 {html.escape(details)}"
+
     return entry
+
+
+
+
+def format_file_size(bytes_size: int) -> str:
+    """
+    Formatea bytes a formato legible (KB, MB, GB).
+    """
+    if bytes_size < 1024:
+        return f"{bytes_size} B"
+    elif bytes_size < 1024 * 1024:
+        return f"{bytes_size / 1024:.1f} KB"
+    elif bytes_size < 1024 * 1024 * 1024:
+        return f"{bytes_size / (1024 * 1024):.1f} MB"
+    else:
+        return f"{bytes_size / (1024 * 1024 * 1024):.1f} GB"
+
+
+def validate_vpn_type(vpn_type: str) -> bool:
+    """
+    Valida que el tipo de VPN sea uno de los soportados.
+    """
+    from database.models import VPN_TYPES
+    return vpn_type in VPN_TYPES
+
+
+def validate_ip_type(ip_type: str) -> bool:
+    """
+    Valida que el tipo de IP sea uno de los soportados.
+    """
+    from database.models import IP_TYPES
+    return ip_type in IP_TYPES

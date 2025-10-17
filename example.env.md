@@ -84,7 +84,24 @@ LOG_LEVEL=INFO
 # Opcional: Configuración de Jobs/CRON
 # CLEANUP_JOB_INTERVAL=24h # Intervalo para el job de limpieza de IPs revocadas (si se implementa como string)
 
-# Opcional: Otros
-# MAX_CONCURRENT_USERS=100
-# DEFAULT_VPN_DURATION_DAYS=7 # Para trial
-# DEFAULT_VPN_DURATION_PAID_MONTHS=1
+# Opcional: Admins adicionales (IDs de Telegram separados por coma)
+ADMIN_TG_IDS=
+
+# Opcional: Límites de aplicación
+MAX_VPN_PER_USER=5
+TRIAL_DURATION_DAYS=7
+BANDWIDTH_LIMIT_MB=1000
+MAX_CONCURRENT_USERS=100
+
+# Opcional: Configuración de pagos
+PAYMENT_CURRENCY=USD
+STRIPE_PUBLIC_KEY=
+STRIPE_SECRET_KEY=
+
+# Opcional: Logging y archivos
+LOG_LEVEL=INFO
+LOG_DIR=/var/log/usipipo
+TEMP_DIR=/tmp/usipipo
+
+# Opcional: Jobs/CRON
+CLEANUP_JOB_INTERVAL=24h

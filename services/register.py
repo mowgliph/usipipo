@@ -1,7 +1,7 @@
 # services/register.py
 from __future__ import annotations
 from typing import Optional, Callable, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import logging
 
@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from database.crud import users as crud_users
 from database.crud import vpn as crud_vpn
 from database.crud import logs as crud_logs
+from config.config import TRIAL_DURATION_DAYS
 
 logger = logging.getLogger("usipipo.services.register")
 
@@ -26,7 +27,7 @@ async def register_user(
     tg_payload: Dict[str, Any],
     *,
     create_trial: bool = True,
-    trial_days: int = 7,
+    trial_days: Optional[int] = None,
     notify: Optional[Notifier] = None,
 ) -> Dict[str, Any]:
     """
@@ -50,11 +51,8 @@ async def register_user(
     try:
         # 1) Asegurar user (no commitea en CRUD por defecto)
         user = await crud_users.ensure_user(session, tg_payload, commit=False)
-        # Si ensure_user ha creado sin commit, user.id puede existir tras flush; commit below if needed.
-        # Determinamos si es nuevo observando created_at vs now small delta OR que no tenía id antes.
-        # Simpler: check whether created_at is very recent (<=5s) to consider "created now".
-        from datetime import timedelta
 
+        # Determinar si es usuario nuevo (created_at reciente)
         now = datetime.now(timezone.utc)
         created_recent = False
         try:
@@ -68,6 +66,9 @@ async def register_user(
 
         # 2) Si solicitamos trial, comprobar y crear
         if create_trial:
+            # Usar duración por defecto de config si no se especifica
+            actual_trial_days = trial_days or TRIAL_DURATION_DAYS
+
             # Verificamos si ya existe trial activo
             has_trial = await crud_vpn.has_trial(session, user.id)
             if not has_trial:
@@ -77,13 +78,14 @@ async def register_user(
                         user_id=user.id,
                         vpn_type="wireguard",  # elección razonable por defecto; cambiar en caller si hace falta
                         config_name="trial",
-                        config_data={"notes": "trial created on register"},
-                        duration_days=trial_days,
+                        config_data={"notes": f"trial created on register ({actual_trial_days} days)"},
+                        duration_days=actual_trial_days,
                         commit=False,
                     )
                 except ValueError:
                     # ValueError lanzado por create_trial_vpn cuando ya tiene trial activo
                     trial = None
+                    logger.debug("Usuario ya tiene trial activo, no se crea nuevo", extra={"user_id": user.id})
                 except SQLAlchemyError:
                     logger.exception("Error creando trial durante registro", extra={"user_id": user.id})
                     raise RegistrationError("create_trial_failed")
@@ -110,10 +112,15 @@ async def register_user(
             "first_name": user.first_name,
             "last_name": user.last_name,
             "created_user": created_user,
+            "trial_created": trial is not None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         try:
             # create_audit_log by default does not commit; we don't need to commit it if we already committed above.
-            await crud_logs.create_audit_log(session, user_id=user.id, action=action, details=None, payload=payload, commit=True)
+            await crud_logs.create_audit_log(session, user_id=user.id, action=action, details=None, payload=payload, commit=False)
+            # Commit del audit log por separado si no se commiteó arriba
+            if not (created_user or trial is not None):
+                await session.commit()
         except SQLAlchemyError:
             # If audit log fails, log but do not block the registration success
             logger.exception("Fallo creando audit log de registro", extra={"user_id": user.id})
@@ -121,7 +128,16 @@ async def register_user(
         # 5) Notificar admins si es un nuevo usuario
         if created_user and notify:
             try:
-                notify("admin_new_user", {"user_id": user.id, "telegram_id": telegram_id, "username": user.username})
+                notify_payload = {
+                    "user_id": user.id,
+                    "telegram_id": telegram_id,
+                    "username": user.username,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "trial_created": trial is not None,
+                    "registered_at": datetime.now(timezone.utc).isoformat(),
+                }
+                notify("admin_new_user", notify_payload)
             except Exception:
                 logger.exception("Fallo notificar admins de nuevo usuario", extra={"user_id": user.id})
 
