@@ -16,7 +16,6 @@ async def create_audit_log(
     session: AsyncSession,
     user_id: Optional[str],
     action: str,
-    details: Optional[str] = None,
     payload: Optional[Dict[str, Any]] = None,
     commit: bool = True,
 ) -> models.AuditLog:
@@ -34,7 +33,6 @@ async def create_audit_log(
             session=session,
             user_id=user_id,
             action=action,
-            details=details,
             payload=payload,
             commit=False,
         )
@@ -150,12 +148,11 @@ def format_logs(logs_list: List[models.AuditLog]) -> str:
 async def log_action_auto_session(
     user_id: Optional[str],
     action: str,
-    details: Optional[str] = None,
     payload: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     async with get_session() as session:
         try:
-            log = await create_audit_log(session=session, user_id=user_id, action=action, details=details, payload=payload, commit=True)
+            log = await create_audit_log(session=session, user_id=user_id, action=action, payload=payload, commit=True)
             return {"ok": True, "data": log}
         except Exception:
             logger.exception("Error en log_action_auto_session", extra={"user_id": user_id})
@@ -165,8 +162,8 @@ async def log_action_auto_session(
 
 # Exported instance-style object for compatibility with previous code that used `audit_service`.
 class _AuditServiceCompat:
-    async def log_action(self, user_id: Optional[str], action: str, details: Optional[str] = None, payload: Optional[Dict[str, Any]] = None):
-        return await log_action_auto_session(user_id=user_id, action=action, details=details, payload=payload)
+    async def log_action(self, user_id: Optional[str], action: str, payload: Optional[Dict[str, Any]] = None):
+        return await log_action_auto_session(user_id=user_id, action=action, payload=payload)
 
     async def get_logs(self, limit: int = 20, offset: int = 0, user_id: Optional[str] = None, action: Optional[str] = None):
         async with get_session() as session:

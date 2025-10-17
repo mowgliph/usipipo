@@ -26,7 +26,7 @@ def get_ton_price_usd() -> float:
         return data["the-open-network"]["usd"]
 
 
-def get_stars_price(amount: int = 100) -> dict:
+def get_stars_price(amount: int = 100) -> dict | None:
     """
     Obtiene precio de Stars en TON y USD usando fragment-api-lib (PyPI).
     Si falla, retorna None.

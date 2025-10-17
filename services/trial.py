@@ -61,7 +61,7 @@ async def start_trial(
         # 2) Comprobar trial activo
         if await crud_vpn.has_trial(session, user_id):
             # auditar intento y notificar al usuario (sin crear)
-            await crud_logs.create_audit_log(session=session, user_id=user_id, action="trial_denied", details=f"Attempted {vpntype} trial while active")
+            await crud_logs.create_audit_log(session=session, user_id=user_id, action="trial_denied", payload={"vpntype": vpntype, "reason": "active_trial_exists"})
             await helpers.log_and_notify(session=session, bot=bot, chat_id=chat_id, user_id=user_id,
                                          action="trial_denied",
                                          details=f"user has active trial",
@@ -77,11 +77,11 @@ async def start_trial(
             # generar recursos externos según tipo
             if vpntype == "wireguard":
                 # wireguard.create_peer debe ser async y devolver data necesaria
-                wg_result = await wireguard.create_peer(session, user_id=user_id, config_name=payload["config_name"])
+                wg_result = await wireguard.create_peer(session, user_id=int(user_id), config_name=payload["config_name"])
                 config_data = wg_result.get("config_data") or payload["config_data"]
                 extra_data = {**payload["extra_data"], **wg_result.get("extra_data", {})}
             elif vpntype == "outline":
-                ol_result = await outline.create_access(session, user_id=user_id, config_name=payload["config_name"])
+                ol_result = await outline.create_access(session, user_id=user_id)
                 config_data = ol_result.get("config_data") or payload["config_data"]
                 extra_data = {**payload["extra_data"], **ol_result.get("extra_data", {})}
             else:
@@ -102,7 +102,7 @@ async def start_trial(
 
             # 6) Crear audit log asociado
             await crud_logs.create_audit_log(session=session, user_id=user_id, action="trial_created",
-                                            details=f"Created {vpntype} trial id:{getattr(vpn_obj,'id', 'pending')}")
+                                            payload={"vpntype": vpntype, "vpn_id": getattr(vpn_obj,'id', 'pending')})
             # Al salir del async with session.begin() se hará commit automático
 
         # 7) Post-commit notifications: log central y user notification
@@ -122,7 +122,7 @@ async def start_trial(
         # errores previstos: tipo de VPN inválido
         msg_map = {"invalid_vpntype": "Tipo de VPN no válido. Usa wireguard u outline."}
         public_msg = msg_map.get(str(ve), "Entrada inválida.")
-        await crud_logs.create_audit_log(session=session, user_id=None, action="trial_failed_input", details=str(ve))
+        await crud_logs.create_audit_log(session=session, user_id=None, action="trial_failed_input", payload={"error": str(ve)})
         await helpers.log_error_and_notify(session=session, bot=bot, chat_id=chat_id, user_id=None,
                                            action="trial_failed_input", error=ve,
                                            public_message=public_msg)
@@ -131,7 +131,7 @@ async def start_trial(
     except Exception as exc:
         # errores inesperados: registrar, notificar admins y devolver mensaje genérico al usuario
         logger.exception("unexpected_error_starting_trial", extra={"user_id": None})
-        await crud_logs.create_audit_log(session=session, user_id=None, action="trial_failed", details=str(exc)[:2000])
+        await crud_logs.create_audit_log(session=session, user_id=None, action="trial_failed", payload={"error": str(exc)[:2000]})
         await helpers.log_error_and_notify(session=session, bot=bot, chat_id=chat_id, user_id=None,
                                            action="trial_failed", error=exc,
                                            public_message="Ha ocurrido un error creando tu trial. Intenta más tarde.")

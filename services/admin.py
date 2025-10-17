@@ -80,7 +80,6 @@ async def promote_to_admin(
             session,
             user_id=acting_user_id,
             action="admin.promote",
-            details=f"Promovido a admin: target={target_user_id}",
             payload={"target_user_id": target_user_id, "action": "promote", "by": acting_user_id},
             commit=False,
         )
@@ -121,7 +120,6 @@ async def demote_from_admin(
             session,
             user_id=acting_user_id,
             action="admin.demote",
-            details=f"Despromovido admin: target={target_user_id}",
             payload={"target_user_id": target_user_id, "action": "demote", "by": acting_user_id},
             commit=False,
         )
@@ -163,7 +161,6 @@ async def set_superadmin(
             session,
             user_id=acting_user_id,
             action="admin.setsuper",
-            details=f"Asignado superadmin: target={target_user_id}",
             payload={"target_user_id": target_user_id, "action": "setsuper", "by": acting_user_id},
             commit=False,
         )
@@ -209,7 +206,6 @@ async def assign_role_to_user(
             session,
             user_id=acting_user_id,
             action="role.grant",
-            details=f"Grant role {role_name} to {target_user_id}",
             payload={"role": role_name, "target_user_id": target_user_id, "by": acting_user_id},
             commit=False,
         )
@@ -246,7 +242,6 @@ async def revoke_role_from_user(
             session,
             user_id=acting_user_id,
             action="role.revoke",
-            details=f"Revoke role {role_name} from {target_user_id}",
             payload={"role": role_name, "target_user_id": target_user_id, "by": acting_user_id},
             commit=False,
         )

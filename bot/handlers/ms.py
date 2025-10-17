@@ -5,7 +5,7 @@ import logging
 
 from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_users
-from services.notifications import send_broadcast_message
+from services.alerts import send_broadcast_message
 from utils.permissions import require_admin
 from utils.helpers import send_success, send_usage_error, send_generic_error, send_info
 

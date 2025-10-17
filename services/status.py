@@ -39,7 +39,7 @@ async def get_status_metrics(session: AsyncSession) -> Dict[str, Any]:
         total_bandwidth = await crud_status.total_bandwidth_gb(session)
 
         # Calcular uptime
-        uptime_seconds = (datetime.now(timezone.utc) - BOT_START_TIME).total_seconds()
+        uptime_seconds = datetime.now(timezone.utc).timestamp() - BOT_START_TIME
         uptime_str = await format_uptime(uptime_seconds)
 
         # Verificar estado de la conexión
@@ -58,9 +58,7 @@ async def get_status_metrics(session: AsyncSession) -> Dict[str, Any]:
         await audit_service.log_action(
             user_id=None,  # Sistema, no usuario específico
             action="command_status",
-            details="Métricas del sistema consultadas",
-            session=session,
-            metrics=metrics
+            payload={"metrics": metrics}
         )
 
         return metrics

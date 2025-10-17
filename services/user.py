@@ -1,4 +1,6 @@
 # services/user.py
+
+from __future__ import annotations
 from typing import Optional, List, Dict, Any
 import logging
 import html
@@ -10,7 +12,7 @@ from database import models
 from database.crud import users as crud_users, logs as crud_logs, settings as crud_settings
 from utils.helpers import log_and_notify
 
-logger = logging.getLogger("usipipo")
+logger = logging.getLogger("usipipo.services.user")
 
 async def ensure_user_exists(session: AsyncSession, tg_payload: Dict[str, Any]) -> models.User:
     """
@@ -22,16 +24,16 @@ async def ensure_user_exists(session: AsyncSession, tg_payload: Dict[str, Any]) 
     user = await crud_users.ensure_user(session, tg_payload, commit=True)
     return user
 
-async def promote_to_admin(session: AsyncSession, user_id: int) -> Optional[models.User]:
+async def promote_to_admin(session: AsyncSession, user_id: str) -> Optional[models.User]:
     """
     Asigna permisos de administrador a un usuario y registra la auditoría.
     Hace commit dentro de los CRUD helpers.
     """
-    user = await crud_users.set_user_admin(session, str(user_id), True, commit=True)
+    user = await crud_users.set_user_admin(session, user_id, True, commit=True)
     if not user:
         return None
     try:
-        await crud_logs.create_audit_log(session, str(user_id), "promote_admin", "Usuario promovido a administrador")
+        await crud_logs.create_audit_log(session, user_id, "promote_admin", payload={"action": "promote_to_admin"}, commit=False)
         await session.commit()
     except Exception:
         logger.exception("failed_audit_promote_admin", extra={"user_id": user_id})
@@ -42,12 +44,12 @@ async def promote_to_admin(session: AsyncSession, user_id: int) -> Optional[mode
     await session.refresh(user)
     return user
 
-async def demote_from_admin(session: AsyncSession, user_id: int) -> Optional[models.User]:
-    user = await crud_users.set_user_admin(session, str(user_id), False, commit=True)
+async def demote_from_admin(session: AsyncSession, user_id: str) -> Optional[models.User]:
+    user = await crud_users.set_user_admin(session, user_id, False, commit=True)
     if not user:
         return None
     try:
-        await crud_logs.create_audit_log(session, str(user_id), "demote_admin", "Usuario degradado de administrador")
+        await crud_logs.create_audit_log(session, user_id, "demote_admin", payload={"action": "demote_from_admin"}, commit=False)
         await session.commit()
     except Exception:
         logger.exception("failed_audit_demote_admin", extra={"user_id": user_id})
@@ -59,29 +61,47 @@ async def demote_from_admin(session: AsyncSession, user_id: int) -> Optional[mod
     return user
 
 async def list_all_users(session: AsyncSession, limit: int = 50) -> List[models.User]:
-    return await crud_users.list_users(session, limit=limit)
-
-async def get_user_settings(session: AsyncSession, user_id: int):
-    return await crud_settings.list_user_settings(session, str(user_id))
-
-async def update_user_setting(session: AsyncSession, user_id: int, key: str, value: str):
-    setting = await crud_settings.set_user_setting(session, str(user_id), key, value)
     try:
-        await crud_logs.create_audit_log(session, str(user_id), "update_setting", f"{key}={value}")
+        return await crud_users.list_users(session, limit=limit)
+    except Exception as e:
+        logger.exception("Error listando usuarios", extra={"user_id": None})
+        return []
+
+async def get_user_settings(session: AsyncSession, user_id: str) -> List[models.UserSetting]:
+    try:
+        return await crud_settings.list_user_settings(session, user_id)
+    except Exception as e:
+        logger.exception("Error obteniendo settings de usuario", extra={"user_id": user_id})
+        return []
+
+async def update_user_setting(session: AsyncSession, user_id: str, key: str, value: str) -> Optional[models.UserSetting]:
+    setting = await crud_settings.set_user_setting(session, user_id, key, value, commit=False)
+    try:
+        await crud_logs.create_audit_log(session, user_id, "update_setting", payload={"key": key, "value": value}, commit=False)
         await session.commit()
+        await session.refresh(setting)
     except Exception:
         logger.exception("failed_audit_update_setting", extra={"user_id": user_id})
         try:
             await session.rollback()
         except Exception:
             logger.exception("rollback_failed_after_update_setting", extra={"user_id": user_id})
+        return None
     return setting
 
 async def get_user_by_username(session: AsyncSession, username: str) -> Optional[models.User]:
-    return await crud_users.get_user_by_username(session, username)
+    try:
+        return await crud_users.get_user_by_username(session, username)
+    except Exception as e:
+        logger.exception("Error obteniendo usuario por username", extra={"username": username})
+        return None
 
-async def get_user(session: AsyncSession, user_id: int) -> Optional[models.User]:
-    return await crud_users.get_user(session, user_id)
+async def get_user(session: AsyncSession, user_id: str) -> Optional[models.User]:
+    try:
+        return await crud_users.get_user_by_pk(session, user_id)
+    except Exception as e:
+        logger.exception("Error obteniendo usuario por ID", extra={"user_id": user_id})
+        return None
 
 async def get_user_telegram_info(session: AsyncSession, tg_user: TelegramUser) -> str:
     """

@@ -54,8 +54,7 @@ async def activate_vpn_for_user(
                 session=session,
                 user_id=user_id,
                 action="vpn_activation_failed",
-                details=f"No se creó VPN {vpn_type}",
-                payload={"vpn_type": vpn_type, "months": months},
+                payload={"vpn_type": vpn_type, "months": months, "reason": "No se creó VPN"},
                 commit=False,
             )
         return vpn_obj
@@ -65,8 +64,7 @@ async def activate_vpn_for_user(
             session=session,
             user_id=user_id,
             action="vpn_activation_error",
-            details=str(e),
-            payload={"vpn_type": vpn_type, "months": months},
+            payload={"vpn_type": vpn_type, "months": months, "error": str(e)},
             commit=False,
         )
         raise
@@ -95,8 +93,7 @@ async def revoke_vpn(
                 session=session,
                 user_id=None,
                 action="vpn_revoked",
-                details=f"VPN {vpn_type} ID {vpn_id} revocada",
-                payload={"vpn_id": vpn_id, "vpn_type": vpn_type},
+                payload={"vpn_id": vpn_id, "vpn_type": vpn_type, "status": "revoked"},
                 commit=False,
             )
         else:
@@ -105,8 +102,7 @@ async def revoke_vpn(
                 session=session,
                 user_id=None,
                 action="vpn_revoke_failed",
-                details=f"No se encontró VPN {vpn_type} ID {vpn_id}",
-                payload={"vpn_id": vpn_id, "vpn_type": vpn_type},
+                payload={"vpn_id": vpn_id, "vpn_type": vpn_type, "reason": "VPN not found"},
                 commit=False,
             )
         return vpn_obj
@@ -116,8 +112,7 @@ async def revoke_vpn(
             session=session,
             user_id=None,
             action="vpn_revoke_error",
-            details=str(e),
-            payload={"vpn_id": vpn_id, "vpn_type": vpn_type},
+            payload={"vpn_id": vpn_id, "vpn_type": vpn_type, "error": str(e)},
             commit=False,
         )
         raise

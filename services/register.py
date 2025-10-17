@@ -117,7 +117,7 @@ async def register_user(
         }
         try:
             # create_audit_log by default does not commit; we don't need to commit it if we already committed above.
-            await crud_logs.create_audit_log(session, user_id=user.id, action=action, details=None, payload=payload, commit=False)
+            await crud_logs.create_audit_log(session, user_id=user.id, action=action, payload=payload, commit=False)
             # Commit del audit log por separado si no se commiteó arriba
             if not (created_user or trial is not None):
                 await session.commit()

@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from database.db import SessionLocal
+from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_user
 from utils.helpers import log_and_notify, log_error_and_notify
 from database import models
@@ -11,17 +11,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Responde al comando /help mostrando los comandos disponibles según rol.
     """
     tg_user = update.effective_user
-    db = SessionLocal()
     db_user = None
 
-    try:
+    async with get_session() as db:
+        try:
         # Buscar usuario en DB
         db_user = await crud_user.get_user_by_telegram_id(db, tg_user.id)
         user_id = db_user.id if db_user else None
 
         # Verificar si es admin o superadmin
-        is_admin = crud_user.is_user_admin(db, user_id) if user_id else False
-        is_superadmin = crud_user.is_user_superadmin(db, user_id) if user_id else False
+        is_admin = await crud_user.is_user_admin(db, user_id) if user_id else False
+        is_superadmin = await crud_user.is_user_superadmin(db, user_id) if user_id else False
 
         # Base para todos los usuarios
         help_msg = (
@@ -69,11 +69,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             parse_mode="HTML",
         )
 
-    except Exception as e:
-        chat_id = update.effective_chat.id if update.effective_chat else None
-        bot = context.bot
-        uid = db_user.id if 'db_user' in locals() and 'db_user' in locals() and isinstance(db_user, models.User) else None
-        await log_error_and_notify(db, bot, chat_id, str(uid) if uid else None, "command_help", e)
-
-    finally:
-        db.close()
+        except Exception as e:
+            chat_id = update.effective_chat.id if update.effective_chat else None
+            bot = context.bot
+            uid = db_user.id if db_user and isinstance(db_user, models.User) else None
+            await log_error_and_notify(db, bot, chat_id, str(uid) if uid else None, "command_help", e)

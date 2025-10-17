@@ -48,7 +48,7 @@ async def calculate_price(months: int, stars_amount: int = 100) -> PriceResult:
         stars = int(round(usd / stars_usd))
         ton = float((usd / ton_usd).quantize(Decimal("0.01")))
 
-        result = {
+        result: PriceResult = {
             "months": months,
             "usd": float(usd),
             "stars": stars,
@@ -65,15 +65,14 @@ async def calculate_price(months: int, stars_amount: int = 100) -> PriceResult:
                 session=session,
                 user_id=None,
                 action="calculate_price_error",
-                details=str(e),
-                payload={"months": months, "stars_amount": stars_amount},
+                payload={"months": months, "stars_amount": stars_amount, "error": str(e)},
                 commit=False,
             )
 
         # Fallback
         stars = int(round(float(usd) * 10))
         ton = round(float(usd) * 0.5, 2)
-        result = {
+        result: PriceResult = {
             "months": months,
             "usd": float(usd),
             "stars": stars,
@@ -106,12 +105,11 @@ async def create_vpn_payment(
             user_id=user_id,
             vpn_type=vpn_type,
             months=months,
+            amount_usd=price["usd"],
+            amount_stars=price["stars"],
+            amount_ton=price["ton"],
             commit=False,
         )
-        # Actualizar con precios
-        payment.amount_usd = price["usd"]
-        payment.amount_stars = price["stars"]
-        payment.amount_ton = price["ton"]
         logger.info(
             f"Pago creado: PaymentID {payment.id} para user {user_id}, {vpn_type}, {months} meses",
             extra={"user_id": user_id, "payment_id": payment.id},
@@ -120,7 +118,6 @@ async def create_vpn_payment(
             session=session,
             user_id=user_id,
             action="payment_created",
-            details=f"Pago creado para {vpn_type}, {months} meses",
             payload={"payment_id": payment.id, "vpn_type": vpn_type, "months": months, "amount_stars": price["stars"]},
             commit=False,
         )
@@ -131,8 +128,7 @@ async def create_vpn_payment(
             session=session,
             user_id=user_id,
             action="payment_creation_error",
-            details=str(e),
-            payload={"vpn_type": vpn_type, "months": months},
+            payload={"vpn_type": vpn_type, "months": months, "error": str(e)},
             commit=False,
         )
         raise
@@ -154,8 +150,7 @@ async def mark_as_paid(
                 session=session,
                 user_id=None,
                 action="payment_marked_paid",
-                details=f"Pago {payment_id} marcado como paid",
-                payload={"payment_id": payment_id},
+                payload={"payment_id": payment_id, "status": "paid"},
                 commit=False,
             )
         else:
@@ -164,8 +159,7 @@ async def mark_as_paid(
                 session=session,
                 user_id=None,
                 action="payment_mark_failed",
-                details=f"Pago {payment_id} no encontrado",
-                payload={"payment_id": payment_id},
+                payload={"payment_id": payment_id, "reason": "payment_not_found"},
                 commit=False,
             )
         return payment
@@ -175,8 +169,7 @@ async def mark_as_paid(
             session=session,
             user_id=None,
             action="payment_mark_error",
-            details=str(e),
-            payload={"payment_id": payment_id},
+            payload={"payment_id": payment_id, "error": str(e)},
             commit=False,
         )
         raise
@@ -195,8 +188,7 @@ async def get_user_payments(session: AsyncSession, user_id: str) -> List[models.
             session=session,
             user_id=user_id,
             action="get_payments_error",
-            details=str(e),
-            payload={"user_id": user_id},
+            payload={"user_id": user_id, "error": str(e)},
             commit=False,
         )
         raise

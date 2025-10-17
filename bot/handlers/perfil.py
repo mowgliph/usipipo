@@ -3,7 +3,7 @@
 from __future__ import annotations
 from telegram import Update, Bot
 from telegram.ext import ContextTypes
-from database.db import SessionLocal
+from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_users, vpn as crud_vpn
 from services import roles
 from utils.permissions import require_admin, require_registered
@@ -20,7 +20,7 @@ import html
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     requester = update.effective_user
     user_id_for_log = str(requester.id)
-    async with SessionLocal() as db:
+    async with get_session() as db:
         try:
             # 1. Determinar si se consulta a otro usuario
             if context.args and context.args[0].isdigit():
@@ -29,7 +29,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 target_id = requester.id
 
             # 2. Obtener usuario
-            db_user = await crud_users.get_user(db, int(target_id))
+            db_user = await crud_users.get_user_by_telegram_id(db, target_id)
             if not db_user:
                 await send_warning(update, "Usuario no encontrado en la base de datos.")
                 return
@@ -109,7 +109,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     requester = update.effective_user
     user_id_for_log = str(requester.id) # Default para logs
-    async with SessionLocal() as db:
+    async with get_session() as db:
         try:
             # 1. Validar argumentos
             if not context.args or not context.args[0].startswith("@"):
