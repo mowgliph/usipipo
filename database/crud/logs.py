@@ -19,7 +19,6 @@ async def create_audit_log(
     session: AsyncSession,
     user_id: Optional[str],
     action: str,
-    details: Optional[str] = None,
     *,
     payload: Optional[Dict[str, Any]] = None,
     commit: bool = False,
@@ -39,14 +38,7 @@ async def create_audit_log(
             payload=payload,
             created_at=now,
         )
-        # details históricamente usado; si el modelo tiene 'details' se puede mapear en payload
-        if details:
-            if log.payload:
-                log.payload = dict(log.payload)
-                log.payload.setdefault("details", details)
-            else:
-                log.payload = {"details": details}
-
+        
         session.add(log)
 
         if commit:
@@ -80,9 +72,9 @@ async def get_audit_logs(
         stmt = select(models.AuditLog).options(selectinload(models.AuditLog.user)).order_by(models.AuditLog.created_at.desc())
 
         if user_id is not None:
-            stmt = stmt.filter(models.AuditLog.user_id == user_id)
+            stmt = stmt.where(models.AuditLog.user_id == user_id)
         if action:
-            stmt = stmt.filter(models.AuditLog.action == action)
+            stmt = stmt.where(models.AuditLog.action == action)
 
         result = await session.execute(stmt.offset(offset).limit(limit))
         logs = result.scalars().all()
@@ -105,9 +97,9 @@ async def count_audit_logs(
         stmt = select(func.count(models.AuditLog.id))
 
         if user_id is not None:
-            stmt = stmt.filter(models.AuditLog.user_id == user_id)
+            stmt = stmt.where(models.AuditLog.user_id == user_id)
         if action:
-            stmt = stmt.filter(models.AuditLog.action == action)
+            stmt = stmt.where(models.AuditLog.action == action)
 
         result = await session.execute(stmt)
         count = result.scalar_one()

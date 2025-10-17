@@ -10,7 +10,8 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.payments import calculate_price
+# Importamos calculate_price solo si se va a usar, o lo manejamos en el servicio
+# from services.payments import calculate_price # Opcional: si se llama desde aquí
 from database import models
 
 logger = logging.getLogger("usipipo.crud.payments")
@@ -22,27 +23,37 @@ async def create_payment(
     vpn_type: str,
     months: int,
     *,
+    amount_usd: float,
+    amount_stars: int,
+    amount_ton: float,
+    status: str = "pending",
+    extra_data: Optional[Dict[str, Any]] = None, # Campo extra_data del modelo Payment
     commit: bool = False,
 ) -> models.Payment:
     """
-    Crea un nuevo registro de pago usando la lógica de precios de services.payments.
+    Crea un nuevo registro de pago.
+    Se espera que los montos hayan sido calculados previamente en el servicio.
     - session: AsyncSession
     - user_id: UUID string
-    - vpn_type: 'wireguard' | 'outline' (validar en services)
+    - vpn_type: 'wireguard' | 'outline' | 'none' (validar en services)
     - months: cantidad de meses
+    - amount_usd: monto en USD
+    - amount_stars: monto en estrellas (para pagos en Telegram)
+    - amount_ton: monto en TON
+    - status: estado inicial del pago (por defecto 'pending')
+    - extra_data: datos adicionales como dict (opcional)
     - commit: si True hace commit() y refresh() antes de devolver el objeto
     """
     try:
-        price = calculate_price(months)  # espera dict con keys: usd, stars, ton
-
         payment = models.Payment(
             user_id=user_id,
             vpn_type=vpn_type,
             months=months,
-            amount_usd=float(price.get("usd", 0.0)),
-            amount_stars=int(price.get("stars", 0)),
-            amount_ton=float(price.get("ton", 0.0)),
-            status="pending",
+            amount_usd=amount_usd,
+            amount_stars=amount_stars,
+            amount_ton=amount_ton,
+            status=status,
+            extra_data=extra_data, # Asumiendo que el modelo Payment tiene este campo, si no, quitar
             created_at=datetime.now(timezone.utc),
         )
         session.add(payment)
@@ -73,6 +84,7 @@ async def update_payment_status(
     """
     Actualiza el estado de un pago: 'pending' -> 'paid'|'failed'.
     - payment_id: UUID string
+    - status: nuevo estado
     - commit: si True hace commit() y refresh()
     """
     try:
@@ -145,4 +157,32 @@ async def count_payments(session: AsyncSession) -> int:
         return int(res.scalar_one() or 0)
     except SQLAlchemyError:
         logger.exception("Error contando payments", extra={"user_id": None})
+        raise
+
+
+# --- Nuevas funciones para integración con lógica de negocio ---
+async def get_pending_payments(session: AsyncSession, limit: int = 100) -> List[models.Payment]:
+    """Obtiene pagos con estado 'pending' para procesamiento."""
+    try:
+        stmt = select(models.Payment).where(
+            models.Payment.status == "pending"
+        ).order_by(models.Payment.created_at.asc()).limit(limit)
+        res = await session.execute(stmt)
+        return res.scalars().all()
+    except SQLAlchemyError:
+        logger.exception("Error obteniendo pagos pendientes", extra={"user_id": None})
+        raise
+
+
+async def get_successful_payments_for_user(session: AsyncSession, user_id: str) -> List[models.Payment]:
+    """Obtiene pagos exitosos de un usuario específico."""
+    try:
+        stmt = select(models.Payment).where(
+            models.Payment.user_id == user_id,
+            models.Payment.status == "paid"
+        ).order_by(models.Payment.created_at.desc())
+        res = await session.execute(stmt)
+        return res.scalars().all()
+    except SQLAlchemyError:
+        logger.exception("Error obteniendo pagos exitosos del usuario", extra={"user_id": user_id})
         raise

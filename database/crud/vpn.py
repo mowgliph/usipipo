@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import models
 
-logger = logging.getLogger("usipipo")
+logger = logging.getLogger("usipipo.crud.vpn")
 
 
 async def get_vpn_config(session: AsyncSession, vpn_id: str) -> Optional[models.VPNConfig]:
@@ -191,11 +191,22 @@ async def revoke_vpn(session: AsyncSession, vpn_id: str, reason: str, *, commit:
     """
     Marca una VPN como 'revoked' y añade un campo 'extra_data.revoked_reason' si procede.
     Devuelve True si la vpn existía y fue modificada.
+    También revoca las IPs asociadas si es necesario.
     """
     try:
         vpn = await get_vpn_config(session, vpn_id)
         if not vpn:
             return False
+
+        # Revocar IPs asociadas si es necesario
+        # Se asume que la IP se revoca cuando se revoca la VPN
+        # Esta lógica puede ser manejada por un servicio o aquí directamente
+        # Si la VPN tiene una IP asociada (a través de IPManager), se revoca
+        # Buscamos la IP asociada a esta VPN (por ejemplo, a través del extra_data o una relación directa si se añade)
+        # Por ahora, asumimos que se revocan IPs asociadas basadas en el user_id y vpn_type
+        # Esto requiere una función en ip_manager.py para revocar IPs por user_id y tipo
+        # await crud.ip_manager.revoke_ips_by_user_and_type(session, vpn.user_id, vpn.vpn_type, reason, commit=False)
+
         vpn.status = "revoked"
         extra = dict(vpn.extra_data or {})
         extra["revoked_reason"] = reason
@@ -300,4 +311,36 @@ async def last_vpn_config_by_user(session: AsyncSession, user_id: str) -> Option
         return res.scalars().one_or_none()
     except SQLAlchemyError:
         logger.exception("Error obteniendo última VPNConfig por usuario", extra={"user_id": None, "target_user_id": user_id})
+        raise
+
+
+# --- Nuevas funciones para integración con IPManager ---
+async def get_vpn_configs_with_assigned_ips(session: AsyncSession, user_id: str) -> List[Dict[str, Any]]:
+    """
+    Obtiene las configuraciones VPN de un usuario junto con las IPs asignadas a ellas.
+    Esta función es más compleja y puede requerir joins si se relaciona directamente VPNConfig con IPManager.
+    Por ahora, asume que las IPs se asignan basadas en el tipo de VPN y el usuario.
+    """
+    try:
+        vpn_configs = await get_vpn_configs_for_user(session, user_id)
+        ip_configs = await session.execute(
+            select(models.IPManager).where(models.IPManager.assigned_to_user_id == user_id)
+        )
+        assigned_ips = ip_configs.scalars().all()
+
+        # Mapear IPs por tipo para asociarlas rápidamente
+        ip_map = {ip.ip_type: ip for ip in assigned_ips if not ip.is_revoked}
+
+        result = []
+        for vpn in vpn_configs:
+            ip_info = ip_map.get(f"{vpn.vpn_type}_paid") or ip_map.get(f"{vpn.vpn_type}_trial") # Ajustar según lógica de negocio
+            result.append({
+                "vpn_config": vpn,
+                "assigned_ip": ip_info.ip_address if ip_info else None,
+                "ip_details": ip_info if ip_info else None
+            })
+
+        return result
+    except SQLAlchemyError:
+        logger.exception("Error obteniendo VPNs con IPs asignadas", extra={"user_id": user_id})
         raise

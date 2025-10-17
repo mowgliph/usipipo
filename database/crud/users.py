@@ -5,13 +5,13 @@ from typing import Optional, List, Dict, Any, AsyncGenerator
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import models
 
-logger = logging.getLogger("usipipo")
+logger = logging.getLogger("usipipo.crud.users")
 
 
 async def get_user_by_pk(session: AsyncSession, user_id: str) -> Optional[models.User]:
@@ -58,14 +58,15 @@ async def create_user_from_telegram(
 ) -> models.User:
     """
     Crea un nuevo usuario desde el payload de Telegram.
-    tg_payload esperado: {"id": int, "username": str|None, "first_name": str|None, "last_name": str|None, "email": str|None}
+    tg_payload esperado: {"id": int, "username": str|None, "first_name": str|None, "last_name": str|None}
+    Nota: Telegram no proporciona email directamente, por lo que se omite para bots puros.
     commit: si True hace commit y refresh; por defecto False para permitir transacciones en services.
     """
     telegram_id = int(tg_payload["id"])
     username = tg_payload.get("username")
     first_name = tg_payload.get("first_name")
     last_name = tg_payload.get("last_name")
-    email = tg_payload.get("email")
+    # email = tg_payload.get("email")  # Removido: Telegram no lo proporciona
 
     try:
         user = models.User(
@@ -73,7 +74,7 @@ async def create_user_from_telegram(
             username=username,
             first_name=first_name,
             last_name=last_name,
-            email=email,
+            # email=email,  # Removido
         )
         session.add(user)
         if commit:
@@ -121,10 +122,10 @@ async def ensure_user(
                 existing.last_name = new_last
                 changed = True
 
-            new_email = tg_payload.get("email")
-            if new_email is not None and existing.email != new_email:
-                existing.email = new_email
-                changed = True
+            # new_email = tg_payload.get("email")  # Removido: Telegram no proporciona email
+            # if new_email is not None and existing.email != new_email:
+            #     existing.email = new_email
+            #     changed = True
 
             if changed and commit:
                 try:
@@ -236,7 +237,7 @@ async def is_user_superadmin(session: AsyncSession, user_id: str) -> bool:
 async def get_admins(session: AsyncSession) -> List[models.User]:
     """Devuelve usuarios con is_admin o is_superadmin true."""
     try:
-        stmt = select(models.User).where((models.User.is_admin == True) | (models.User.is_superadmin == True))
+        stmt = select(models.User).where((models.User.is_admin.is_(True)) | (models.User.is_superadmin.is_(True)))
         result = await session.execute(stmt)
         return result.scalars().all()
     except SQLAlchemyError:
@@ -267,7 +268,7 @@ async def get_active_users(
     try:
         stmt = (
             select(models.User)
-            .where(models.User.is_active == True)
+            .where(models.User.is_active.is_(True))
             .order_by(models.User.created_at.desc())
             .offset(offset)
             .limit(batch_size)
@@ -277,4 +278,38 @@ async def get_active_users(
             yield user
     except SQLAlchemyError:
         logger.exception("Error obteniendo usuarios activos", extra={"user_id": None})
+        raise
+
+
+# --- Nuevas funciones para integración con IPManager ---
+async def get_assigned_ips_for_user(session: AsyncSession, user_id: str) -> List[models.IPManager]:
+    """
+    Obtiene todas las IPs asignadas actualmente a un usuario (no revocadas).
+    """
+    try:
+        stmt = select(models.IPManager).where(
+            models.IPManager.assigned_to_user_id == user_id,
+            models.IPManager.is_revoked.is_(False) # Opcional: solo IPs no revocadas
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+    except SQLAlchemyError:
+        logger.exception("Error obteniendo IPs asignadas al usuario", extra={"user_id": user_id})
+        raise
+
+
+async def count_assigned_ips_for_user(session: AsyncSession, user_id: str) -> int:
+    """
+    Cuenta el número de IPs asignadas actualmente a un usuario (no revocadas).
+    Útil para verificar límites.
+    """
+    try:
+        stmt = select(func.count()).select_from(models.IPManager).where(
+            models.IPManager.assigned_to_user_id == user_id,
+            models.IPManager.is_revoked.is_(False)
+        )
+        result = await session.execute(stmt)
+        return int(result.scalar_one() or 0)
+    except SQLAlchemyError:
+        logger.exception("Error contando IPs asignadas al usuario", extra={"user_id": user_id})
         raise
