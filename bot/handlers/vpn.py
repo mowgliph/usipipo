@@ -64,7 +64,7 @@ async def newvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 return
 
             msg = f"📡 Generando invoice para {vpn_type.capitalize()} por {months} meses..."
-            await log_and_notify(session, bot, chat_id, db_user.id, "payment_created", f"{vpn_type} {months}m | PaymentID {payment.id}", msg)
+            await log_and_notify(session, bot, chat_id, db_user.id, action="payment_created", details=f"{vpn_type} {months}m | PaymentID {payment.id}", message=msg)
 
             await update.message.reply_invoice(
                 title=f"Suscripción VPN {vpn_type.capitalize()}",
@@ -77,8 +77,8 @@ async def newvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             await session.commit()
         except Exception as e:
-            await log_error_and_notify(session, bot, chat_id, None, "newvpn_command", e)
-            await notify_admins(session, bot, f"Error en /newvpn para {tg_user.id}: {str(e)}")
+            await log_error_and_notify(session, bot, chat_id, None, action="newvpn_command", error=e)
+            await notify_admins(session, bot, message=f"Error en /newvpn para {tg_user.id}: {str(e)}")
 
 
 @require_registered
@@ -97,9 +97,9 @@ async def myvpns_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
             vpns = await vpn_service.list_user_vpns(session, db_user.id)
             msg = await format_vpn_list(vpns)
-            await log_and_notify(session, bot, chat_id, db_user.id, "command_myvpns", "Consultó VPNs", msg)
+            await log_and_notify(session, bot, chat_id, db_user.id, action="command_myvpns", details="Consultó VPNs", message=msg)
         except Exception as e:
-            await log_error_and_notify(session, bot, chat_id, None, "myvpns_command", e)
+            await log_error_and_notify(session, bot, chat_id, None, action="myvpns_command", error=e)
 
 
 @require_registered
@@ -138,10 +138,10 @@ async def revokevpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 return
 
             msg = f"✅ VPN <code>{vpn_id}</code> revocada."
-            await log_and_notify(session, bot, chat_id, db_user.id, "command_revokevpn", f"Revocó VPN {vpn_id}", msg)
+            await log_and_notify(session, bot, chat_id, db_user.id, action="command_revokevpn", details=f"Revocó VPN {vpn_id}", message=msg)
             await session.commit()
         except Exception as e:
-            await log_error_and_notify(session, bot, chat_id, None, "revokevpn_command", e)
+            await log_error_and_notify(session, bot, chat_id, None, action="revokevpn_command", error=e)
 
 
 @require_registered
@@ -177,10 +177,10 @@ async def trialvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             vpn = result["vpn"]
             await send_success(update, "Trial creado exitosamente.")
             await send_vpn_config(update, vpn, qr_bytes=await wireguard_service.generate_qr(vpn.config_data) if vpn.vpn_type == "wireguard" else None)
-            await log_and_notify(session, bot, chat_id, vpn.user_id, "command_trialvpn", f"Trial {vpn_type} creado ID:{vpn.id}", result["message"])
+            await log_and_notify(session, bot, chat_id, vpn.user_id, action="command_trialvpn", details=f"Trial {vpn_type} creado ID:{vpn.id}", message=result["message"])
             await session.commit()
         except Exception as e:
-            await log_error_and_notify(session, bot, chat_id, None, "trialvpn_command", e)
+            await log_error_and_notify(session, bot, chat_id, None, action="trialvpn_command", error=e)
 
 
 async def precheckout_vpn_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -201,11 +201,11 @@ async def precheckout_vpn_handler(update: Update, context: ContextTypes.DEFAULT_
             uid = db_user.id if db_user else None
 
             msg = "📡 Procesando pre-checkout..."
-            await log_and_notify(session, bot, chat_id, uid, "pre_checkout", f"PaymentID {payment_id}", msg)
+            await log_and_notify(session, bot, chat_id, uid, action="pre_checkout", details=f"PaymentID {payment_id}", message=msg)
 
             await query.answer(ok=True)
         except Exception as e:
-            await log_error_and_notify(session, bot, chat_id, None, "precheckout_vpn_handler", e)
+            await log_error_and_notify(session, bot, chat_id, None, action="precheckout_vpn_handler", error=e)
             await query.answer(ok=False, error_message="Error procesando el pago.")
 
 
@@ -233,7 +233,7 @@ async def successful_payment_vpn_handler(update: Update, context: ContextTypes.D
                 return
 
             msg = "💰 Pago recibido correctamente."
-            await log_and_notify(session, bot, chat_id, db_user.id, "payment_paid", f"PaymentID {payment_id}", msg)
+            await log_and_notify(session, bot, chat_id, db_user.id, action="payment_paid", details=f"PaymentID {payment_id}", message=msg)
 
             vpn = await vpn_service.activate_vpn_for_user(session, db_user.id, payment.vpn_type, payment.months)
             if not vpn:
@@ -242,11 +242,11 @@ async def successful_payment_vpn_handler(update: Update, context: ContextTypes.D
 
             await send_vpn_config(update, vpn, qr_bytes=await wireguard_service.generate_qr(vpn.config_data) if vpn.vpn_type == "wireguard" else None)
             msg = f"🔐 VPN {payment.vpn_type.capitalize()} creada exitosamente."
-            await log_and_notify(session, bot, chat_id, db_user.id, "vpn_created", f"VPNID {vpn.id}", msg)
+            await log_and_notify(session, bot, chat_id, db_user.id, action="vpn_created", details=f"VPNID {vpn.id}", message=msg)
             await session.commit()
         except Exception as e:
-            await log_error_and_notify(session, bot, chat_id, None, "successful_payment_vpn_handler", e)
-            await notify_admins(session, bot, f"Error en pago exitoso para {tg_user.id}: {str(e)}")
+            await log_error_and_notify(session, bot, chat_id, None, action="successful_payment_vpn_handler", error=e)
+            await notify_admins(session, bot, message=f"Error en pago exitoso para {tg_user.id}: {str(e)}")
 
 
 def register_vpn_handlers(app):

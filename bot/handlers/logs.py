@@ -10,8 +10,8 @@ from telegram.ext import ContextTypes, CommandHandler
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import AsyncSessionLocal as get_session
-from database.crud import logs as crud_logs, users as crud_users
 from services.audit import audit_service
+from services.user import get_user_by_telegram_id
 from utils.helpers import (
     log_error_and_notify,
     log_and_notify,
@@ -24,6 +24,66 @@ from utils.permissions import require_superadmin, require_registered
 
 logger = logging.getLogger("usipipo.handlers.logs")
 
+
+async def parse_limit_page(context: ContextTypes.DEFAULT_TYPE, default_limit: int = 10, max_limit: int = 50) -> tuple[int, int]:
+    """Parse limit and page from context args."""
+    try:
+        limit = min(int(context.args[0]) if len(context.args) > 0 and context.args[0].isdigit() else default_limit, max_limit)
+        page = max(1, int(context.args[1])) if len(context.args) > 1 and context.args[1].isdigit() else 1
+    except (ValueError, IndexError):
+        raise ValueError("Invalid arguments")
+    return limit, page
+
+
+async def get_user_id_for_command(update: Update, session: AsyncSession, require_superadmin: bool = False) -> Optional[str]:
+    """Get user ID and check permissions."""
+    user = await get_user_by_telegram_id(session, update.effective_user.id) if update.effective_user else None
+    if not user:
+        await update.message.reply_text(
+            "🔐 Para ver tus registros de actividad, primero debes registrarte.\n\n"
+            "Usa el comando /register para crear tu cuenta y luego podrás ver tus registros con /mylogs",
+            parse_mode="HTML"
+        )
+        return None
+    if require_superadmin and not user.is_superadmin:
+        await update.message.reply_text(
+            "⚠️ Solo los administradores pueden ver los registros globales.\n\n"
+            "Puedes ver tus propios registros con /mylogs",
+            parse_mode="HTML"
+        )
+        return None
+    return user.id
+
+
+async def get_formatted_logs(limit: int, page: int, user_id: Optional[str] = None) -> tuple[Optional[List[str]], int]:
+    """Get and format logs."""
+    logs_result = await audit_service.get_logs(limit=limit, offset=(page - 1) * limit, user_id=user_id)
+    if not logs_result["ok"]:
+        raise Exception("Error obteniendo logs desde service")
+    logs = logs_result["data"]["items"]
+    total = logs_result["data"]["total"]
+    if not logs:
+        return None, total
+    log_entries = [format_log_entry(log) for log in logs]
+    return log_entries, total
+
+
+async def send_logs_in_chunks(update: Update, log_entries: List[str], total: int, page: int, title: str):
+    """Send logs in chunks to avoid long messages."""
+    chunk_size = 5
+    for i in range(0, len(log_entries), chunk_size):
+        chunk = log_entries[i:i + chunk_size]
+        message = (
+            f"{title}\n\n" +
+            "\n\n".join(chunk) +
+            f"\n\n📊 Página {page} | Mostrando {len(log_entries)} de {total} registros"
+        )
+        await update.message.reply_text(
+            message,
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+
 async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Muestra los registros de auditoría globales.
@@ -35,32 +95,21 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not chat_id:
         logger.error("No chat_id en update", extra={"user_id": None})
         return
-    
-    # Verificar si el usuario está registrado
+
+    user_id_str = str(update.effective_user.id) if update.effective_user else None
+
+    # Verificar permisos
     async with get_session() as session:
         try:
-            user = await crud_users.get_user_by_telegram_id(session, update.effective_user.id) if update.effective_user else None
-            if not user:
-                await update.message.reply_text(
-                    "🔐 Para ver tus registros de actividad, primero debes registrarte.\n\n"
-                    "Usa el comando /register para crear tu cuenta y luego podrás ver tus registros con /mylogs"
-                )
+            user_id_str = await get_user_id_for_command(update, session, require_superadmin=True)
+            if not user_id_str:
                 return
-                
-            # Verificar si es superadmin
-            if not user.is_superadmin:
-                await update.message.reply_text(
-                    "⚠️ Solo los administradores pueden ver los registros globales.\n\n"
-                    f"Puedes ver tus propios registros con /mylogs"
-                )
-                return
-                
         except Exception as e:
             await log_error_and_notify(
                 session=session,
                 bot=bot,
                 chat_id=chat_id,
-                user_id=update.effective_user.id if update.effective_user else None,
+                user_id=user_id_str,
                 action="logs_command_auth_check",
                 error=e,
                 public_message="❌ Error al verificar permisos."
@@ -69,64 +118,39 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     # Procesar argumentos
     try:
-        limit = min(int(context.args[0]) if len(context.args) > 0 and context.args[0].isdigit() else 10, 50)
-        page = max(1, int(context.args[1])) if len(context.args) > 1 and context.args[1].isdigit() else 1
-    except (ValueError, IndexError):
+        limit, page = await parse_limit_page(context, default_limit=10, max_limit=50)
+    except ValueError:
         await send_usage_error(update, "logs", "[limit=10] [page=1]")
         return
 
     async with get_session() as session:
         try:
-            # Obtener logs
-            logs = await crud_logs.get_audit_logs(
-                session=session,
-                limit=limit,
-                offset=(page - 1) * limit
-            )
-            
-            total = await crud_logs.count_audit_logs(session)
-            
-            if not logs:
+            log_entries, total = await get_formatted_logs(limit, page)
+            if log_entries is None:
                 await update.message.reply_text(
                     "📭 No hay registros de auditoría disponibles.",
                     parse_mode="HTML"
                 )
                 return
-            
-            # Formatear logs
-            log_entries = [format_log_entry(log) for log in logs]
-            
-            # Enviar en chunks para evitar mensajes demasiado largos
-            chunk_size = 5
-            for i in range(0, len(log_entries), chunk_size):
-                chunk = log_entries[i:i + chunk_size]
-                message = (
-                    "📜 <b>Registros de Auditoría</b>\n\n" +
-                    "\n\n".join(chunk) +
-                    f"\n\n📊 Página {page} | Mostrando {len(log_entries)} de {total} registros"
-                )
-                await update.message.reply_text(
-                    message,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True
-                )
-            
+
+            await send_logs_in_chunks(update, log_entries, total, page, "📜 <b>Registros de Auditoría</b>")
+
             await log_and_notify(
                 session=session,
                 bot=bot,
                 chat_id=chat_id,
-                user_id=update.effective_user.id if update.effective_user else None,
+                user_id=user_id_str,
                 action="admin.logs",
                 details=f"Consultó {len(log_entries)} registros de auditoría (página {page})",
                 message=f"✅ Se han consultado {len(log_entries)} registros de auditoría."
             )
-            
+
         except Exception as e:
             await log_error_and_notify(
                 session=session,
                 bot=bot,
                 chat_id=chat_id,
-                user_id=update.effective_user.id if update.effective_user else None,
+                user_id=user_id_str,
                 action="admin.logs_error",
                 error=e,
                 public_message="❌ Error al obtener los registros de auditoría."
@@ -144,76 +168,54 @@ async def mylogs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.error("No chat_id en update", extra={"user_id": None})
         return
 
+    user_id_str = str(update.effective_user.id) if update.effective_user else None
+
     # Procesar argumentos
     try:
-        limit = min(int(context.args[0]) if len(context.args) > 0 and context.args[0].isdigit() else 10, 20)
-        page = max(1, int(context.args[1])) if len(context.args) > 1 and context.args[1].isdigit() else 1
-    except (ValueError, IndexError):
+        limit, page = await parse_limit_page(context, default_limit=10, max_limit=20)
+    except ValueError:
         await send_usage_error(update, "mylogs", "[limit=10] [page=1]")
         return
 
     async with get_session() as session:
         try:
             # Obtener usuario
-            user = await crud_users.get_user_by_telegram_id(session, update.effective_user.id)
+            user = await get_user_by_telegram_id(session, update.effective_user.id)
             if not user:
                 await update.message.reply_text(
                     "❌ Usuario no encontrado. Por favor, regístrate primero.",
                     parse_mode="HTML"
                 )
                 return
-            
-            # Obtener logs del usuario
-            logs = await crud_logs.get_audit_logs(
-                session=session,
-                user_id=user.id,
-                limit=limit,
-                offset=(page - 1) * limit
-            )
-            
-            total = await crud_logs.count_audit_logs(session, user_id=user.id)
-            
-            if not logs:
+
+            user_id_str = user.id
+
+            log_entries, total = await get_formatted_logs(limit, page, user_id_str)
+            if log_entries is None:
                 await update.message.reply_text(
                     "📭 No tienes registros de auditoría.",
                     parse_mode="HTML"
                 )
                 return
-            
-            # Formatear logs
-            log_entries = [format_log_entry(log) for log in logs]
-            
-            # Enviar en chunks para evitar mensajes demasiado largos
-            chunk_size = 5
-            for i in range(0, len(log_entries), chunk_size):
-                chunk = log_entries[i:i + chunk_size]
-                message = (
-                    "📋 <b>Tus Registros de Actividad</b>\n\n" +
-                    "\n\n".join(chunk) +
-                    f"\n\n📊 Página {page} | Mostrando {len(log_entries)} de {total} registros"
-                )
-                await update.message.reply_text(
-                    message,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True
-                )
-            
+
+            await send_logs_in_chunks(update, log_entries, total, page, "📋 <b>Tus Registros de Actividad</b>")
+
             await log_and_notify(
                 session=session,
                 bot=bot,
                 chat_id=chat_id,
-                user_id=user.id,
+                user_id=user_id_str,
                 action="user.mylogs",
                 details=f"Consultó sus registros de auditoría (página {page})",
                 message=f"✅ Se han consultado tus registros de auditoría."
             )
-            
+
         except Exception as e:
             await log_error_and_notify(
                 session=session,
                 bot=bot,
                 chat_id=chat_id,
-                user_id=update.effective_user.id if update.effective_user else None,
+                user_id=user_id_str,
                 action="user.mylogs_error",
                 error=e,
                 public_message="❌ Error al obtener tus registros de actividad."
