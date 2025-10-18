@@ -1,5 +1,7 @@
 # bot/handlers/start.py
+
 from __future__ import annotations
+
 import logging
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
@@ -70,8 +72,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 reply_markup=reply_markup,
             )
 
-        except Exception as e:
-            logger.exception("Error en start_command", extra={"tg_id": tg_user.id, "user_id": user_id})
+        except Exception as e:  # pylint: disable=broad-except
+            logger.exception("Error en start_command: %s", type(e).__name__, extra={"tg_id": tg_user.id, "user_id": user_id})
             await log_error_and_notify(
                 session,
                 bot,

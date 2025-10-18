@@ -1,7 +1,9 @@
 # bot/handlers/myid.py
+
+import logging
+
 from telegram import Update
 from telegram.ext import ContextTypes
-import logging
 
 from database.db import AsyncSessionLocal as get_session
 from services.user import get_user_telegram_info
@@ -21,6 +23,6 @@ async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             # Obtener información del usuario desde el servicio
             text = await get_user_telegram_info(session, user)
             await send_success(update, text)
-        except Exception as e:
-            logger.exception("Error en myid_command", extra={"tg_id": user.id})
+        except Exception as e:  # pylint: disable=broad-except
+            logger.exception("Error en myid_command: %s", type(e).__name__, extra={"tg_id": user.id})
             await send_generic_error(update, "Error obteniendo tu información. El equipo ha sido notificado.")

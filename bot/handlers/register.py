@@ -1,15 +1,20 @@
 # bot/handlers/register.py
 
 from __future__ import annotations
+
+import asyncio
+import logging
+
+from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.db import get_session
-from database.crud import users as crud_users
-from utils.helpers import log_and_notify, log_error_and_notify
 from config import superadmins as config_superadmins
-import asyncio
+from database.crud import users as crud_users
+from database.db import get_session
+from utils.helpers import log_and_notify, log_error_and_notify
+
+logger = logging.getLogger("usipipo.handlers.register")
 
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -109,6 +114,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             )
 
         except Exception as e:
+            logger.exception("Error in register_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
             await log_error_and_notify(
                 session,
                 bot,

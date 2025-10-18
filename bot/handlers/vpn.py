@@ -1,18 +1,20 @@
 # bot/handlers/vpn.py
 
 from __future__ import annotations
-from typing import Optional, Dict
 from io import BytesIO
-from telegram import Update, LabeledPrice, InputFile
-from telegram.ext import ContextTypes, CommandHandler, PreCheckoutQueryHandler, MessageHandler, filters
-from telegram.constants import ParseMode
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional, Dict
+
+import logging
 import os
 
-from database.db import AsyncSessionLocal as get_session
+from sqlalchemy.ext.asyncio import AsyncSession
+from telegram import Update, LabeledPrice, InputFile
+from telegram.constants import ParseMode
+from telegram.ext import ContextTypes, CommandHandler, PreCheckoutQueryHandler, MessageHandler, filters
+
 from database.crud import users as crud_users, vpn as crud_vpn, payments as crud_payments
+from database.db import AsyncSessionLocal as get_session
 from services import vpn as vpn_service, payments as payments_service, trial as trial_service, wireguard as wireguard_service
-from utils.permissions import require_registered, require_admin
 from utils.helpers import (
     send_usage_error,
     send_warning,
@@ -24,6 +26,9 @@ from utils.helpers import (
     send_vpn_config,
     notify_admins,
 )
+from utils.permissions import require_registered, require_admin
+
+logger = logging.getLogger("usipipo.handlers.vpn")
 
 
 @require_registered
@@ -76,7 +81,8 @@ async def newvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 parse_mode=ParseMode.HTML,
             )
             await session.commit()
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
+            logger.exception("Error in newvpn_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
             await log_error_and_notify(session, bot, chat_id, None, action="newvpn_command", error=e)
             await notify_admins(session, bot, message=f"Error en /newvpn para {tg_user.id}: {str(e)}")
 
@@ -98,7 +104,8 @@ async def myvpns_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             vpns = await vpn_service.list_user_vpns(session, db_user.id)
             msg = await format_vpn_list(vpns)
             await log_and_notify(session, bot, chat_id, db_user.id, action="command_myvpns", details="Consultó VPNs", message=msg)
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
+            logger.exception("Error in myvpns_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
             await log_error_and_notify(session, bot, chat_id, None, action="myvpns_command", error=e)
 
 
@@ -140,7 +147,8 @@ async def revokevpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             msg = f"✅ VPN <code>{vpn_id}</code> revocada."
             await log_and_notify(session, bot, chat_id, db_user.id, action="command_revokevpn", details=f"Revocó VPN {vpn_id}", message=msg)
             await session.commit()
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
+            logger.exception("Error in revokevpn_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
             await log_error_and_notify(session, bot, chat_id, None, action="revokevpn_command", error=e)
 
 
@@ -179,7 +187,8 @@ async def trialvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await send_vpn_config(update, vpn, qr_bytes=await wireguard_service.generate_qr(vpn.config_data) if vpn.vpn_type == "wireguard" else None)
             await log_and_notify(session, bot, chat_id, vpn.user_id, action="command_trialvpn", details=f"Trial {vpn_type} creado ID:{vpn.id}", message=result["message"])
             await session.commit()
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
+            logger.exception("Error in trialvpn_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
             await log_error_and_notify(session, bot, chat_id, None, action="trialvpn_command", error=e)
 
 
@@ -204,7 +213,8 @@ async def precheckout_vpn_handler(update: Update, context: ContextTypes.DEFAULT_
             await log_and_notify(session, bot, chat_id, uid, action="pre_checkout", details=f"PaymentID {payment_id}", message=msg)
 
             await query.answer(ok=True)
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
+            logger.exception("Error in precheckout_vpn_handler: %s", type(e).__name__, extra={"tg_id": query.from_user.id if query.from_user else None})
             await log_error_and_notify(session, bot, chat_id, None, action="precheckout_vpn_handler", error=e)
             await query.answer(ok=False, error_message="Error procesando el pago.")
 
@@ -244,7 +254,8 @@ async def successful_payment_vpn_handler(update: Update, context: ContextTypes.D
             msg = f"🔐 VPN {payment.vpn_type.capitalize()} creada exitosamente."
             await log_and_notify(session, bot, chat_id, db_user.id, action="vpn_created", details=f"VPNID {vpn.id}", message=msg)
             await session.commit()
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
+            logger.exception("Error in successful_payment_vpn_handler: %s", type(e).__name__, extra={"tg_id": tg_user.id})
             await log_error_and_notify(session, bot, chat_id, None, action="successful_payment_vpn_handler", error=e)
             await notify_admins(session, bot, message=f"Error en pago exitoso para {tg_user.id}: {str(e)}")
 

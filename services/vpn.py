@@ -2,24 +2,25 @@
 
 from __future__ import annotations
 from typing import Optional, Literal
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
-import logging
 
 from database import models
 from services import wireguard as wireguard_service, outline as outline_service
-from database.crud import logs as crud_logs
+from database.crud import logs as crud_logs, vpn as crud_vpn
+from utils.helpers import log_error_and_notify
 
 logger = logging.getLogger(__name__)
 
 async def list_user_vpns(session: AsyncSession, user_id: str) -> list[models.VPNConfig]:
     """Lista todas las VPNs de un usuario."""
     try:
-        from database.crud import vpn as crud_vpn
         vpns = await crud_vpn.get_vpn_configs_for_user(session, user_id)
         return vpns
-    except SQLAlchemyError as e:
-        logger.exception(f"Error listando VPNs para user {user_id}", extra={"user_id": user_id})
+    except SQLAlchemyError:
+        logger.exception("Error listando VPNs para usuario", extra={"user_id": user_id})
         raise
 
 async def activate_vpn_for_user(
@@ -38,11 +39,11 @@ async def activate_vpn_for_user(
     """
     try:
         if vpn_type == "wireguard":
-            result = await wireguard_service.create_peer(session, user_id=int(user_id), duration_months=months, commit=False)
+            result = await wireguard_service.create_peer(session, user_id=user_id, duration_months=months, commit=False)
             vpn_obj = result.get("vpn")
         elif vpn_type == "outline":
             result = await outline_service.create_access(session, user_id=user_id, duration_months=months)
-            vpn_obj = result.get("vpn") or result.get("vpn_obj") 
+            vpn_obj = result.get("vpn") or result.get("vpn_obj")
         else:
             raise ValueError(f"Tipo VPN no soportado: {vpn_type}")
 
@@ -58,8 +59,28 @@ async def activate_vpn_for_user(
                 commit=False,
             )
         return vpn_obj
-    except (SQLAlchemyError, ValueError) as e:
-        logger.exception(f"❌ Error activando VPN ({vpn_type}) para user {user_id}: {e}", extra={"user_id": user_id})
+    except ValueError:
+        logger.exception(f"❌ Tipo VPN no soportado: {vpn_type}", extra={"user_id": user_id})
+        await crud_logs.create_audit_log(
+            session=session,
+            user_id=user_id,
+            action="vpn_activation_error",
+            payload={"vpn_type": vpn_type, "months": months, "error": "Tipo VPN no soportado"},
+            commit=False,
+        )
+        raise
+    except SQLAlchemyError:
+        logger.exception(f"❌ Error de base de datos activando VPN {vpn_type}", extra={"user_id": user_id})
+        await crud_logs.create_audit_log(
+            session=session,
+            user_id=user_id,
+            action="vpn_activation_error",
+            payload={"vpn_type": vpn_type, "months": months, "error": "Error de base de datos"},
+            commit=False,
+        )
+        raise
+    except Exception as e:
+        logger.exception(f"❌ Error inesperado activando VPN {vpn_type}", extra={"user_id": user_id})
         await crud_logs.create_audit_log(
             session=session,
             user_id=user_id,
@@ -81,7 +102,7 @@ async def revoke_vpn(
     """
     try:
         if vpn_type == "wireguard":
-            vpn_obj = await wireguard_service.revoke_peer(session, vpn_id=int(vpn_id), commit=False)
+            vpn_obj = await wireguard_service.revoke_peer(session, vpn_id=vpn_id, commit=False)
         elif vpn_type == "outline":
             vpn_obj = await outline_service.revoke_access(session, vpn_id=vpn_id)
         else:
@@ -106,8 +127,28 @@ async def revoke_vpn(
                 commit=False,
             )
         return vpn_obj
-    except (SQLAlchemyError, ValueError) as e:
-        logger.exception(f"❌ Error revocando VPN ({vpn_type}) ID {vpn_id}: {e}", extra={"user_id": None, "vpn_id": vpn_id})
+    except ValueError:
+        logger.exception(f"❌ Tipo VPN no soportado: {vpn_type}", extra={"user_id": None, "vpn_id": vpn_id})
+        await crud_logs.create_audit_log(
+            session=session,
+            user_id=None,
+            action="vpn_revoke_error",
+            payload={"vpn_id": vpn_id, "vpn_type": vpn_type, "error": "Tipo VPN no soportado"},
+            commit=False,
+        )
+        raise
+    except SQLAlchemyError:
+        logger.exception(f"❌ Error de base de datos revocando VPN {vpn_type}", extra={"user_id": None, "vpn_id": vpn_id})
+        await crud_logs.create_audit_log(
+            session=session,
+            user_id=None,
+            action="vpn_revoke_error",
+            payload={"vpn_id": vpn_id, "vpn_type": vpn_type, "error": "Error de base de datos"},
+            commit=False,
+        )
+        raise
+    except Exception as e:
+        logger.exception(f"❌ Error inesperado revocando VPN {vpn_type}", extra={"user_id": None, "vpn_id": vpn_id})
         await crud_logs.create_audit_log(
             session=session,
             user_id=None,
@@ -116,3 +157,21 @@ async def revoke_vpn(
             commit=False,
         )
         raise
+
+
+async def count_vpn_configs_by_user(session: AsyncSession, user_id: str) -> int:
+    """Cuenta el número de configuraciones VPN para un usuario dado."""
+    try:
+        return await crud_vpn.count_vpn_configs_by_user(session, user_id)
+    except SQLAlchemyError:
+        logger.exception("Error counting VPN configs for user", extra={"user_id": user_id})
+        return 0
+
+
+async def last_vpn_config_by_user(session: AsyncSession, user_id: str) -> Optional[models.VPNConfig]:
+    """Obtiene la última configuración VPN creada para un usuario dado."""
+    try:
+        return await crud_vpn.last_vpn_config_by_user(session, user_id)
+    except SQLAlchemyError:
+        logger.exception("Error getting last VPN config for user", extra={"user_id": user_id})
+        return None

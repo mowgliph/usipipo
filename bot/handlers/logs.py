@@ -1,13 +1,14 @@
 # bot/handlers/logs.py
 
 from __future__ import annotations
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Optional, List, Dict, Any
+
 import logging
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import AsyncSessionLocal as get_session
 from services.audit import audit_service
@@ -17,10 +18,9 @@ from utils.helpers import (
     log_and_notify,
     safe_chat_id_from_update,
     send_usage_error,
-    notify_admins,
     format_log_entry
 )
-from utils.permissions import require_superadmin, require_registered
+from utils.permissions import require_registered, require_superadmin
 
 logger = logging.getLogger("usipipo.handlers.logs")
 
@@ -34,8 +34,8 @@ async def parse_limit_page(context: ContextTypes.DEFAULT_TYPE, default_limit: in
         raise ValueError("Invalid arguments")
     return limit, page
 
-
-async def get_user_id_for_command(update: Update, session: AsyncSession, require_superadmin: bool = False) -> Optional[str]:
+@require_superadmin
+async def get_user_id_for_command(update: Update, session: AsyncSession) -> Optional[str]:
     """Get user ID and check permissions."""
     user = await get_user_by_telegram_id(session, update.effective_user.id) if update.effective_user else None
     if not user:
@@ -45,7 +45,7 @@ async def get_user_id_for_command(update: Update, session: AsyncSession, require
             parse_mode="HTML"
         )
         return None
-    if require_superadmin and not user.is_superadmin:
+    if not user.is_superadmin:
         await update.message.reply_text(
             "⚠️ Solo los administradores pueden ver los registros globales.\n\n"
             "Puedes ver tus propios registros con /mylogs",
@@ -101,10 +101,11 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # Verificar permisos
     async with get_session() as session:
         try:
-            user_id_str = await get_user_id_for_command(update, session, require_superadmin=True)
+            user_id_str = await get_user_id_for_command(update, session)
             if not user_id_str:
                 return
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
+            logger.exception("Error in logs_command auth check: %s", type(e).__name__, extra={"tg_id": update.effective_user.id if update.effective_user else None})
             await log_error_and_notify(
                 session=session,
                 bot=bot,
@@ -145,7 +146,8 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 message=f"✅ Se han consultado {len(log_entries)} registros de auditoría."
             )
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
+            logger.exception("Error in logs_command: %s", type(e).__name__, extra={"tg_id": update.effective_user.id if update.effective_user else None})
             await log_error_and_notify(
                 session=session,
                 bot=bot,
@@ -211,6 +213,7 @@ async def mylogs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
 
         except Exception as e:
+            logger.exception("Error in mylogs_command: %s", type(e).__name__, extra={"tg_id": update.effective_user.id if update.effective_user else None})
             await log_error_and_notify(
                 session=session,
                 bot=bot,

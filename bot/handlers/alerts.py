@@ -1,9 +1,11 @@
 # bot/handlers/alerts.py
 
 from __future__ import annotations
-from telegram.ext import ContextTypes
-from sqlalchemy.ext.asyncio import AsyncSession
+
 import logging
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from telegram.ext import ContextTypes
 
 from database.db import AsyncSessionLocal as get_session
 from services import alerts as alerts_service
@@ -33,16 +35,8 @@ async def expiration_alerts_job(context: ContextTypes.DEFAULT_TYPE) -> None:
                 message="Job de alertas de expiración ejecutado.",
             )
             await session.commit()
-        except Exception as e:
-            await log_error_and_notify(
-                session=session,
-                bot=bot,
-                chat_id=None,
-                user_id=None,
-                action="expiration_alerts_job",
-                error=e,
-                public_message="Ha ocurrido un error en el job de alertas de expiración.",
-            )
+        except Exception as e:  # pylint: disable=broad-except
+            logger.exception("Error in expiration_alerts_job: %s", type(e).__name__, extra={"tg_id": None})
             await notify_admins(
                 session=session,
                 bot=bot,

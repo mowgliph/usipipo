@@ -1,17 +1,18 @@
 # bot/handlers/roles.py
 
 from __future__ import annotations
-from typing import Optional
 from datetime import datetime, timedelta
+from typing import Optional
 
+import logging
+
+from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import AsyncSessionLocal as get_session
 from services import roles as roles_service
 from services import user as user_service
-from utils.permissions import require_admin, require_registered
 from utils.helpers import (
     send_usage_error,
     send_warning,
@@ -20,6 +21,9 @@ from utils.helpers import (
     safe_chat_id_from_update,
     format_roles_list,
 )
+from utils.permissions import require_admin, require_registered
+
+logger = logging.getLogger("usipipo.handlers.roles")
 
 
 @require_registered
@@ -52,6 +56,7 @@ async def myroles_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 message=msg,
             )
         except Exception as e:
+            logger.exception("Error in myroles_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
             await log_error_and_notify(
                 session=session,
                 bot=context.bot,
@@ -115,6 +120,7 @@ async def grantrole_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             )
             await session.commit()
         except Exception as e:
+            logger.exception("Error in grantrole_command: %s", type(e).__name__, extra={"tg_id": requester.id})
             await log_error_and_notify(
                 session=session,
                 bot=context.bot,
@@ -168,6 +174,7 @@ async def revokerole_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
             await session.commit()
         except Exception as e:
+            logger.exception("Error in revokerole_command: %s", type(e).__name__, extra={"tg_id": requester.id})
             await log_error_and_notify(
                 session=session,
                 bot=context.bot,

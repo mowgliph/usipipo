@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 from typing import Optional
+
 import logging
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.db import AsyncSessionLocal as get_session
 from database.crud import users as crud_users
+from database.db import AsyncSessionLocal as get_session
 from services import admin as admin_service, user as user_service, vpn as vpn_service, roles as role_service
 from services.audit import get_audit_logs, format_logs
-from utils.helpers import log_and_notify, log_error_and_notify, safe_chat_id_from_update, send_usage_error
+from utils.helpers import log_and_notify, log_error_and_notify, safe_chat_id_from_update, send_usage_error, send_generic_error
 from utils.permissions import require_superadmin
 
 logger = logging.getLogger("usipipo.handlers.admin")
@@ -60,15 +61,8 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 parse_mode="HTML",
             )
         except Exception as e:
-            await log_error_and_notify(
-                session=session,
-                bot=bot,
-                chat_id=chat_id,
-                user_id=None,
-                action="admin.users",
-                error=e,
-                public_message="Error listando usuarios."
-            )
+            logger.exception("Error in users_command: %s", type(e).__name__, extra={"tg_id": None})
+            await send_generic_error(update, "Error listando usuarios. El equipo ha sido notificado.")
 
 @require_superadmin
 async def promote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -123,15 +117,8 @@ async def promote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 parse_mode="HTML",
             )
         except Exception as e:
-            await log_error_and_notify(
-                session=session,
-                bot=bot,
-                chat_id=chat_id,
-                user_id=str(acting_tg),
-                action="admin.promote",
-                error=e,
-                public_message="Error promoviendo usuario."
-            )
+            logger.exception("Error in promote_command: %s", type(e).__name__, extra={"tg_id": acting_tg})
+            await send_generic_error(update, "Error promoviendo usuario. El equipo ha sido notificado.")
 
 @require_superadmin
 async def demote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -185,15 +172,8 @@ async def demote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 parse_mode="HTML",
             )
         except Exception as e:
-            await log_error_and_notify(
-                session=session,
-                bot=bot,
-                chat_id=chat_id,
-                user_id=str(acting_tg),
-                action="admin.demote",
-                error=e,
-                public_message="Error despromoviendo usuario."
-            )
+            logger.exception("Error in demote_command: %s", type(e).__name__, extra={"tg_id": acting_tg})
+            await send_generic_error(update, "Error despromoviendo usuario. El equipo ha sido notificado.")
 
 @require_superadmin
 async def setsuper_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -247,15 +227,8 @@ async def setsuper_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 parse_mode="HTML",
             )
         except Exception as e:
-            await log_error_and_notify(
-                session=session,
-                bot=bot,
-                chat_id=chat_id,
-                user_id=str(acting_tg),
-                action="admin.setsuper",
-                error=e,
-                public_message="Error asignando superadmin."
-            )
+            logger.exception("Error in setsuper_command: %s", type(e).__name__, extra={"tg_id": acting_tg})
+            await send_generic_error(update, "Error asignando superadmin. El equipo ha sido notificado.")
 
 @require_superadmin
 async def listadmins_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -293,15 +266,8 @@ async def listadmins_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 parse_mode="HTML",
             )
         except Exception as e:
-            await log_error_and_notify(
-                session=session,
-                bot=bot,
-                chat_id=chat_id,
-                user_id=None,
-                action="admin.listadmins",
-                error=e,
-                public_message="Error listando administradores."
-            )
+            logger.exception("Error in listadmins_command: %s", type(e).__name__, extra={"tg_id": None})
+            await send_generic_error(update, "Error listando administradores. El equipo ha sido notificado.")
 
 @require_superadmin
 async def roles_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -359,15 +325,8 @@ async def roles_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 parse_mode="HTML",
             )
         except Exception as e:
-            await log_error_and_notify(
-                session=session,
-                bot=bot,
-                chat_id=chat_id,
-                user_id=str(acting_tg),
-                action="admin.roles",
-                error=e,
-                public_message="Error consultando roles."
-            )
+            logger.exception("Error in roles_command: %s", type(e).__name__, extra={"tg_id": acting_tg})
+            await send_generic_error(update, "Error consultando roles. El equipo ha sido notificado.")
 
 @require_superadmin
 async def audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -406,15 +365,8 @@ async def audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 parse_mode="HTML",
             )
         except Exception as e:
-            await log_error_and_notify(
-                session=session,
-                bot=bot,
-                chat_id=chat_id,
-                user_id=None,
-                action="admin.audit",
-                error=e,
-                public_message="Error consultando audit logs."
-            )
+            logger.exception("Error in audit_command: %s", type(e).__name__, extra={"tg_id": None})
+            await send_generic_error(update, "Error consultando audit logs. El equipo ha sido notificado.")
 
 def register_admin_handlers(app):
     """
