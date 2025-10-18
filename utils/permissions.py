@@ -40,15 +40,17 @@ async def _auto_register_admin(session, tg_user, update, context, is_super: bool
 
         await log_and_notify(
             session, context.bot, safe_chat_id_from_update(update), user_obj.id,
-            f"auto_register_{role_type}", "Registro automático completado",
-            message
+            action=f"auto_register_{role_type}",
+            details="Registro automático completado",
+            message=message
         )
         return user_obj
     except Exception as exc:
-        logger.exception(f"auto_register_{'super' if is_super else ''}admin_failed", extra={"tg_id": tg_user.id})
+        logger.exception("auto_register_%sadmin_failed", 'super' if is_super else '', extra={"tg_id": tg_user.id})
         await log_error_and_notify(
             session, context.bot, safe_chat_id_from_update(update), None,
-            f"auto_register_{'super' if is_super else ''}admin_failed", exc,
+            action=f"auto_register_{'super' if is_super else ''}admin_failed",
+            error=exc,
             public_message="Error en registro automático. Contacta a soporte."
         )
         return None
@@ -84,7 +86,7 @@ def require_admin(func: Callable[..., Any]) -> Callable[..., Any]:
                 logger.exception("require_admin_check_failed", extra={"tg_id": tg_user.id})
                 await log_error_and_notify(
                     session, context.bot, safe_chat_id_from_update(update), None,
-                    "require_admin_check_failed", exc,
+                    action="require_admin_check_failed", error=exc,
                     public_message="Error verificando permisos. Intenta más tarde."
                 )
                 return
@@ -121,7 +123,7 @@ def require_superadmin(func: Callable[..., Any]) -> Callable[..., Any]:
                 logger.exception("require_superadmin_check_failed", extra={"tg_id": tg_user.id})
                 await log_error_and_notify(
                     session, context.bot, safe_chat_id_from_update(update), None,
-                    "require_superadmin_check_failed", exc,
+                    action="require_superadmin_check_failed", error=exc,
                     public_message="Error verificando permisos. Intenta más tarde."
                 )
                 return
@@ -170,7 +172,7 @@ def require_registered(func: Callable[..., Any]) -> Callable[..., Any]:
                 logger.exception("require_registered_failed", extra={"tg_id": tg_user.id})
                 await log_error_and_notify(
                     session, bot, chat_id, None,
-                    "require_registered_failed", exc,
+                    action="require_registered_failed", error=exc,
                     public_message="Error verificando registro. Intenta más tarde."
                 )
                 return

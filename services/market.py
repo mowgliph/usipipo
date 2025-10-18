@@ -4,9 +4,10 @@ import requests
 # Cliente de fragment-api-lib (PyPI)
 from fragment_api_lib.client import FragmentAPIClient
 
-# Endpoints oficiales para TON
+# Endpoints oficiales para TON y BTC
 TONAPI_URL = "https://tonapi.io/v2/rates?tokens=ton&currencies=usd"
 COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd"
+COINGECKO_BTC_URL = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
 
 # Inicializar cliente
 fragment_client_pypi = FragmentAPIClient()
@@ -24,6 +25,17 @@ def get_ton_price_usd() -> float:
         resp.raise_for_status()
         data = resp.json()
         return data["the-open-network"]["usd"]
+
+
+def get_btc_price_usd() -> float:
+    """Precio de BTC en USD desde CoinGecko."""
+    try:
+        resp = requests.get(COINGECKO_BTC_URL, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["bitcoin"]["usd"]
+    except Exception as e:
+        raise ValueError(f"Error obteniendo precio de BTC: {e}")
 
 
 def get_stars_price(amount: int = 100) -> dict | None:
@@ -44,13 +56,15 @@ def get_stars_price(amount: int = 100) -> dict | None:
 
 
 def get_market_snapshot(amount: int = 100) -> dict:
-    """Snapshot de mercado con TON/USD y Stars/TON/USD."""
+    """Snapshot de mercado con TON/USD, BTC/USD y Stars/TON/USD."""
     ton_usd = get_ton_price_usd()
+    btc_usd = get_btc_price_usd()
     stars = get_stars_price(amount)
 
     if stars:
         return {
             "ton_usd": ton_usd,
+            "btc_usd": btc_usd,
             "stars_amount": stars["amount"],
             "stars_ton": stars["ton"],
             "stars_usd": stars["usd"],
@@ -61,6 +75,7 @@ def get_market_snapshot(amount: int = 100) -> dict:
         fallback_star_to_ton = 0.1
         return {
             "ton_usd": ton_usd,
+            "btc_usd": btc_usd,
             "stars_amount": amount,
             "stars_ton": amount * fallback_star_to_ton,
             "stars_usd": round(amount * fallback_star_to_ton * ton_usd, 2),

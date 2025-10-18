@@ -26,6 +26,8 @@ async def create_payment(
     amount_usd: float,
     amount_stars: int,
     amount_ton: float,
+    amount_sats: int = 0,
+    payment_method: Optional[str] = None,
     status: str = "pending",
     extra_data: Optional[Dict[str, Any]] = None, # Campo extra_data del modelo Payment
     commit: bool = False,
@@ -52,6 +54,8 @@ async def create_payment(
             amount_usd=amount_usd,
             amount_stars=amount_stars,
             amount_ton=amount_ton,
+            amount_sats=amount_sats,
+            payment_method=payment_method,
             status=status,
             extra_data=extra_data, # Asumiendo que el modelo Payment tiene este campo, si no, quitar
             created_at=datetime.now(timezone.utc),
