@@ -18,12 +18,13 @@ logger = logging.getLogger(__name__)
 # Configuration from environment
 TONAPI_URL = "https://tonapi.io/v2"
 TONAPI_KEY = os.getenv("TONAPI_KEY")
+TON_WALLET_ADDRESS = os.getenv("TON_WALLET_ADDRESS")
 
 # Fallback configuration
-USE_TONAPI = bool(TONAPI_KEY)
+USE_TONAPI = bool(TONAPI_KEY and TON_WALLET_ADDRESS)
 
 if not USE_TONAPI:
-    logger.warning("TONAPI_KEY not configured for TON payments")
+    logger.warning("TONAPI_KEY or TON_WALLET_ADDRESS not configured for TON payments")
 
 class TonPaymentError(Exception):
     """Custom exception for TON payment errors."""
@@ -66,13 +67,16 @@ async def _create_tonapi_invoice(payment: models.Payment, description: str) -> T
         "Authorization": f"Bearer {TONAPI_KEY}",
         "Content-Type": "application/json",
     }
+    if not TON_WALLET_ADDRESS:
+        raise TonPaymentError("TON_WALLET_ADDRESS no está configurada en las variables de entorno")
+        
     data = {
-        "to": "your_wallet_address",  # Replace with actual wallet address
+        "to": TON_WALLET_ADDRESS,
         "amount": str(payment.amount_ton),
         "comment": description,
         "metadata": {
-            "payment_id": payment.id,
-            "user_id": payment.user_id,
+            "payment_id": str(payment.id),
+            "user_id": str(payment.user_id),
         },
     }
 
