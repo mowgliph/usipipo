@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 
 from config import superadmins as config_superadmins
-from database.crud import users as crud_users
-from database.db import get_session
+from database.db import AsyncSessionLocal
+from services import register as register_service
+from services import admin as admin_service
 from utils.helpers import log_and_notify, log_error_and_notify
 
 logger = logging.getLogger("usipipo.handlers.register")
@@ -19,7 +18,7 @@ logger = logging.getLogger("usipipo.handlers.register")
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     /register handler asíncrono.
-    - Asegura usuario en DB usando crud directamente (services no implementados aún)
+    - Asegura usuario en DB usando service layer
     - Marca superadmin si corresponde según config/superadmins.py
     - Usa helpers asíncronos para logging y notificaciones
     """
@@ -29,11 +28,11 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     tg_user = update.effective_user
     chat_id = update.effective_chat.id
     bot = context.bot
-    db_user = None
 
-    async with get_session() as session:  # Usar get_session de database.db
+    async with AsyncSessionLocal() as session:
+        db_user = None
         try:
-            # Registrar usuario usando service
+            # Registrar usuario usando service layer
             tg_payload = {
                 "id": tg_user.id,
                 "username": tg_user.username,
@@ -41,8 +40,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 "last_name": tg_user.last_name,
             }
 
-            from services.register import register_user
-            result = await register_user(
+            result = await register_service.register_user(
                 session,
                 tg_payload,
                 create_trial=True,
@@ -66,7 +64,7 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
             # Si es superadmin, configurar y mostrar mensaje especial
             if config_superadmins.is_superadmin_tg(tg_user.id):
-                await crud_users.set_user_superadmin(session, db_user.id, True, commit=True)
+                await admin_service.set_superadmin(session, db_user.id, acting_user_id=None, commit=True)
                 keyboard.append([
                     InlineKeyboardButton("⚙️ Panel de Administración", callback_data="admin")
                 ])
@@ -75,7 +73,6 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     f"ID <code>{tg_user.id}</code> activado con privilegios completos.",
                     parse_mode="HTML"
                 )
-                await asyncio.sleep(2)  # Pequeña pausa
 
             # Crear el teclado inline
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -101,26 +98,33 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             )
 
             # Log + notify
-            status_msg = f"Mensaje de bienvenida enviado con botones de comandos. Trial creado: {trial_created}"
+            status_msg = (
+                f"Mensaje de bienvenida enviado con botones de comandos. "
+                f"Trial creado: {trial_created}"
+            )
             await log_and_notify(
-                session,
-                bot,
-                chat_id,
-                db_user.id,
-                "command_register",
-                "Usuario ejecutó /register",
-                status_msg,
+                session=session,
+                bot=bot,
+                chat_id=chat_id,
+                user_id=db_user.id,
+                action="command_register",
+                details="Usuario ejecutó /register",
+                message=status_msg,
                 parse_mode="HTML",
             )
 
-        except Exception as e:
-            logger.exception("Error in register_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
+        except Exception as e:  # pylint: disable=broad-except
+            logger.exception(
+                "Error in register_command: %s",
+                type(e).__name__,
+                extra={"user_id": getattr(db_user, "id", None)}
+            )
             await log_error_and_notify(
-                session,
-                bot,
-                chat_id,
-                getattr(db_user, "id", None),
-                "command_register",
-                e,
+                session=session,
+                bot=bot,
+                chat_id=chat_id,
+                user_id=getattr(db_user, "id", None),
+                action="command_register",
+                error=e,
                 public_message="Ha ocurrido un error registrando tu usuario. Intenta más tarde.",
             )

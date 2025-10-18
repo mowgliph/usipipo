@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from telegram.ext import Application
-from datetime import datetime
+from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
 from jobs.system import ping_job
@@ -23,13 +23,13 @@ def register_jobs(app: Application) -> None:
     # Job diario para alertas de expiración a las 9 AM UTC
     app.job_queue.run_daily(
         callback=expiration_alerts_job,
-        time=datetime.time(9, 0, tzinfo=ZoneInfo("UTC")),
+        time=time(9, 0, tzinfo=ZoneInfo("UTC")),
         days=(0, 1, 2, 3, 4, 5, 6),
     )
 
     # Job diario para notificaciones de status a superadmins a medianoche UTC
     app.job_queue.run_daily(
         callback=send_daily_status_notification,
-        time=datetime.time(0, 0, tzinfo=ZoneInfo("UTC")),
+        time=time(0, 0, tzinfo=ZoneInfo("UTC")),
         days=(0, 1, 2, 3, 4, 5, 6),
     )
