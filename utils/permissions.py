@@ -46,9 +46,9 @@ async def _auto_register_admin(session, tg_user, update, context, is_super: bool
         )
         return user_obj
     except Exception as exc:
-        logger.exception("auto_register_%sadmin_failed", 'super' if is_super else '', extra={"tg_id": tg_user.id})
+        logger.exception("auto_register_%sadmin_failed", 'super' if is_super else '', extra={"user_id": str(tg_user.id)})
         await log_error_and_notify(
-            session, context.bot, safe_chat_id_from_update(update), None,
+            session, context.bot, safe_chat_id_from_update(update), str(tg_user.id),
             action=f"auto_register_{'super' if is_super else ''}admin_failed",
             error=exc,
             public_message="Error en registro automático. Contacta a soporte."
@@ -68,6 +68,7 @@ def require_admin(func: Callable[..., Any]) -> Callable[..., Any]:
             await send_generic_error(update, "No se pudo identificar al usuario")
             return
 
+        db_user = None
         async with get_session() as session:
             try:
                 db_user = await crud_users.get_user_by_telegram_id(session, tg_user.id)
@@ -83,9 +84,10 @@ def require_admin(func: Callable[..., Any]) -> Callable[..., Any]:
                 await send_permission_error(update, "admin")
                 return
             except Exception as exc:
-                logger.exception("require_admin_check_failed", extra={"tg_id": tg_user.id})
+                user_id = str(db_user.id) if db_user else None
+                logger.exception("require_admin_check_failed", extra={"user_id": user_id})
                 await log_error_and_notify(
-                    session, context.bot, safe_chat_id_from_update(update), None,
+                    session, context.bot, safe_chat_id_from_update(update), user_id,
                     action="require_admin_check_failed", error=exc,
                     public_message="Error verificando permisos. Intenta más tarde."
                 )
@@ -105,6 +107,7 @@ def require_superadmin(func: Callable[..., Any]) -> Callable[..., Any]:
             await send_generic_error(update, "No se pudo identificar al usuario")
             return
 
+        db_user = None
         async with get_session() as session:
             try:
                 db_user = await crud_users.get_user_by_telegram_id(session, tg_user.id)
@@ -120,9 +123,10 @@ def require_superadmin(func: Callable[..., Any]) -> Callable[..., Any]:
                 await send_permission_error(update, "superadmin")
                 return
             except Exception as exc:
-                logger.exception("require_superadmin_check_failed", extra={"tg_id": tg_user.id})
+                user_id = str(db_user.id) if db_user else None
+                logger.exception("require_superadmin_check_failed", extra={"user_id": user_id})
                 await log_error_and_notify(
-                    session, context.bot, safe_chat_id_from_update(update), None,
+                    session, context.bot, safe_chat_id_from_update(update), user_id,
                     action="require_superadmin_check_failed", error=exc,
                     public_message="Error verificando permisos. Intenta más tarde."
                 )
@@ -146,6 +150,7 @@ def require_registered(func: Callable[..., Any]) -> Callable[..., Any]:
         bot = context.bot
         chat_id = safe_chat_id_from_update(update)
 
+        db_user = None
         async with get_session() as session:
             try:
                 db_user = await crud_users.get_user_by_telegram_id(session, tg_user.id)
@@ -156,7 +161,7 @@ def require_registered(func: Callable[..., Any]) -> Callable[..., Any]:
                 is_super = config_superadmins.is_superadmin_tg(tg_user.id)
                 is_admin = (tg_user.id in ADMIN_TG_IDS) or is_super
 
-                if is_admin or is_super:
+                if is_admin:
                     user_obj = await _auto_register_admin(session, tg_user, update, context, is_super=is_super)
                     if user_obj:
                         return await func(update, context, *args, **kwargs)
@@ -169,9 +174,10 @@ def require_registered(func: Callable[..., Any]) -> Callable[..., Any]:
                 return
 
             except Exception as exc:
-                logger.exception("require_registered_failed", extra={"tg_id": tg_user.id})
+                user_id = str(db_user.id) if db_user else None
+                logger.exception("require_registered_failed", extra={"user_id": user_id})
                 await log_error_and_notify(
-                    session, bot, chat_id, None,
+                    session, bot, chat_id, user_id,
                     action="require_registered_failed", error=exc,
                     public_message="Error verificando registro. Intenta más tarde."
                 )
