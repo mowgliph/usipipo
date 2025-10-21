@@ -1,0 +1,21 @@
+[Unit]
+Description=uSipipo Bot Service
+After=network.target
+
+[Service]
+# Ruta absoluta al script
+ExecStart=/home/mowgliph/usipipo/scripts/run_dev.sh
+WorkingDirectory=/home/mowgliph/usipipo
+# Usuario con el que quieres correr el bot (ajústalo si no es mowgliph)
+User=mowgliph
+Group=mowgliph
+
+# Mantener el servicio vivo
+Restart=always
+RestartSec=5
+
+# Variables de entorno (si necesitas cargar .env)
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
