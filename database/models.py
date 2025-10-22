@@ -49,6 +49,11 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
+    qvapay_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    qvapay_app_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    qvapay_linked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    qvapay_last_balance_check: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     settings: Mapped[List["UserSetting"]] = relationship("UserSetting", back_populates="user", cascade="all, delete-orphan")
     vpnconfigs: Mapped[List["VPNConfig"]] = relationship("VPNConfig", back_populates="user", cascade="all, delete-orphan")
     roles: Mapped[List["UserRole"]] = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", foreign_keys="[UserRole.user_id]")
@@ -56,6 +61,10 @@ class User(Base):
     logs: Mapped[List["AuditLog"]] = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     assigned_ips: Mapped[List["IPManager"]] = relationship("IPManager", back_populates="user", cascade="all, delete-orphan", foreign_keys="[IPManager.assigned_to_user_id]") # Relación con IPManager
     mtproto_proxies: Mapped[List["MTProtoProxy"]] = relationship("MTProtoProxy", back_populates="user", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_users_qvapay_user_id", "qvapay_user_id"),
+    )
 
 
 
@@ -164,13 +173,17 @@ class Payment(Base):
     """
     __tablename__ = "payments"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=gen_uuid_str)
+    user_id: Mapped[str] = mapped_column(CHAR(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     telegram_payment_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    stars_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount_usd: Mapped[float] = mapped_column(Float, nullable=False)
+    amount_stars: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default='XTR')
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
-    service_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    vpn_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    months: Mapped[int] = mapped_column(Integer, nullable=False)
+    payment_method: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)  # stars o qvapay
+    service_type: Mapped[str] = mapped_column(String(32), nullable=False, default="vpn")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), onupdate=func.utc_timestamp(), nullable=False)
 
@@ -207,20 +220,6 @@ class MTProtoProxy(Base):
         Index("ix_mtproto_proxies_user_status", "user_id", "status"),
     )
 
-
-__all__ = [
-    "User",
-    "UserSetting",
-    "AuditLog",
-    "VPNConfig",
-    "IPManager", # Añadido a __all__
-    "Role",
-    "UserRole",
-    "Payment",
-    "MTProtoProxy",
-]
-
-
 class ShadowmereProxy(Base):
     """
     Gestiona proxies detectados por Shadowmere.
@@ -248,4 +247,19 @@ class ShadowmereProxy(Base):
 
     def __repr__(self) -> str:
         return f"<ShadowmereProxy(id={self.id}, proxy_address={self.proxy_address}, proxy_type={self.proxy_type}, is_working={self.is_working})>"
+
+
+
+__all__ = [
+    "User",
+    "UserSetting",
+    "AuditLog",
+    "VPNConfig",
+    "IPManager", # Añadido a __all__
+    "Role",
+    "UserRole",
+    "Payment",
+    "MTProtoProxy",
+]
+
 

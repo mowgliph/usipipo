@@ -119,3 +119,16 @@ TEMP_DIR=/tmp/usipipo
 
 # Opcional: Jobs/CRON
 CLEANUP_JOB_INTERVAL=24h
+
+# ========================================
+# QvaPay
+# ========================================
+# Variables para la integración con QvaPay
+# APP ID para autenticación con QvaPay
+QVAPAY_APP_ID=
+# API Key para autenticación con QvaPay
+QVAPAY_API_KEY=
+# URL base de la API de QvaPay (por defecto: https://qvapay.com/api/v1)
+QVAPAY_BASE_URL=https://qvapay.com/api/v1
+# Timeout para llamadas a la API (por defecto: 30 segundos)
+QVAPAY_TIMEOUT=30

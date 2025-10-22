@@ -11,6 +11,7 @@ Este proyecto está diseñado para facilitar la creación de claves de acceso, i
 - ✅ Generación automática de configuraciones **WireGuard** y **Outline**
 - 🎁 Pruebas gratuitas de **7 días**
 - 💸 Sistema de pagos con **Estrellas de Telegram**
+- 💳 Sistema de pagos con **QvaPay** (criptomonedas)
 - 🤖 Todo gestionado desde un **bot de Telegram**
 - 🛠️ Código modular, mantenible y extensible
 - 📦 Repositorio **Open Source** mantenido por [mowgliph](https://github.com/mowgliph)

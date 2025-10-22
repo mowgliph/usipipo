@@ -91,6 +91,9 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # 4. Formatear respuesta
             text = await _format_profile_message(db_user, total_configs, last_info, roles_text)
 
+            # Determinar texto del botón QvaPay basado en vinculación
+            qvapay_button_text = "💳 Ver QvaPay" if db_user.qvapay_user_id else "💳 Agregar QvaPay"
+
             # Enviar mensaje del perfil con botones
             await update.message.reply_text(
                 text,
@@ -101,6 +104,9 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             {"text": "🔗 Nueva VPN", "callback_data": "newvpn"},
                             {"text": "🆓 Prueba Gratis", "callback_data": "trial"},
                             {"text": "📊 Mis Logs", "callback_data": "mylogs"},
+                        ],
+                        [
+                            {"text": qvapay_button_text, "callback_data": "qvapay"}
                         ]
                     ]
                 },
