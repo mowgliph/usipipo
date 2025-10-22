@@ -275,7 +275,7 @@ async def count_vpn_configs_by_type(session: AsyncSession, vpn_type: str) -> int
     try:
         stmt = select(func.count()).select_from(models.VPNConfig).where(models.VPNConfig.vpn_type == vpn_type)
         res = await session.execute(stmt)
-        return int(res.scalar_one())
+        return int(res.scalar_one() or 0)
     except SQLAlchemyError:
         logger.exception("Error contando VPNs por tipo", extra={"user_id": None})
         raise
@@ -297,7 +297,7 @@ async def count_vpn_configs_by_user(session: AsyncSession, user_id: str) -> int:
     try:
         stmt = select(func.count()).select_from(models.VPNConfig).where(models.VPNConfig.user_id == user_id)
         res = await session.execute(stmt)
-        return int(res.scalar_one())
+        return int(res.scalar_one() or 0)
     except SQLAlchemyError:
         logger.exception("Error contando VPNs por usuario", extra={"user_id": None, "target_user_id": user_id})
         raise

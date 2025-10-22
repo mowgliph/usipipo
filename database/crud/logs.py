@@ -94,7 +94,7 @@ async def count_audit_logs(
     Cuenta registros de auditoría que coincidan con filtros.
     """
     try:
-        stmt = select(func.count(models.AuditLog.id))
+        stmt = select(func.count()).select_from(models.AuditLog)
 
         if user_id is not None:
             stmt = stmt.where(models.AuditLog.user_id == user_id)

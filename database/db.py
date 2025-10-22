@@ -61,9 +61,12 @@ if not driver or not any(d in driver for d in SUPPORTED_DRIVERS):
     )
 
 # Connect args recomendados para MariaDB / MySQL drivers async
-connect_args: dict = {
-    "charset": os.getenv("DB_CHARSET", "utf8mb4"),
-}
+connect_args: dict = {}
+if driver and any(d in driver for d in SUPPORTED_DRIVERS):
+    connect_args["charset"] = os.getenv("DB_CHARSET", "utf8mb4")
+elif "sqlite" in DATABASE_ASYNC_URL.lower():
+    # Para SQLite, no aplicar charset ya que no es compatible
+    pass
 
 # Permitir timeout de lectura/escritura si el driver/connector lo soporta
 read_timeout = os.getenv("DB_READ_TIMEOUT")
@@ -117,7 +120,8 @@ async def test_connection(timeout: int = 5) -> bool:
     """
     try:
         async with async_engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            from sqlalchemy import text
+            await conn.execute(text("SELECT 1"))
             return True
     except Exception:
         logger.exception("test_connection: no se pudo conectar a la base de datos", extra={"user_id": None})

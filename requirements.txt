@@ -58,3 +58,38 @@ tzdata==2025.2  # Base de datos de zonas horarias (requerido para zoneinfo en Wi
 # CLI & Scripts
 # =============================
 typer==0.15.1  # CLI framework para scripts
+
+# =============================
+# API & Web Framework (Próximas mejoras)
+# =============================
+# fastapi==0.104.1          # Para API REST (planeado)
+# uvicorn==0.24.0           # ASGI server para FastAPI (planeado)
+# pydantic==2.5.0           # Validación de datos (planeado)
+# python-jose[cryptography]==3.3.0  # JWT tokens (planeado)
+
+# =============================
+# Cache & Session Management (Próximas mejoras)
+# =============================
+# redis==5.0.1              # Cache distribuido (planeado)
+# redis[hiredis]==5.0.1     # Acelerador para Redis (planeado)
+
+# =============================
+# Monitoring & Observability (Próximas mejoras)
+# =============================
+# prometheus-client==0.19.0 # Métricas Prometheus (planeado)
+# sentry-sdk==1.38.0        # Error tracking (planeado)
+
+# =============================
+# Database Optimization (Próximas mejoras)
+# =============================
+# alembic==1.13.1           # Migraciones de BD (planeado)
+# psycopg2-binary==2.9.9    # Driver PostgreSQL (planeado, reemplaza PyMySQL)
+
+# =============================
+# Development & Testing (Próximas mejoras)
+# =============================
+# pytest==7.4.3             # Framework de testing (planeado)
+# pytest-asyncio==0.21.1    # Testing async (planeado)
+# black==23.11.0           # Code formatting (planeado)
+# isort==5.12.0            # Import sorting (planeado)
+# mypy==1.7.1              # Type checking (planeado)

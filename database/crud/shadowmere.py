@@ -349,37 +349,37 @@ async def get_proxy_stats(
     """
     try:
         # Total de proxys
-        stmt_total = select(func.count(models.ShadowmereProxy.id))
+        stmt_total = select(func.count()).select_from(models.ShadowmereProxy)
         res_total = await session.execute(stmt_total)
-        total = res_total.scalar() or 0
+        total = res_total.scalar_one() or 0
         
         # Proxys funcionando
-        stmt_working = select(func.count(models.ShadowmereProxy.id)).where(
+        stmt_working = select(func.count()).select_from(models.ShadowmereProxy).where(
             models.ShadowmereProxy.is_working == True
         )
         res_working = await session.execute(stmt_working)
-        working = res_working.scalar() or 0
+        working = res_working.scalar_one() or 0
         
         # Proxys no funcionando
-        stmt_not_working = select(func.count(models.ShadowmereProxy.id)).where(
+        stmt_not_working = select(func.count()).select_from(models.ShadowmereProxy).where(
             models.ShadowmereProxy.is_working == False
         )
         res_not_working = await session.execute(stmt_not_working)
-        not_working = res_not_working.scalar() or 0
+        not_working = res_not_working.scalar_one() or 0
         
         # Por tipo
         stmt_by_type = select(
             models.ShadowmereProxy.proxy_type,
-            func.count(models.ShadowmereProxy.id).label("count")
-        ).group_by(models.ShadowmereProxy.proxy_type)
+            func.count().label("count")
+        ).select_from(models.ShadowmereProxy).group_by(models.ShadowmereProxy.proxy_type)
         res_by_type = await session.execute(stmt_by_type)
         by_type = {row[0]: row[1] for row in res_by_type.all()}
         
         # Por país
         stmt_by_country = select(
             models.ShadowmereProxy.country,
-            func.count(models.ShadowmereProxy.id).label("count")
-        ).where(
+            func.count().label("count")
+        ).select_from(models.ShadowmereProxy).where(
             models.ShadowmereProxy.country.isnot(None)
         ).group_by(models.ShadowmereProxy.country)
         res_by_country = await session.execute(stmt_by_country)

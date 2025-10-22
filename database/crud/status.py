@@ -17,7 +17,7 @@ logger = logging.getLogger("usipipo.crud.status")
 async def count_users(session: AsyncSession) -> int:
     """Devuelve el total de usuarios registrados (int)."""
     try:
-        stmt = select(func.count(models.User.id))
+        stmt = select(func.count()).select_from(models.User)
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -29,7 +29,7 @@ async def count_users(session: AsyncSession) -> int:
 async def count_active_users(session: AsyncSession) -> int:
     """Cuenta usuarios activos (is_active=True)."""
     try:
-        stmt = select(func.count(models.User.id)).where(models.User.is_active.is_(True))
+        stmt = select(func.count()).select_from(models.User).where(models.User.is_active.is_(True))
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -41,7 +41,7 @@ async def count_active_users(session: AsyncSession) -> int:
 async def count_admins(session: AsyncSession) -> int:
     """Cuenta usuarios con rol de admin (is_admin=True)."""
     try:
-        stmt = select(func.count(models.User.id)).where(models.User.is_admin.is_(True))
+        stmt = select(func.count()).select_from(models.User).where(models.User.is_admin.is_(True))
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -53,7 +53,7 @@ async def count_admins(session: AsyncSession) -> int:
 async def count_superadmins(session: AsyncSession) -> int:
     """Cuenta usuarios con rol de superadmin (is_superadmin=True)."""
     try:
-        stmt = select(func.count(models.User.id)).where(models.User.is_superadmin.is_(True))
+        stmt = select(func.count()).select_from(models.User).where(models.User.is_superadmin.is_(True))
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -65,7 +65,7 @@ async def count_superadmins(session: AsyncSession) -> int:
 async def count_vpn_configs(session: AsyncSession) -> int:
     """Cuenta total de configuraciones VPN."""
     try:
-        stmt = select(func.count(models.VPNConfig.id))
+        stmt = select(func.count()).select_from(models.VPNConfig)
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -80,7 +80,7 @@ async def count_vpn_configs_by_type(session: AsyncSession, vpn_type: str) -> int
     No filtra por status here; si quieres solo activas añade status == 'active' en caller.
     """
     try:
-        stmt = select(func.count(models.VPNConfig.id)).where(models.VPNConfig.vpn_type == vpn_type)
+        stmt = select(func.count()).select_from(models.VPNConfig).where(models.VPNConfig.vpn_type == vpn_type)
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -92,7 +92,7 @@ async def count_vpn_configs_by_type(session: AsyncSession, vpn_type: str) -> int
 async def count_active_vpn_configs(session: AsyncSession) -> int:
     """Cuenta VPNs activas (status='active')."""
     try:
-        stmt = select(func.count(models.VPNConfig.id)).where(models.VPNConfig.status == "active")
+        stmt = select(func.count()).select_from(models.VPNConfig).where(models.VPNConfig.status == "active")
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -104,7 +104,7 @@ async def count_active_vpn_configs(session: AsyncSession) -> int:
 async def count_trial_vpn_configs(session: AsyncSession) -> int:
     """Cuenta VPNs de trial (is_trial=True)."""
     try:
-        stmt = select(func.count(models.VPNConfig.id)).where(models.VPNConfig.is_trial.is_(True))
+        stmt = select(func.count()).select_from(models.VPNConfig).where(models.VPNConfig.is_trial.is_(True))
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -116,7 +116,7 @@ async def count_trial_vpn_configs(session: AsyncSession) -> int:
 async def count_paid_vpn_configs(session: AsyncSession) -> int:
     """Cuenta VPNs pagas (is_trial=False)."""
     try:
-        stmt = select(func.count(models.VPNConfig.id)).where(models.VPNConfig.is_trial.is_(False))
+        stmt = select(func.count()).select_from(models.VPNConfig).where(models.VPNConfig.is_trial.is_(False))
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -140,7 +140,7 @@ async def total_bandwidth_gb(session: AsyncSession) -> float:
 async def count_payments(session: AsyncSession) -> int:
     """Cuenta total de pagos registrados."""
     try:
-        stmt = select(func.count(models.Payment.id))
+        stmt = select(func.count()).select_from(models.Payment)
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -152,7 +152,7 @@ async def count_payments(session: AsyncSession) -> int:
 async def count_pending_payments(session: AsyncSession) -> int:
     """Cuenta pagos pendientes (status='pending')."""
     try:
-        stmt = select(func.count(models.Payment.id)).where(models.Payment.status == "pending")
+        stmt = select(func.count()).select_from(models.Payment).where(models.Payment.status == "pending")
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -164,7 +164,7 @@ async def count_pending_payments(session: AsyncSession) -> int:
 async def count_successful_payments(session: AsyncSession) -> int:
     """Cuenta pagos exitosos (status='paid')."""
     try:
-        stmt = select(func.count(models.Payment.id)).where(models.Payment.status == "paid")
+        stmt = select(func.count()).select_from(models.Payment).where(models.Payment.status == "paid")
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -176,7 +176,7 @@ async def count_successful_payments(session: AsyncSession) -> int:
 async def count_ips(session: AsyncSession) -> int:
     """Cuenta total de IPs en el manager."""
     try:
-        stmt = select(func.count(models.IPManager.id))
+        stmt = select(func.count()).select_from(models.IPManager)
         res = await session.execute(stmt)
         count = res.scalar_one()
         return int(count or 0)
@@ -188,7 +188,7 @@ async def count_ips(session: AsyncSession) -> int:
 async def count_available_ips(session: AsyncSession) -> int:
     """Cuenta IPs disponibles (is_available=True y is_revoked=False)."""
     try:
-        stmt = select(func.count(models.IPManager.id)).where(
+        stmt = select(func.count()).select_from(models.IPManager).where(
             and_(models.IPManager.is_available.is_(True), models.IPManager.is_revoked.is_(False))
         )
         res = await session.execute(stmt)
@@ -202,7 +202,7 @@ async def count_available_ips(session: AsyncSession) -> int:
 async def count_assigned_ips(session: AsyncSession) -> int:
     """Cuenta IPs asignadas (assigned_to_user_id IS NOT NULL y no revocadas)."""
     try:
-        stmt = select(func.count(models.IPManager.id)).where(
+        stmt = select(func.count()).select_from(models.IPManager).where(
             and_(models.IPManager.assigned_to_user_id.isnot(None), models.IPManager.is_revoked.is_(False))
         )
         res = await session.execute(stmt)
