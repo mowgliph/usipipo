@@ -10,9 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 
-from database.db import AsyncSessionLocal as get_session
+from database.db import AsyncSessionLocal
 from database.crud import logs as crud_logs, users as crud_users
-from services.audit import audit_service
 from utils.helpers import (
     log_error_and_notify,
     log_and_notify,
@@ -97,7 +96,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     
     # Verificar si el usuario está registrado
-    async with get_session() as session:
+    async with AsyncSessionLocal() as session:
         try:
             user_id_str = await get_user_id_for_command(update, session)
             if not user_id_str:
