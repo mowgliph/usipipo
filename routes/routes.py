@@ -13,6 +13,7 @@ from bot.handlers.myid import myid_command
 from bot.handlers.roles import register_roles_handlers
 from bot.handlers.perfil import profile_command, whois_command
 from bot.handlers.vpn import register_vpn_handlers
+from bot.handlers.payments import register_payments_handlers
 from bot.handlers.register import register_command
 from bot.handlers.start import start_command
 from bot.handlers.ms import ms_handler
@@ -42,6 +43,7 @@ def register_handlers(app: Application):
     app.add_handler(CommandHandler("whois", whois_command))
     app.add_handler(CommandHandler("register", register_command))
     register_vpn_handlers(app)
+    register_payments_handlers(app)
 
     # --------------------------
     # Proxy MTProto

@@ -69,19 +69,23 @@ async def generate_keys() -> Tuple[str, str]:
 async def get_next_ip(session: AsyncSession) -> str:
     """
     Asigna la siguiente IP libre en el rango definido.
-    Consulta la DB asíncronamente para minimizar race conditions; idealmente debe llamarse
-    dentro de una transacción que garantice exclusión si hay alta concurrencia.
+    Consulta la DB a través de la capa CRUD para minimizar race conditions.
+    Idealmente debe llamarse dentro de una transacción que garantice exclusión
+    si hay alta concurrencia.
     Retorna una IP en formato CIDR (ej. 10.10.0.2/32).
     """
-    stmt = select(models.VPNConfig.extra_data).where(models.VPNConfig.vpntype == "wireguard")
-    res = await session.execute(stmt)
+    # Obtener todas las configuraciones VPN existentes
+    all_configs = await crud_vpn.get_vpn_configs_for_user(session, "*")  # Usamos "*" para obtener todas
+    
+    # Filtrar configuraciones WireGuard y extraer direcciones IP usadas
     used_addresses = []
-    for row in res.scalars().all():
-        if isinstance(row, dict):
-            addr = row.get("address")
+    for config in all_configs:
+        if config.vpn_type == "wireguard" and config.extra_data and isinstance(config.extra_data, dict):
+            addr = config.extra_data.get("address")
             if addr:
                 used_addresses.append(addr)
 
+    # Encontrar la primera IP disponible en el rango
     for i in range(IP_RANGE_START, IP_RANGE_END + 1):
         candidate = f"{WG_SUBNET_PREFIX}.{i}/32"
         if candidate not in used_addresses:
@@ -132,10 +136,11 @@ async def create_peer(
     session: AsyncSession,
     user_id: str,
     duration_months: int = 1,
-    dns: str = "1.1.1.1",
+    dns: Optional[str] = None,
     config_name: Optional[str] = None,
     commit: bool = False,
 ) -> Dict[str, Any]:
+    
     """
     Crea un peer WireGuard y su registro DB.
     Flujo seguro:
@@ -158,7 +163,9 @@ async def create_peer(
     private_key, public_key = await generate_keys()
     address = await get_next_ip(session)
     expires_at = datetime.utcnow() + timedelta(days=30 * max(1, int(duration_months)))
-
+    # Usar WG_DNS del entorno o 1.1.1.1 como valor por defecto
+    dns = dns or os.getenv("WG_DNS", "1.1.1.1")
+    
     config_data = (
         f"[Interface]\n"
         f"PrivateKey = {private_key}\n"

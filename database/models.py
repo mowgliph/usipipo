@@ -30,7 +30,7 @@ def gen_uuid_str() -> str:
 # Allowed literal values for columns enforced via CheckConstraint at DB level and validated in services
 VPN_TYPES = ("outline", "wireguard", "none")
 VPN_STATUSES = ("active", "revoked", "expired", "pending")
-PAYMENT_STATUSES = ("pending", "paid", "failed")
+PAYMENT_STATUSES = ("pending", "paid", "failed", "confirming", "expired")
 IP_TYPES = ("wireguard_trial", "outline_trial", "wireguard_paid", "outline_paid") # Añadido para IPManager
 PROXY_STATUSES = ("active", "revoked", "expired")
 
@@ -167,6 +167,9 @@ class Payment(Base):
     amount_usd: Mapped[float] = mapped_column(Float, nullable=False)
     amount_stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     amount_ton: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    amount_sats: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    payment_method: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    transaction_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
 

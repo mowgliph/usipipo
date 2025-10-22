@@ -1,11 +1,16 @@
 # bot/handlers/info.py
+
+import logging
+
+from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.db import AsyncSessionLocal
 from database.crud import users as crud_users
+from database.db import AsyncSessionLocal
 from utils.helpers import log_and_notify, log_error_and_notify, safe_chat_id_from_update
+
+logger = logging.getLogger("usipipo.handlers.info")
 
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -40,8 +45,10 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
     keyboard = [
-        [InlineKeyboardButton("Registrar", callback_data='/register'), InlineKeyboardButton("Nueva VPN", callback_data='/newvpn')],
-        [InlineKeyboardButton("Trial Wireguard", callback_data='/trialvpn wireguard'), InlineKeyboardButton("Trial Outline", callback_data='/trialvpn outline')],
+        [InlineKeyboardButton("Registrar", callback_data='/register')],
+        [InlineKeyboardButton("Nueva VPN", callback_data='/newvpn')],
+        [InlineKeyboardButton("Trial Wireguard", callback_data='/trialvpn wireguard')],
+        [InlineKeyboardButton("Trial Outline", callback_data='/trialvpn outline')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -52,21 +59,21 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             bot,
             chat_id,
             user_id,
-            "command_info",
-            "Usuario ejecutó /info",
-            info_msg,
+            action="command_info",
+            details="Usuario ejecutó /info",
+            message=info_msg,
             parse_mode="HTML",
+            reply_markup=reply_markup,
         )
 
-        await bot.send_message(chat_id=chat_id, text=info_msg, parse_mode="HTML", reply_markup=reply_markup)
-
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
+        logger.exception("Error in info_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
         await log_error_and_notify(
             session,
             bot,
             chat_id,
             user_id,
-            "command_info",
-            e,
+            action="command_info",
+            error=e,
             public_message="Ha ocurrido un error mostrando la información. Intenta más tarde.",
         )

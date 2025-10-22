@@ -1,12 +1,14 @@
 # bot/handlers/status.py
+
+import logging
+
 from telegram import Update
 from telegram.ext import ContextTypes
-import logging
 
 from database.db import AsyncSessionLocal as get_session
 from services.system import get_status_metrics
-from utils.permissions import require_admin
 from utils.helpers import send_success, send_generic_error
+from utils.permissions import require_admin
 
 logger = logging.getLogger("usipipo.handlers.status")
 
@@ -36,6 +38,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
 
             await send_success(update, status_msg)
-        except Exception as e:
-            logger.exception("Error en status_command", extra={"tg_id": user.id})
+        except Exception as e:  # pylint: disable=broad-except
+            logger.exception("Error en status_command: %s", type(e).__name__, extra={"tg_id": user.id})
             await send_generic_error(update, "Error obteniendo el estado del sistema. El equipo ha sido notificado.")

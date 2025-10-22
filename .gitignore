@@ -136,4 +136,3 @@ config/*.py
 
 # Project-specific artifacts
 .windsurf/
-.github/

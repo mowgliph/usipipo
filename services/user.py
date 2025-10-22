@@ -96,6 +96,13 @@ async def get_user_by_username(session: AsyncSession, username: str) -> Optional
         logger.exception("Error obteniendo usuario por username", extra={"username": username})
         return None
 
+async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int) -> Optional[models.User]:
+    try:
+        return await crud_users.get_user_by_telegram_id(session, telegram_id)
+    except Exception as e:
+        logger.exception("Error obteniendo usuario por telegram_id", extra={"telegram_id": telegram_id})
+        return None
+
 async def get_user(session: AsyncSession, user_id: str) -> Optional[models.User]:
     try:
         return await crud_users.get_user_by_pk(session, user_id)

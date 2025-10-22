@@ -20,6 +20,7 @@ class PriceResult(TypedDict):
     stars: int
     ton: float
     ton_usd: float
+    sats: int
     source: str
 
 async def calculate_price(months: int, stars_amount: int = 100) -> PriceResult:
@@ -27,7 +28,7 @@ async def calculate_price(months: int, stars_amount: int = 100) -> PriceResult:
     Calcula el precio de un plan en USD, Stars y TON.
     Retorna un diccionario con los valores calculados.
     """
-    base_price = Decimal("1.99")
+    base_price = Decimal("1.00")
     usd = base_price * months
 
     # Descuentos
@@ -44,9 +45,11 @@ async def calculate_price(months: int, stars_amount: int = 100) -> PriceResult:
         market = get_market_snapshot(stars_amount)
         stars_usd = Decimal(str(market["stars_usd"])) / Decimal(str(market["stars_amount"]))
         ton_usd = Decimal(str(market["ton_usd"]))
+        btc_usd = Decimal(str(market["btc_usd"]))
 
         stars = int(round(usd / stars_usd))
         ton = float((usd / ton_usd).quantize(Decimal("0.01")))
+        sats = int(round(usd / btc_usd * 100000000))  # 1 BTC = 100,000,000 sats
 
         result: PriceResult = {
             "months": months,
@@ -54,6 +57,7 @@ async def calculate_price(months: int, stars_amount: int = 100) -> PriceResult:
             "stars": stars,
             "ton": ton,
             "ton_usd": float(ton_usd),
+            "sats": sats,
             "source": market.get("source", "market.py"),
         }
         logger.info(f"Precio calculado: {result}", extra={"user_id": None})
@@ -72,12 +76,14 @@ async def calculate_price(months: int, stars_amount: int = 100) -> PriceResult:
         # Fallback
         stars = int(round(float(usd) * 10))
         ton = round(float(usd) * 0.5, 2)
+        sats = int(round(float(usd) / 50000 * 100000000))  # Approximate BTC price fallback
         result: PriceResult = {
             "months": months,
             "usd": float(usd),
             "stars": stars,
             "ton": ton,
             "ton_usd": 0.5,
+            "sats": sats,
             "source": "fallback",
         }
         logger.info(f"Precio fallback: {result}", extra={"user_id": None})
@@ -108,6 +114,7 @@ async def create_vpn_payment(
             amount_usd=price["usd"],
             amount_stars=price["stars"],
             amount_ton=price["ton"],
+            amount_sats=price["sats"],
             commit=False,
         )
         logger.info(
