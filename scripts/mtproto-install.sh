@@ -25,6 +25,17 @@ function isRoot() {
         exit 1
     fi
 }
+function detect_pihole() {
+    if [[ -f ".env.pihole.generated" ]]; then
+        source ".env.pihole.generated"
+        # Validar que Pi-hole esté funcionando
+        if curl -s "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" > /dev/null 2>&1; then
+            PIHOLE_IP="${PIHOLE_HOST}"
+            return 0
+        fi
+    fi
+    return 1
+}
 
 function checkOS() {
     source /etc/os-release
@@ -102,6 +113,16 @@ function installMTProxy() {
 
     # Create systemd service
     echo "Creating systemd service..."
+
+    # Configurar DNS si Pi-hole está disponible
+    DNS_ARG=""
+    if detect_pihole; then
+        DNS_ARG="-d ${PIHOLE_IP}"
+        echo -e "${GREEN}Pi-hole detected. Using ${PIHOLE_IP} as DNS for MTProto proxy.${NC}"
+    else
+        echo -e "${ORANGE}Pi-hole not detected. Using default DNS configuration.${NC}"
+    fi
+
     cat > "${MTPROXY_SERVICE_FILE}" << EOL
 [Unit]
 Description=MTProto for Telegram - uSipipo
@@ -110,7 +131,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=${MTPROXY_DIR}/objs/bin
-ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -u nobody -p 8888 -H ${PORT} -S ${SECRET} --aes-pwd proxy-secret proxy-multi.conf -M 1
+ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -u nobody -p 8888 -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
 Restart=on-failure
 
 [Install]
@@ -177,6 +198,15 @@ function generate_env_files() {
     echo "MTPROXY_PORT=\"${PORT}\"" >> "${ENV_FILE_MTPROXY}"
     echo "MTPROXY_SECRET=\"${SECRET}\"" >> "${ENV_FILE_MTPROXY}"
     echo "MTPROXY_DIR=\"${MTPROXY_DIR}\"" >> "${ENV_FILE_MTPROXY}"
+
+    # Agregar configuración DNS si Pi-hole está disponible
+    if detect_pihole; then
+        echo "MTPROXY_DNS=\"${PIHOLE_IP}\"" >> "${ENV_FILE_MTPROXY}"
+        echo "# DNS: Using Pi-hole (${PIHOLE_IP}) for DNS resolution" >> "${ENV_FILE_MTPROXY}"
+    else
+        echo "# DNS: Using default DNS configuration" >> "${ENV_FILE_MTPROXY}"
+    fi
+
     # No se genera TAG aquí, se haría manualmente o mediante otro proceso
     # echo "MTPROXY_TAG=\"\" # Add your tag here if registered with @MTProxybot" >> "${ENV_FILE_MTPROXY}"
     echo "" >> "${ENV_FILE_MTPROXY}"

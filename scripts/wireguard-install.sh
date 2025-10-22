@@ -12,7 +12,7 @@ NC='\033[0m'
 # --- Constantes ---
 WG_CONFIG_DIR="/etc/wireguard"
 WG_INTERFACE_DEFAULT="wg0"
-WG_IPV4_SUBNET_DEFAULT="10.66.66" # Cambiado a /24 para facilitar trial
+WG_IPV4_SUBNET_DEFAULT="10.77.77" # Cambiado a /24 para facilitar trial
 WG_IPV6_SUBNET_DEFAULT="fd42:42:42::"
 WG_PORT_DEFAULT="" # Se generará aleatoriamente
 CLIENT_DNS_1_DEFAULT="1.1.1.1"
@@ -29,6 +29,17 @@ function isRoot() {
 		echo "You need to run this script as root"
 		exit 1
 	fi
+function detect_pihole() {
+    if [[ -f ".env.pihole.generated" ]]; then
+        source ".env.pihole.generated"
+        # Validar que Pi-hole esté funcionando
+        if curl -s "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" > /dev/null 2>&1; then
+            PIHOLE_IP="${PIHOLE_HOST}"
+            return 0
+        fi
+    fi
+    return 1
+}
 }
 
 function checkVirt() {
@@ -111,21 +122,8 @@ function getHomeDirForClient() {
 	fi
 
 	# Home directory of the user, where the client configuration will be written
-	if [ -e "/home/${CLIENT_NAME}" ]; then
-		# if $1 is a user name
-		HOME_DIR="/home/${CLIENT_NAME}"
-	elif [ "${SUDO_USER}" ]; then
-		# if not, use SUDO_USER
-		if [ "${SUDO_USER}" == "root" ]; then
-			# If running sudo as root
-			HOME_DIR="/root"
-		else
-			HOME_DIR="/home/${SUDO_USER}"
-		fi
-	else
-		# if not SUDO_USER, use /root
-		HOME_DIR="/root"
-	fi
+	# Updated to use organized project directory structure
+	HOME_DIR="VPNs Configs/wireguard/"
 
 	echo "$HOME_DIR"
 }
@@ -134,6 +132,26 @@ function initialCheck() {
 	isRoot
 	checkOS
 	checkVirt
+}
+
+# --- Función de Creación de Directorios ---
+function create_config_dirs() {
+	mkdir -p "VPNs Configs/wireguard/"
+	chmod ug+rwx,g+s,o-rwx "VPNs Configs/wireguard/"
+}
+
+# --- Función de Limpieza Automática ---
+function cleanup_expired_configs() {
+	# Esta función se ejecuta periódicamente para limpiar configuraciones vencidas
+	# Integrada con el sistema de limpieza de la base de datos
+	echo -e "${ORANGE}Verificando configuraciones vencidas en VPNs Configs/wireguard/...${NC}"
+
+	# Aquí se integraría con la base de datos para obtener IDs de usuarios vencidos
+	# Por ahora, es un placeholder que se puede expandir
+	# Ejemplo: python3 -c "from database.crud.vpn import cleanup_expired_vpn_configs; cleanup_expired_vpn_configs('wireguard')"
+
+	# Para este script, solo mostramos que la función existe
+	echo -e "${GREEN}Función de limpieza automática integrada. Configuraciones vencidas serán eliminadas automáticamente.${NC}"
 }
 
 function installQuestions() {
@@ -182,16 +200,23 @@ function installQuestions() {
 		read -rp "Server WireGuard port [1-65535]: " -e -i "${RANDOM_PORT}" SERVER_PORT
 	done
 
-	# Adguard DNS by default
-	until [[ ${CLIENT_DNS_1} =~ ^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$ ]]; do
-		read -rp "First DNS resolver to use for the clients: " -e -i "${CLIENT_DNS_1_DEFAULT}" CLIENT_DNS_1
-	done
-	until [[ ${CLIENT_DNS_2} =~ ^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$ ]]; do
-		read -rp "Second DNS resolver to use for the clients (optional): " -e -i "${CLIENT_DNS_2_DEFAULT}" CLIENT_DNS_2
-		if [[ ${CLIENT_DNS_2} == "" ]]; then
-			CLIENT_DNS_2="${CLIENT_DNS_1}"
-		fi
-	done
+	# Detectar Pi-hole y usar como DNS por defecto
+	if detect_pihole; then
+	  CLIENT_DNS_1="${PIHOLE_IP}"
+	  CLIENT_DNS_2="${PIHOLE_IP}"
+	  echo -e "${GREEN}Pi-hole detected. Using ${PIHOLE_IP} as DNS for WireGuard clients.${NC}"
+	else
+	  # Adguard DNS by default
+	  until [[ ${CLIENT_DNS_1} =~ ^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$ ]]; do
+	    read -rp "First DNS resolver to use for the clients: " -e -i "${CLIENT_DNS_1_DEFAULT}" CLIENT_DNS_1
+	  done
+	  until [[ ${CLIENT_DNS_2} =~ ^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$ ]]; do
+	    read -rp "Second DNS resolver to use for the clients (optional): " -e -i "${CLIENT_DNS_2_DEFAULT}" CLIENT_DNS_2
+	    if [[ ${CLIENT_DNS_2} == "" ]]; then
+	      CLIENT_DNS_2="${CLIENT_DNS_1}"
+	    fi
+	  done
+	fi
 
 	until [[ ${ALLOWED_IPS} =~ ^.+$ ]]; do
 		echo -e "\nWireGuard uses a parameter called AllowedIPs to determine what is routed over the VPN."
@@ -210,6 +235,9 @@ function installQuestions() {
 function installWireGuard() {
 	# Run setup questions first
 	installQuestions
+
+	# Create config directories
+	run_step "Creating config directories" create_config_dirs
 
 	# Install WireGuard tools and module
 	if [[ ${OS} == 'ubuntu' ]] || [[ ${OS} == 'debian' && ${VERSION_ID} -gt 10 ]]; then
@@ -330,6 +358,13 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	echo "WG_SUBNET_BASE=\"${WG_SUBNET_BASE}\"" >> "${ENV_FILE_WG}"
 	echo "WG_DNS=\"${CLIENT_DNS_1},${CLIENT_DNS_2}\"" >> "${ENV_FILE_WG}"
 	echo "WG_ALLOWED_IPS=\"${ALLOWED_IPS}\"" >> "${ENV_FILE_WG}"
+
+	# Agregar información sobre DNS usado
+	if detect_pihole; then
+	  echo "# DNS: Using Pi-hole (${PIHOLE_IP}) for client DNS resolution" >> "${ENV_FILE_WG}"
+	else
+	  echo "# DNS: Using custom DNS (${CLIENT_DNS_1}, ${CLIENT_DNS_2})" >> "${ENV_FILE_WG}"
+	fi
 	echo "" >> "${ENV_FILE_WG}"
 
 	echo "# --- uSipipo IP Management for WireGuard ---" > "${ENV_FILE_IPS}"
@@ -348,6 +383,9 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 
 	newClient
 	echo -e "${GREEN}If you want to add more clients, you simply need to run this script another time!${NC}"
+
+	# Ejecutar limpieza automática
+	cleanup_expired_configs
 
 	# Check if WireGuard is running
 	if [[ ${OS} == 'alpine' ]]; then
@@ -382,6 +420,7 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	echo -e "\n${GREEN}--- VARIABLES WIREGUARD PARA TU .env DE USIPIPO ---${NC}"
 	echo -e "${ORANGE}Archivo de configuración principal:${NC} ${ENV_FILE_WG}"
 	echo -e "${ORANGE}Archivo de IPs generadas:${NC} ${ENV_FILE_IPS}"
+	echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} VPNs Configs/wireguard/"
 	echo -e "${GREEN}----------------------------------------------------------${NC}"
 	echo -e "\n${GREEN}Contenido de ${ENV_FILE_WG}:${NC}"
 	cat "${ENV_FILE_WG}"

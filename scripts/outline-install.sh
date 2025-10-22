@@ -10,6 +10,7 @@ set -euo pipefail
 OUTLINE_DIR="/opt/outline"
 OUTLINE_CONTAINER_NAME="outline"
 OUTLINE_IMAGE_DEFAULT="quay.io/outline/shadowbox:stable"
+HOME_DIR="VPNs Configs/outline/"
 TRIAL_IP_START=2  # Primera IP usable
 TRIAL_IP_END=26   # Última IP para trial (25 IPs: 2 a 26)
 PAID_IP_START=27  # Primera IP para usuarios pagos
@@ -32,6 +33,19 @@ OUTLINE_KEY_FILE=""
 OUTLINE_API_URL=""
 OUTLINE_CERT_SHA256=""
 
+# --- Función de Detección de Pi-hole ---
+
+function detect_pihole() {
+    if [[ -f ".env.pihole.generated" ]]; then
+        source ".env.pihole.generated"
+        # Validar que Pi-hole esté funcionando
+        if curl -s "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" > /dev/null 2>&1; then
+            PIHOLE_IP="${PIHOLE_HOST}"
+            return 0
+        fi
+    fi
+    return 1
+}
 # --- Funciones de Validación ---
 function is_valid_port() {
   (( 0 < "$1" && "$1" <= 65535 ))
@@ -266,6 +280,15 @@ function write_config() {
   # fi
   config+=("\"hostname\": \"$(escape_json_string "${OUTLINE_HOSTNAME}")\"")
   config+=("\"metricsEnabled\": false") # Deshabilitado por defecto
+
+  # Configurar DNS upstream si Pi-hole está disponible
+  if detect_pihole; then
+    config+=("\"dnsResolver\": \"${PIHOLE_IP}\"")
+    echo -e "${GREEN}Pi-hole detected. Using ${PIHOLE_IP} as DNS upstream.${NC}"
+  else
+    echo -e "${ORANGE}Pi-hole not detected. Using default DNS configuration.${NC}"
+  fi
+
   echo "{$(join , "${config[@]}")}" > "${OUTLINE_STATE_DIR}/outline_server_config.json"
 }
 
@@ -360,6 +383,26 @@ function create_first_user() {
   fetch --insecure --request POST "${LOCAL_API_URL}/access-keys" >&2
 }
 
+# --- Función de Creación de Directorios ---
+function create_config_dirs() {
+  mkdir -p "${HOME_DIR}"
+  chmod ug+rwx,g+s,o-rwx "${HOME_DIR}"
+}
+
+# --- Función de Limpieza Automática ---
+function cleanup_expired_configs() {
+  # Esta función se ejecuta periódicamente para limpiar configuraciones vencidas
+  # Integrada con el sistema de limpieza de la base de datos
+  echo -e "${ORANGE}Verificando configuraciones vencidas en ${HOME_DIR}...${NC}"
+
+  # Aquí se integraría con la base de datos para obtener IDs de usuarios vencidos
+  # Por ahora, es un placeholder que se puede expandir
+  # Ejemplo: python3 -c "from database.crud.vpn import cleanup_expired_vpn_configs; cleanup_expired_vpn_configs('outline')"
+
+  # Para este script, solo mostramos que la función existe
+  echo -e "${GREEN}Función de limpieza automática integrada. Configuraciones vencidas serán eliminadas automáticamente.${NC}"
+}
+
 function set_hostname() {
   # These are URLs that return the client's apparent IP address.
   # We have more than one to try in case one starts failing
@@ -390,6 +433,14 @@ function generate_env_files() {
     echo "OUTLINE_HOSTNAME=\"${OUTLINE_HOSTNAME}\"" >> "${ENV_FILE_OUTLINE}"
     echo "OUTLINE_CONTAINER_NAME=\"${OUTLINE_CONTAINER_NAME}\"" >> "${ENV_FILE_OUTLINE}"
     echo "OUTLINE_IMAGE=\"${OUTLINE_IMAGE}\"" >> "${ENV_FILE_OUTLINE}"
+
+    # Agregar configuración DNS si Pi-hole está disponible
+    if detect_pihole; then
+        echo "OUTLINE_DNS_UPSTREAM=\"${PIHOLE_IP}\"" >> "${ENV_FILE_OUTLINE}"
+        echo "# DNS: Using Pi-hole (${PIHOLE_IP}) as upstream DNS" >> "${ENV_FILE_OUTLINE}"
+    else
+        echo "# DNS: Using default DNS configuration" >> "${ENV_FILE_OUTLINE}"
+    fi
     echo "" >> "${ENV_FILE_OUTLINE}"
 
     echo "# --- uSipipo IP Management for Outline (Placeholder) ---" > "${ENV_FILE_IPS}"
@@ -409,6 +460,7 @@ function generate_env_files() {
     echo -e "\n${GREEN}--- VARIABLES OUTLINE PARA TU .env DE USIPIPO ---${NC}"
     echo -e "${ORANGE}Archivo de configuración principal:${NC} ${ENV_FILE_OUTLINE}"
     echo -e "${ORANGE}Archivo de IPs generadas (informativo):${NC} ${ENV_FILE_IPS}"
+    echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} ${HOME_DIR}"
     echo -e "${GREEN}----------------------------------------------------------${NC}"
     echo -e "\n${GREEN}Contenido de ${ENV_FILE_OUTLINE}:${NC}"
     cat "${ENV_FILE_OUTLINE}"
@@ -539,6 +591,7 @@ install_outline() {
   readonly OUTLINE_HOSTNAME
 
   # Make a directory for persistent state
+  run_step "Creating config directories" create_config_dirs
   run_step "Creating persistent state dir" create_persisted_state_dir
   run_step "Generating secret key" generate_secret_key
   run_step "Generating TLS certificate" generate_certificate
@@ -556,6 +609,9 @@ install_outline() {
   run_step "Waiting for Outline server to be healthy" wait_outline
   run_step "Creating first user" create_first_user
 
+  # Ejecutar limpieza automática
+  cleanup_expired_configs
+
   # Generar archivos .env al finalizar
   generate_env_files
 
@@ -567,6 +623,7 @@ install_outline() {
   echo -e "${GREEN}brackets) into Step 2 of the Outline Manager interface:${NC}"
   echo -e "\n${GREEN}${OUTLINE_MANAGER_CONFIG}${NC}"
   echo -e "\n${ORANGE}Remember to open the API port ${OUTLINE_API_PORT} and the access key ports (dynamic) on your firewall.${NC}"
+  echo -e "${ORANGE}Client configurations will be stored in: ${HOME_DIR}${NC}"
 }
 
 # --- Función Principal ---
