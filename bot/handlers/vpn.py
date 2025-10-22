@@ -1,20 +1,22 @@
- # bot/handlers/vpn.py
+# bot/handlers/vpn.py
 
 from __future__ import annotations
 from typing import Optional, Dict, Any
-
+ 
 import logging
 import os
-
+ 
 from sqlalchemy.ext.asyncio import AsyncSession
-from telegram import Update, LabeledPrice, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, LabeledPrice, InlineKeyboardMarkup, InlineKeyboardButton, PreCheckoutQuery, CallbackQuery, Message
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, PreCheckoutQueryHandler, MessageHandler, filters, CallbackQueryHandler
 
-from database.crud import payments as crud_payments, users as crud_users, vpn as crud_vpn
 from database.db import AsyncSessionLocal as get_session
-from services import payments as payments_service, trial as trial_service, vpn as vpn_service, \
-    wireguard as wireguard_service, qvapay_user_client as qvapay_client
+from database.crud import payments as crud_payments
+from database.models import User
+from services import payments as payments_service, trial as trial_service, user as user_service
+from services.vpn_crud import VPNCrudService
+from services import wireguard as wireguard_service
 from utils.helpers import (
     format_vpn_list,
     log_and_notify,
@@ -27,13 +29,13 @@ from utils.helpers import (
     send_warning,
 )
 from utils.permissions import require_registered
-
+ 
 logger = logging.getLogger("usipipo.handlers.vpn")
 
 
 async def _validate_vpn_type_and_months(args: list[str]) -> tuple[str, int] | None:
     """Valida y extrae vpn_type y months de los argumentos."""
-    if len(args) < 2:
+    if not args or len(args) < 2:
         return None
 
     vpn_type = args[0].lower()
@@ -50,19 +52,27 @@ async def _validate_vpn_type_and_months(args: list[str]) -> tuple[str, int] | No
     return vpn_type, months
 
 
-async def _get_db_user(session: AsyncSession, tg_user_id: int) -> Optional[object]:
+async def _get_db_user(session: AsyncSession, tg_user_id: int) -> Optional[User]:
     """Obtiene el usuario de la base de datos por telegram_id."""
-    return await crud_users.get_user_by_telegram_id(session, tg_user_id)
+    return await user_service.get_user_by_telegram_id(session, tg_user_id)
 
 
 @require_registered
 async def newvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Crea una nueva VPN: /newvpn <wireguard|outline> <months>"""
     tg_user = update.effective_user
+    if not tg_user:
+        logger.warning("update.effective_user is None in newvpn_command")
+        await send_warning(update, "Error: Usuario no identificado.")
+        return
     chat_id = safe_chat_id_from_update(update)
     bot = context.bot
 
-    validation = _validate_vpn_type_and_months(context.args)
+    if not context.args or len(context.args) < 2:
+        await send_usage_error(update, "newvpn", "<wireguard|outline> <months>")
+        return
+
+    validation = await _validate_vpn_type_and_months(context.args)
     if not validation:
         await send_usage_error(update, "newvpn", "<wireguard|outline> <months>")
         return
@@ -76,8 +86,8 @@ async def newvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await send_warning(update, "Usuario no encontrado. Usa /register primero.")
                 return
 
-            # Calcular precio
-            price = await payments_service.calculate_price(months)
+            # Calcular precio usando el servicio CRUD
+            price_info = await VPNCrudService.calculate_vpn_price(months, "stars")
 
             # Verificar si usuario tiene QvaPay vinculado
             has_qvapay = db_user.qvapay_user_id is not None and db_user.qvapay_app_id is not None
@@ -86,30 +96,51 @@ async def newvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             keyboard = []
             if has_qvapay:
                 keyboard.append([
-                    InlineKeyboardButton("💳 Pagar con QvaPay", callback_data=f"vpn_pay_qvapay:{vpn_type}:{months}:{price['usd']}"),
-                    InlineKeyboardButton("⭐ Pagar con Estrellas", callback_data=f"vpn_pay_stars:{vpn_type}:{months}")
+                    InlineKeyboardButton(
+                        "💳 Pagar con QvaPay",
+                        callback_data=f"vpn_pay_qvapay:{vpn_type}:{months}:{price_info['usd']:.2f}"
+                    ),
+                    InlineKeyboardButton(
+                        "⭐ Pagar con Estrellas",
+                        callback_data=f"vpn_pay_stars:{vpn_type}:{months}"
+                    )
                 ])
             else:
                 keyboard.append([
-                    InlineKeyboardButton("⭐ Pagar con Estrellas", callback_data=f"vpn_pay_stars:{vpn_type}:{months}")
+                    InlineKeyboardButton(
+                        "⭐ Pagar con Estrellas",
+                        callback_data=f"vpn_pay_stars:{vpn_type}:{months}"
+                    )
                 ])
 
             reply_markup = InlineKeyboardMarkup(keyboard)
 
-            msg = f"🔐 **Nueva VPN {vpn_type.capitalize()}**\n\n"
-            msg += f"📅 Duración: {months} meses\n"
-            msg += f"💰 Precio: ${price['usd']:.2f} USD / {price['stars']} ⭐\n\n"
-            msg += "Selecciona tu método de pago:"
+            msg = (
+                f"🔐 **Nueva VPN {vpn_type.capitalize()}**\n\n"
+                f"📅 Duración: {months} meses\n"
+                f"💰 Precio: ${price_info['usd']:.2f} USD / {price_info['stars']} ⭐\n\n"
+                "Selecciona tu método de pago:"
+            )
 
-            await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+            # Verificar que update.message existe antes de usar reply_text
+            if update.message:
+                await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+            else:
+                if update.effective_chat:
+                    logger.warning("update.message is None in newvpn_command, using effective_chat.send_message")
+                    await update.effective_chat.send_message(
+                        msg, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN
+                    )
+                else:
+                    logger.error("Both update.message and update.effective_chat are None in newvpn_command")
 
-            await log_and_notify(session, bot, chat_id, db_user.id, action="newvpn_menu_shown",
-                                details=f"{vpn_type} {months}m | QvaPay: {has_qvapay}", message=msg)
+            await log_and_notify(session, bot, chat_id, str(db_user.id), action="newvpn_menu_shown",
+                                  details=f"{vpn_type} {months}m | QvaPay: {has_qvapay}", message=msg)
 
         except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in newvpn_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
+            logger.exception("Error in newvpn_command: %s", type(e).__name__, extra={"tg_id": str(tg_user.id)})
             await log_error_and_notify(session, bot, chat_id, None, action="newvpn_command", error=e)
-            await notify_admins(session, bot, message=f"Error en /newvpn para {tg_user.id}: {str(e)}")
+            await notify_admins(session, bot, message=f"Error en /newvpn para {str(tg_user.id)}: {str(e)}")
 
 
 @require_registered
@@ -119,6 +150,11 @@ async def myvpns_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat_id = safe_chat_id_from_update(update)
     bot = context.bot
 
+    if not tg_user:
+        logger.warning("update.effective_user is None in myvpns_command")
+        await send_warning(update, "Error: Usuario no identificado.")
+        return
+
     async with get_session() as session:
         try:
             db_user = await _get_db_user(session, tg_user.id)
@@ -126,20 +162,16 @@ async def myvpns_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await send_warning(update, "Usuario no encontrado.")
                 return
 
-            vpns = await vpn_service.list_user_vpns(session, db_user.id)
+            vpns = await VPNCrudService.list_user_vpns(session, str(db_user.id))
             msg = await format_vpn_list(vpns)
-            await log_and_notify(session, bot, chat_id, db_user.id, action="command_myvpns",
-                                details="Consultó VPNs", message=msg)
+            await log_and_notify(session, bot, chat_id, str(db_user.id), action="command_myvpns",
+                                  details="Consultó VPNs", message=msg)
         except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in myvpns_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
+            logger.exception("Error in myvpns_command: %s", type(e).__name__, extra={"tg_id": str(tg_user.id)})
             await log_error_and_notify(session, bot, chat_id, None, action="myvpns_command", error=e)
 
 
-async def _check_vpn_ownership_or_admin(session: AsyncSession, vpn: object, db_user: object) -> bool:
-    """Verifica si el usuario es propietario de la VPN o es admin."""
-    if vpn.user_id == db_user.id:
-        return True
-    return await crud_users.is_user_admin(session, db_user.id)
+# Función removida - ahora está en VPNCrudService
 
 
 @require_registered
@@ -149,7 +181,12 @@ async def revokevpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     chat_id = safe_chat_id_from_update(update)
     bot = context.bot
 
-    if len(context.args) < 1:
+    if not tg_user:
+        logger.warning("update.effective_user is None in trialvpn_command")
+        await send_warning(update, "Error: Usuario no identificado.")
+        return
+
+    if not context.args or len(context.args) < 1:
         await send_usage_error(update, "revokevpn", "<vpn_id>")
         return
 
@@ -162,38 +199,21 @@ async def revokevpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 await send_warning(update, "Usuario no encontrado.")
                 return
 
-            vpn = await crud_vpn.get_vpn_config(session, vpn_id)
-            if not vpn:
-                await send_warning(update, "VPN no encontrada.")
-                return
-
-            if not await _check_vpn_ownership_or_admin(session, vpn, db_user):
-                await send_warning(update, "No tienes permisos para revocar esta VPN.")
-                return
-
-            success = await vpn_service.revoke_vpn(session, vpn_id, vpn.vpn_type)
-            if not success:
-                await send_warning(update, "VPN no encontrada o ya revocada.")
+            # Usar el servicio CRUD para revocar VPN
+            revoked_vpn = await VPNCrudService.revoke_vpn(session, vpn_id, str(db_user.id))
+            if not revoked_vpn:
+                await send_warning(update, "VPN no encontrada o no tienes permisos para revocarla.")
                 return
 
             msg = f"✅ VPN <code>{vpn_id}</code> revocada."
-            await log_and_notify(session, bot, chat_id, db_user.id, action="command_revokevpn",
-                                details=f"Revocó VPN {vpn_id}", message=msg)
-            await session.commit()
+            await log_and_notify(session, bot, chat_id, str(db_user.id), action="command_revokevpn",
+                                  details=f"Revocó VPN {vpn_id}", message=msg)
         except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in revokevpn_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
+            logger.exception("Error in revokevpn_command: %s", type(e).__name__, extra={"tg_id": str(tg_user.id)})
             await log_error_and_notify(session, bot, chat_id, None, action="revokevpn_command", error=e)
 
 
-async def _build_tg_payload(tg_user: object, update: Update) -> Dict[str, Any]:
-    """Construye el payload de Telegram para el servicio de trial."""
-    return {
-        "id": tg_user.id,
-        "username": tg_user.username,
-        "first_name": tg_user.first_name,
-        "last_name": tg_user.last_name,
-        "_update": update,
-    }
+# Función removida - ahora se construye inline
 
 
 @require_registered
@@ -203,7 +223,12 @@ async def trialvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     chat_id = safe_chat_id_from_update(update)
     bot = context.bot
 
-    if len(context.args) < 1:
+    if not tg_user:
+        logger.warning("update.effective_user is None in revokevpn_command")
+        await send_warning(update, "Error: Usuario no identificado.")
+        return
+
+    if not context.args or len(context.args) < 1:
         await send_usage_error(update, "trialvpn", "<wireguard|outline>")
         return
 
@@ -214,7 +239,13 @@ async def trialvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     async with get_session() as session:
         try:
-            tg_payload = _build_tg_payload(tg_user, update)
+            tg_payload = {
+                "id": tg_user.id,
+                "username": tg_user.username,
+                "first_name": tg_user.first_name,
+                "last_name": tg_user.last_name,
+                "_update": update,
+            }
             result = await trial_service.start_trial(session, bot, tg_payload, vpn_type, duration_days=7)
             if not result["ok"]:
                 await send_warning(update, result["message"])
@@ -224,53 +255,70 @@ async def trialvpn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await send_success(update, "Trial creado exitosamente.")
             qr_bytes = await wireguard_service.generate_qr(vpn.config_data) if vpn.vpn_type == "wireguard" else None
             await send_vpn_config(update, vpn, qr_bytes=qr_bytes)
-            await log_and_notify(session, bot, chat_id, vpn.user_id, action="command_trialvpn",
+            await log_and_notify(session, bot, chat_id, str(vpn.user_id), action="command_trialvpn",
                                 details=f"Trial {vpn_type} creado ID:{vpn.id}", message=result["message"])
             await session.commit()
         except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in trialvpn_command: %s", type(e).__name__, extra={"tg_id": tg_user.id})
+            logger.exception("Error in trialvpn_command: %s", type(e).__name__, extra={"tg_id": str(tg_user.id)})
             await log_error_and_notify(session, bot, chat_id, None, action="trialvpn_command", error=e)
 
 
 async def precheckout_vpn_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler unificado para precheckout VPN."""
-    query = update.pre_checkout_query
+    query: Optional[PreCheckoutQuery] = update.pre_checkout_query
+    if not query:
+        logger.warning("pre_checkout_query is None in precheckout_vpn_handler")
+        return
     chat_id = safe_chat_id_from_update(update)
     bot = context.bot
 
     async with get_session() as session:
         try:
             payment_id = query.invoice_payload
-            payment = await crud_payments.get_payment(session, payment_id)
+            payment = await crud_payments.get_payment_by_id(session, payment_id)
             if not payment:
                 await query.answer(ok=False, error_message="Pago no encontrado.")
                 return
 
-            db_user = await crud_users.get_user_by_telegram_id(session, query.from_user.id)
+            db_user = await user_service.get_user_by_telegram_id(session, query.from_user.id)
             uid = db_user.id if db_user else None
 
             msg = "📡 Procesando pre-checkout..."
-            await log_and_notify(session, bot, chat_id, uid, action="pre_checkout",
-                                details=f"PaymentID {payment_id}", message=msg)
+            await log_and_notify(
+                session, bot, chat_id, str(uid), action="pre_checkout",
+                details=f"PaymentID {payment_id}", message=msg
+            )
 
             await query.answer(ok=True)
         except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in precheckout_vpn_handler: %s", type(e).__name__, extra={"tg_id": query.from_user.id if query.from_user else None})
-            await log_error_and_notify(session, bot, chat_id, None, action="precheckout_vpn_handler", error=e)
+            tg_id = str(query.from_user.id) if query.from_user else None
+            logger.exception(
+                "Error in precheckout_vpn_handler: %s", type(e).__name__,
+                extra={"tg_id": tg_id}
+            )
+            await log_error_and_notify(
+                session, bot, chat_id, None, action="precheckout_vpn_handler", error=e
+            )
             await query.answer(ok=False, error_message="Error procesando el pago.")
 
 
 async def vpn_payment_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler para callbacks de pago VPN (estrellas y QvaPay)."""
-    query = update.callback_query
+    query: Optional[CallbackQuery] = update.callback_query
+    if not query:
+        logger.warning("callback_query is None in vpn_payment_callback_handler")
+        return
     await query.answer()
 
     tg_user = query.from_user
+    if not tg_user:
+        logger.warning("query.from_user is None in vpn_payment_callback_handler")
+        return
     chat_id = safe_chat_id_from_update(update)
     bot = context.bot
 
     data = query.data
-    if not data.startswith("vpn_pay_"):
+    if not data or not data.startswith("vpn_pay_"):
         return
 
     # Parse callback data: vpn_pay_stars:wireguard:3 or vpn_pay_qvapay:wireguard:3:5.00
@@ -292,29 +340,31 @@ async def vpn_payment_callback_handler(update: Update, context: ContextTypes.DEF
                 return
 
             if payment_method == "stars":
-                # Flujo existente de estrellas
-                payment = await payments_service.create_vpn_payment(session, str(db_user.id), vpn_type, months)
+                # Flujo de estrellas usando servicio de pagos
+                payment = await payments_service.create_vpn_payment(session, str(db_user.id), vpn_type, months)  # type: ignore
                 if not payment:
                     await send_warning(update, "No se pudo crear el pago. Intenta más tarde.")
                     return
 
                 msg = f"📡 Generando invoice para {vpn_type.capitalize()} por {months} meses..."
-                await log_and_notify(session, bot, chat_id, db_user.id, action="payment_created",
-                                    details=f"{vpn_type} {months}m | PaymentID {payment.id}", message=msg)
+                await log_and_notify(session, bot, chat_id, str(db_user.id), action="payment_created",
+                                      details=f"{vpn_type} {months}m | PaymentID {payment.id}", message=msg)
 
-                await query.message.reply_invoice(
-                    title=f"Suscripción VPN {vpn_type.capitalize()}",
-                    description=f"{months} meses de servicio VPN {vpn_type.capitalize()}",
-                    payload=str(payment.id),
-                    provider_token=os.getenv("TELEGRAM_PROVIDER_TOKEN", ""),
-                    currency="XTR",
-                    prices=[LabeledPrice(f"VPN {vpn_type.capitalize()}", payment.amount_stars)],
-                    parse_mode=ParseMode.HTML,
-                )
+                if query.message and isinstance(query.message, Message):
+                    await query.message.reply_invoice(
+                        title=f"Suscripción VPN {vpn_type.capitalize()}",
+                        description=f"{months} meses de servicio VPN {vpn_type.capitalize()}",
+                        payload=str(payment.id),
+                        provider_token=os.getenv("TELEGRAM_PROVIDER_TOKEN", ""),
+                        currency="XTR",
+                        prices=[LabeledPrice(f"VPN {vpn_type.capitalize()}", payment.amount_stars)],
+                    )
+                else:
+                    logger.warning("query.message is None or not a Message in vpn_payment_callback_handler")
                 await session.commit()
 
             elif payment_method == "qvapay":
-                # Nuevo flujo con QvaPay
+                # Flujo con QvaPay usando servicio CRUD
                 if not amount_usd:
                     await send_warning(update, "Monto USD requerido para pago con QvaPay.")
                     return
@@ -323,15 +373,17 @@ async def vpn_payment_callback_handler(update: Update, context: ContextTypes.DEF
                     await send_warning(update, "QvaPay no vinculado. Usa /qvapay para vincular tu cuenta.")
                     return
 
-                # Verificar balance
+                # Verificar balance usando servicio CRUD
                 try:
-                    balance_info = await qvapay_client.QvaPayUserClient().async_get_user_balance(
-                        db_user.qvapay_app_id, db_user.qvapay_user_id
+                    balance_check = await VPNCrudService.check_qvapay_balance(
+                        session, str(db_user.id), amount_usd
                     )
-                    usd_balance = balance_info.get("balances", {}).get("USD", 0)
 
-                    if usd_balance < amount_usd:
-                        await send_warning(update, f"Balance insuficiente. Tienes ${usd_balance:.2f} USD, necesitas ${amount_usd:.2f} USD.")
+                    if not balance_check["has_sufficient_balance"]:
+                        await send_warning(update,
+                            f"Balance insuficiente. Tienes ${balance_check['current_balance']:.2f} USD, "
+                            f"necesitas ${balance_check['required_amount']:.2f} USD."
+                        )
                         return
 
                 except Exception as e:
@@ -339,28 +391,24 @@ async def vpn_payment_callback_handler(update: Update, context: ContextTypes.DEF
                     await send_warning(update, "Error verificando balance QvaPay. Intenta más tarde.")
                     return
 
-                # Procesar pago
+                # Procesar pago completo usando servicio CRUD
                 try:
-                    payment_result = await qvapay_client.QvaPayUserClient().async_process_payment(
-                        db_user.qvapay_app_id, db_user.qvapay_user_id, amount_usd
+                    vpn = await VPNCrudService.process_qvapay_payment(
+                        session, str(db_user.id), vpn_type, months  # type: ignore
                     )
 
-                    msg = f"💰 Pago procesado con QvaPay: ${amount_usd:.2f} USD"
-                    await log_and_notify(session, bot, chat_id, db_user.id, action="qvapay_payment_processed",
-                                        details=f"{vpn_type} {months}m | Amount: ${amount_usd}", message=msg)
-
-                    # Crear VPN inmediatamente
-                    vpn = await vpn_service.activate_vpn_for_user(session, db_user.id, vpn_type, months)
                     if not vpn:
                         await send_warning(update, "No se pudo crear la VPN. Contacta soporte.")
                         return
 
-                    qr_bytes = await wireguard_service.generate_qr(vpn.config_data) if vpn.vpn_type == "wireguard" else None
+                    # Enviar configuración VPN
+                    config_str = vpn.config_data.get("content", "") if isinstance(vpn.config_data, dict) else str(vpn.config_data)
+                    qr_bytes = await wireguard_service.generate_qr(config_str) if vpn.vpn_type == "wireguard" else None
                     await send_vpn_config(update, vpn, qr_bytes=qr_bytes)
+
                     msg = f"🔐 VPN {vpn_type.capitalize()} creada exitosamente con QvaPay."
-                    await log_and_notify(session, bot, chat_id, db_user.id, action="vpn_created_qvapay",
-                                        details=f"VPNID {vpn.id}", message=msg)
-                    await session.commit()
+                    await log_and_notify(session, bot, chat_id, str(db_user.id), action="vpn_created_qvapay",
+                                          details=f"VPNID {getattr(vpn, 'id', 'unknown')}", message=msg)
 
                 except Exception as e:
                     logger.exception("Error procesando pago QvaPay: %s", str(e))
@@ -368,9 +416,9 @@ async def vpn_payment_callback_handler(update: Update, context: ContextTypes.DEF
                     return
 
         except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in vpn_payment_callback_handler: %s", type(e).__name__, extra={"tg_id": tg_user.id})
+            logger.exception("Error in vpn_payment_callback_handler: %s", type(e).__name__, extra={"tg_id": str(tg_user.id)})
             await log_error_and_notify(session, bot, chat_id, None, action="vpn_payment_callback_handler", error=e)
-            await notify_admins(session, bot, message=f"Error en callback de pago VPN para {tg_user.id}: {str(e)}")
+            await notify_admins(session, bot, message=f"Error en callback de pago VPN para {str(tg_user.id)}: {str(e)}")
 
 
 async def successful_payment_vpn_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -379,13 +427,21 @@ async def successful_payment_vpn_handler(update: Update, context: ContextTypes.D
     chat_id = safe_chat_id_from_update(update)
     bot = context.bot
 
+    if not tg_user:
+        logger.warning("update.effective_user is None in successful_payment_vpn_handler")
+        return
+
+    if not update.message:
+        logger.warning("update.message is None in successful_payment_vpn_handler")
+        return
+
     success = update.message.successful_payment
     if not success:
         return
 
     async with get_session() as session:
         try:
-            db_user = await crud_users.get_user_by_telegram_id(session, tg_user.id)
+            db_user = await user_service.get_user_by_telegram_id(session, tg_user.id)
             if not db_user:
                 await send_warning(update, "Usuario no encontrado.")
                 return
@@ -397,24 +453,37 @@ async def successful_payment_vpn_handler(update: Update, context: ContextTypes.D
                 return
 
             msg = "💰 Pago recibido correctamente."
-            await log_and_notify(session, bot, chat_id, db_user.id, action="payment_paid",
-                                details=f"PaymentID {payment_id}", message=msg)
+            await log_and_notify(session, bot, chat_id, str(db_user.id), action="payment_paid",
+                                  details=f"PaymentID {payment_id}", message=msg)
 
-            vpn = await vpn_service.activate_vpn_for_user(session, db_user.id, payment.vpn_type, payment.months)
+            # Crear VPN usando servicio CRUD
+            vpn = await VPNCrudService.create_vpn(
+                session=session,
+                user_id=str(db_user.id),
+                vpn_type=payment.vpn_type,  # type: ignore
+                months=payment.months,
+                payment_method="stars",
+                is_trial=False,
+                commit=True
+            )
+
             if not vpn:
                 await send_warning(update, "No se pudo activar la VPN. Contacta soporte.")
                 return
 
-            qr_bytes = await wireguard_service.generate_qr(vpn.config_data) if vpn.vpn_type == "wireguard" else None
+            # Enviar configuración VPN
+            config_str = vpn.config_data.get("content", "") if isinstance(vpn.config_data, dict) else str(vpn.config_data)
+            qr_bytes = await wireguard_service.generate_qr(config_str) if vpn.vpn_type == "wireguard" else None
             await send_vpn_config(update, vpn, qr_bytes=qr_bytes)
+
             msg = f"🔐 VPN {payment.vpn_type.capitalize()} creada exitosamente."
-            await log_and_notify(session, bot, chat_id, db_user.id, action="vpn_created",
-                                details=f"VPNID {vpn.id}", message=msg)
-            await session.commit()
+            await log_and_notify(session, bot, chat_id, str(db_user.id), action="vpn_created",
+                                  details=f"VPNID {vpn.id}", message=msg)
+
         except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in successful_payment_vpn_handler: %s", type(e).__name__, extra={"tg_id": tg_user.id})
+            logger.exception("Error in successful_payment_vpn_handler: %s", type(e).__name__, extra={"tg_id": str(tg_user.id)})
             await log_error_and_notify(session, bot, chat_id, None, action="successful_payment_vpn_handler", error=e)
-            await notify_admins(session, bot, message=f"Error en pago exitoso para {tg_user.id}: {str(e)}")
+            await notify_admins(session, bot, message=f"Error en pago exitoso para {str(tg_user.id)}: {str(e)}")
 
 
 def register_vpn_handlers(app):

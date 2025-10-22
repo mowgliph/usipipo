@@ -1,10 +1,10 @@
 # config/config.py
 
-from dotenv import load_dotenv
 import os
 import logging
 from logging.handlers import RotatingFileHandler
 from typing import Set
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -86,13 +86,6 @@ if not TELEGRAM_BOT_TOKEN:
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL no está definido")
 
-# Validaciones opcionales con warnings
-if not OUTLINE_API_URL:
-    logging.warning("OUTLINE_API_URL no está definido - funcionalidad Outline limitada")
-if not WIREGUARD_HOST:
-    logging.warning("WIREGUARD_HOST no está definido - funcionalidad WireGuard limitada")
-if not MTPROXY_HOST:
-    logging.warning("MTPROXY_HOST no está definido - funcionalidad MTProto limitada")
 
 # Configuración de logging centralizado
 logger = logging.getLogger("usipipo")

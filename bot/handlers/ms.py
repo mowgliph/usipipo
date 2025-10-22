@@ -25,6 +25,9 @@ async def ms_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     Uso: /ms Hola, este es un mensaje para todos.
     Registra la acción en AuditLog y notifica errores a admins.
     """
+    if not update.effective_user:
+        return
+
     if not context.args:
         await send_usage_error(update, "ms", "Hola, este es un mensaje")
         return

@@ -87,7 +87,7 @@ class AuditLog(Base):
     id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=gen_uuid_str)
     user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(128), nullable=False)
-    payload: Mapped[Optional[Dict]] = mapped_column(MYSQL_JSON, nullable=True)
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
 
     user: Mapped[Optional["User"]] = relationship("User", back_populates="logs")

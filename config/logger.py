@@ -183,12 +183,13 @@ async def get_last_logs_db(n=10, user_id=None):
             for log in logs:
                 who = (
                     f"@{log.user.username}"
-                    if getattr(log, "user", None) and log.user.username
+                    if log.user and log.user.username
                     else (f"ID:{log.user_id}" if log.user_id else "SYSTEM")
                 )
                 formatted.append(
-                    f"{log.created_at.strftime('%Y-%m-%d %H:%M:%S')} | {who} | {log.action} | {log.details or ''}"
+                    f"{log.created_at.strftime('%Y-%m-%d %H:%M:%S')} | {who} | "
+                    f"{log.action} | {log.details or ''}"
                 )
             return list(reversed(formatted))
-        except Exception as e:
+        except SQLAlchemyError as e:
             return [f"Error al leer audit logs: {e}"]

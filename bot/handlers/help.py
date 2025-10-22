@@ -14,6 +14,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """
     Responde al comando /help mostrando los comandos disponibles según rol.
     """
+    if not update.effective_chat or not update.message or not update.effective_user:
+        return
+
     tg_user = update.effective_user
 
     async with AsyncSessionLocal() as db:

@@ -17,6 +17,8 @@ async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Uso: /myid
     Registra la acción en AuditLog y notifica errores a admins.
     """
+    if not update.effective_user:
+        return
     user = update.effective_user
     async with get_session() as session:
         try:

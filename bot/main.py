@@ -22,6 +22,10 @@ async def send_startup_notification(app):
 def main():
     setup_logger()
 
+    if TELEGRAM_BOT_TOKEN is None:
+        logging.error("TELEGRAM_BOT_TOKEN is not set. Please check your configuration.", extra={"user_id": None})
+        raise SystemExit(1)
+
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     # Registro de comandos y tareas

@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import html
 import logging
+from typing import Optional
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from database.db import AsyncSessionLocal as get_session
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database.db import AsyncSessionLocal
 from services import roles, user as user_service, vpn as vpn_service
 from utils.helpers import (
     send_usage_error,
     send_warning,
+    send_generic_error,
     log_and_notify,
     log_error_and_notify,
 )
@@ -21,7 +25,7 @@ from utils.permissions import require_admin, require_registered
 logger = logging.getLogger("usipipo.handlers.perfil")
 
 
-async def _get_user_profile_data(session, user_id: str):
+async def _get_user_profile_data(session: AsyncSession, user_id: str):
     """Obtiene datos del perfil de usuario."""
     # Total de configuraciones
     total_configs = await vpn_service.count_vpn_configs_by_user(
@@ -68,70 +72,85 @@ async def _format_profile_message(
 
 @require_registered
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    requester = update.effective_user
-    user_id_for_log = str(requester.id)
-    async with get_session() as db:
-        try:
-            # 1. Determinar si se consulta a otro usuario
-            if context.args and context.args[0].isdigit():
-                target_id = int(context.args[0])
-            else:
-                target_id = requester.id
+    """Handler para mostrar el perfil propio o de otro usuario (por ID Telegram).
 
-            # 2. Obtener usuario
-            db_user = await user_service.get_user_by_telegram_id(db, target_id)
+    - Si se pasa un argumento numérico, se interpreta como telegram_id.
+    - Las IDs internas de usuario se manejan como UUID strings.
+    """
+    requester = update.effective_user
+    requester_id = getattr(requester, "id", None)
+    user_id_for_log: Optional[str] = None
+
+    async with AsyncSessionLocal() as db:
+        try:
+            # 1. Determinar si se consulta a otro usuario (por telegram id)
+            if context.args and context.args[0].isdigit():
+                target_tg_id = int(context.args[0])
+            else:
+                target_tg_id = requester_id
+
+            # 2. Obtener usuario por Telegram ID (service se encarga del CRUD)
+            if target_tg_id is None:
+                await send_generic_error(update, "No se pudo identificar al usuario solicitante")
+                return
+            db_user = await user_service.get_user_by_telegram_id(db, int(target_tg_id))
             if not db_user:
                 await send_warning(update, "Usuario no encontrado en la base de datos.")
                 return
-            user_id_for_log = str(db_user.id)  # Usar el ID del usuario consultado para logs si existe
+            user_id_for_log = str(db_user.id)
 
-            # 3. Obtener datos del perfil
+            # 3. Obtener datos del perfil (usar UUID string)
             total_configs, last_info, roles_text = await _get_user_profile_data(db, str(db_user.id))
 
             # 4. Formatear respuesta
             text = await _format_profile_message(db_user, total_configs, last_info, roles_text)
 
             # Determinar texto del botón QvaPay basado en vinculación
-            qvapay_button_text = "💳 Ver QvaPay" if db_user.qvapay_user_id else "💳 Agregar QvaPay"
+            qvapay_button_text = "💳 Ver QvaPay" if getattr(db_user, "qvapay_user_id", None) else "💳 Agregar QvaPay"
 
-            # Enviar mensaje del perfil con botones
-            await update.message.reply_text(
-                text,
-                parse_mode="HTML",
-                reply_markup={
-                    "inline_keyboard": [
-                        [
-                            {"text": "🔗 Nueva VPN", "callback_data": "newvpn"},
-                            {"text": "🆓 Prueba Gratis", "callback_data": "trial"},
-                            {"text": "📊 Mis Logs", "callback_data": "mylogs"},
-                        ],
-                        [
-                            {"text": qvapay_button_text, "callback_data": "qvapay"}
-                        ]
-                    ]
-                },
+            # Construir teclado inline de forma correcta
+            keyboard = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(text="🔗 Nueva VPN", callback_data="newvpn"),
+                        InlineKeyboardButton(text="🆓 Prueba Gratis", callback_data="trial"),
+                        InlineKeyboardButton(text="📊 Mis Logs", callback_data="mylogs"),
+                    ],
+                    [InlineKeyboardButton(text=qvapay_button_text, callback_data="qvapay")],
+                ]
             )
 
-            # Registrar en auditoría (sin enviar mensaje)
+            # Enviar mensaje del perfil
+            if update.message:
+                await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+            else:
+                # enviar mediante bot si message no está disponible
+                chat_id = update.effective_chat.id if update.effective_chat else None
+                if chat_id:
+                    await context.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=keyboard)
+
+            # Registrar en auditoría (sin enviar mensaje adicional)
+            chat_id = update.effective_chat.id if update.effective_chat else None
             await log_and_notify(
                 session=db,
                 bot=context.bot,
-                chat_id=update.effective_chat.id,
+                chat_id=chat_id,
                 user_id=user_id_for_log,
                 action="command_profile",
-                details=f"Consultó perfil de ID:{target_id}",
+                details=f"Consultó perfil de telegram_id:{target_tg_id}",
                 message=text,
             )
 
-        except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in profile_command: %s", type(e).__name__, extra={"tg_id": requester.id})
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception("Error en profile_command", extra={"user_id": user_id_for_log, "tg_id": requester_id})
+            chat_id = update.effective_chat.id if update.effective_chat else None
             await log_error_and_notify(
                 session=db,
                 bot=context.bot,
-                chat_id=update.effective_chat.id,
+                chat_id=chat_id,
                 user_id=user_id_for_log,
                 action="command_profile",
-                error=e,
+                error=exc,
             )
 
 
@@ -154,22 +173,24 @@ async def _format_whois_message(
 @require_admin
 async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     requester = update.effective_user
-    user_id_for_log = str(requester.id)  # Default para logs
-    async with get_session() as db:
+    requester_id = getattr(requester, "id", None)
+    user_id_for_log: Optional[str] = None
+
+    async with AsyncSessionLocal() as db:
         try:
-            # 1. Validar argumentos
+            # 1. Validar argumentos (espera @username)
             if not context.args or not context.args[0].startswith("@"):
                 await send_usage_error(update, "whois", "<@username>")
                 return
 
-            username = context.args[0][1:]  # quitar @
+            username = context.args[0][1:]
 
-            # 2. Obtener usuario
+            # 2. Obtener usuario por username
             db_user = await user_service.get_user_by_username(db, username)
             if not db_user:
                 await send_warning(update, "⚠️ Usuario no encontrado.")
                 return
-            user_id_for_log = str(db_user.id)  # Usar el ID del usuario consultado para logs si existe
+            user_id_for_log = str(db_user.id)
 
             # 3. Obtener datos del perfil
             total_configs, last_info, roles_text = await _get_user_profile_data(db, str(db_user.id))
@@ -177,25 +198,32 @@ async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # 4. Formatear respuesta
             text = await _format_whois_message(username, db_user, total_configs, last_info, roles_text)
 
-            await update.message.reply_text(text, parse_mode="HTML")
+            if update.message:
+                await update.message.reply_text(text, parse_mode="HTML")
+            else:
+                chat_id = update.effective_chat.id if update.effective_chat else None
+                if chat_id:
+                    await context.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
 
+            chat_id = update.effective_chat.id if update.effective_chat else None
             await log_and_notify(
                 session=db,
                 bot=context.bot,
-                chat_id=update.effective_chat.id,
+                chat_id=chat_id,
                 user_id=user_id_for_log,
                 action="command_whois",
                 details=f"Consultó perfil de @{username}",
                 message=text,
             )
 
-        except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Error in whois_command: %s", type(e).__name__, extra={"tg_id": requester.id})
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception("Error en whois_command", extra={"user_id": user_id_for_log, "tg_id": requester_id})
+            chat_id = update.effective_chat.id if update.effective_chat else None
             await log_error_and_notify(
                 session=db,
                 bot=context.bot,
-                chat_id=update.effective_chat.id,
+                chat_id=chat_id,
                 user_id=user_id_for_log,
                 action="command_whois",
-                error=e,
+                error=exc,
             )

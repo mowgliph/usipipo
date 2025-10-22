@@ -1,8 +1,7 @@
 # bot/handlers/logs.py
 
 from __future__ import annotations
-from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 
 import logging
 
@@ -11,7 +10,8 @@ from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 
 from database.db import AsyncSessionLocal
-from database.crud import logs as crud_logs, users as crud_users
+from services.audit import audit_service
+from services.user import get_user_by_telegram_id
 from utils.helpers import (
     log_error_and_notify,
     log_and_notify,
@@ -26,9 +26,10 @@ logger = logging.getLogger("usipipo.handlers.logs")
 
 async def parse_limit_page(context: ContextTypes.DEFAULT_TYPE, default_limit: int = 10, max_limit: int = 50) -> tuple[int, int]:
     """Parse limit and page from context args."""
+    args = context.args or []
     try:
-        limit = min(int(context.args[0]) if len(context.args) > 0 and context.args[0].isdigit() else default_limit, max_limit)
-        page = max(1, int(context.args[1])) if len(context.args) > 1 and context.args[1].isdigit() else 1
+        limit = min(int(args[0]) if len(args) > 0 and args[0].isdigit() else default_limit, max_limit)
+        page = max(1, int(args[1])) if len(args) > 1 and args[1].isdigit() else 1
     except (ValueError, IndexError):
         raise ValueError("Invalid arguments")
     return limit, page
@@ -36,7 +37,9 @@ async def parse_limit_page(context: ContextTypes.DEFAULT_TYPE, default_limit: in
 @require_superadmin
 async def get_user_id_for_command(update: Update, session: AsyncSession) -> Optional[str]:
     """Get user ID and check permissions."""
-    user = await get_user_by_telegram_id(session, update.effective_user.id) if update.effective_user else None
+    if not update.effective_user or not update.message:
+        return None
+    user = await get_user_by_telegram_id(session, update.effective_user.id)
     if not user:
         await update.message.reply_text(
             "🔐 Para ver tus registros de actividad, primero debes registrarte.\n\n"
@@ -59,8 +62,11 @@ async def get_formatted_logs(limit: int, page: int, user_id: Optional[str] = Non
     logs_result = await audit_service.get_logs(limit=limit, offset=(page - 1) * limit, user_id=user_id)
     if not logs_result["ok"]:
         raise Exception("Error obteniendo logs desde service")
-    logs = logs_result["data"]["items"]
-    total = logs_result["data"]["total"]
+    data = logs_result.get("data")
+    if not data:
+        return None, 0
+    logs = data.get("items")
+    total = data.get("total", 0)
     if not logs:
         return None, total
     log_entries = [format_log_entry(log) for log in logs]
@@ -69,6 +75,8 @@ async def get_formatted_logs(limit: int, page: int, user_id: Optional[str] = Non
 
 async def send_logs_in_chunks(update: Update, log_entries: List[str], total: int, page: int, title: str):
     """Send logs in chunks to avoid long messages."""
+    if not update.message:
+        return
     chunk_size = 5
     for i in range(0, len(log_entries), chunk_size):
         chunk = log_entries[i:i + chunk_size]
@@ -89,12 +97,15 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Si el usuario no está registrado, le indica cómo registrarse.
     Uso: /logs [limit=10] [page=1]
     """
+    if not update.effective_user or not update.message:
+        return
     bot = context.bot
     chat_id = safe_chat_id_from_update(update)
     if not chat_id:
         logger.error("No chat_id en update", extra={"user_id": None})
         return
-    
+
+    user_id_str = None
     # Verificar si el usuario está registrado
     async with AsyncSessionLocal() as session:
         try:
@@ -161,13 +172,15 @@ async def mylogs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Muestra los registros de auditoría del usuario actual.
     Uso: /mylogs [limit=10] [page=1]
     """
+    if not update.effective_user or not update.message:
+        return
     bot = context.bot
     chat_id = safe_chat_id_from_update(update)
     if not chat_id:
         logger.error("No chat_id en update", extra={"user_id": None})
         return
 
-    user_id_str = str(update.effective_user.id) if update.effective_user else None
+    user_id_str = str(update.effective_user.id)
 
     # Procesar argumentos
     try:
@@ -206,7 +219,7 @@ async def mylogs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_id=user_id_str,
                 action="user.mylogs",
                 details=f"Consultó sus registros de auditoría (página {page})",
-                message=f"✅ Se han consultado tus registros de auditoría."
+                message="✅ Se han consultado tus registros de auditoría."
             )
 
         except Exception as e:

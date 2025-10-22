@@ -2,7 +2,6 @@
 
 import logging
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 
@@ -17,6 +16,11 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     /info handler: muestra información del bot, enlaces y botones rápidos.
     Similar a /start pero orientado a documentación breve y FAQ.
     """
+    if update.effective_user is None:
+        return
+    if update.message is None:
+        return
+
     tg_user = update.effective_user
     bot = context.bot
     chat_id = safe_chat_id_from_update(update)
@@ -25,15 +29,15 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     async with AsyncSessionLocal() as session:
         user = await crud_users.ensure_user(session, {
             "id": tg_user.id,
-            "username": tg_user.username,
-            "first_name": tg_user.first_name,
-            "last_name": tg_user.last_name,
+            "username": tg_user.username or "",
+            "first_name": tg_user.first_name or "",
+            "last_name": tg_user.last_name or "",
         }, commit=False)
         user_id = user.id  # UUID string
 
     info_msg = (
         f"ℹ️ Información de uSipipo\n\n"
-        f"Hola <b>{tg_user.first_name}</b> — euSipipo te permite crear y administrar VPNs de Wireguard y Outline fácil, rapido y seguro.\n\n"
+        f"Hola <b>{tg_user.first_name or 'Usuario'}</b> — euSipipo te permite crear y administrar VPNs de Wireguard y Outline fácil, rapido y seguro.\n\n"
         "Comandos importantes:\n"
         "• <code>/register</code> — Registrar tu cuenta\n"
         "• <code>/trialvpn &lt;wireguard|outline&gt;</code> — Solicitar un trial de 7 días\n"

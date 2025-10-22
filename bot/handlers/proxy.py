@@ -33,6 +33,7 @@ async def proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     bot = context.bot
 
     async with get_session() as session:
+        db_user = None
         try:
             # Obtener usuario de DB (ya verificado por decorador)
             db_user = await get_user_by_telegram_id(session, tg_user.id)
@@ -57,7 +58,7 @@ async def proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 session,
                 bot,
                 chat_id,
-                db_user.id if 'db_user' in locals() and db_user else None,
+                db_user.id if db_user else None,
                 action="command_proxy",
                 error=e,
                 public_message="Ha ocurrido un error procesando /proxy. Intenta más tarde.",
@@ -92,6 +93,9 @@ async def _handle_proxy_logic(
 
 async def _show_existing_proxy(update: Update, proxy) -> None:
     """Muestra información del proxy existente."""
+    if not update.message:
+        return
+
     proxy_info = await proxy_service.get_proxy_info(proxy)
     connection_string = proxy_info["connection_string"]
 
@@ -107,14 +111,18 @@ async def _show_existing_proxy(update: Update, proxy) -> None:
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
+    message = (
         f"🔒 <b>Ya tienes un proxy MTProto activo</b>\n\n"
-        f"📍 <b>Host:</b> <code>{proxy.host}</code>\n"
-        f"🔌 <b>Puerto:</b> <code>{proxy.port}</code>\n"
-        f"🔑 <b>Secreto:</b> <code>{proxy.secret}</code>\n"
+        f"📍 <b>Host:</b> <code>{proxy.host or 'N/A'}</code>\n"
+        f"🔌 <b>Puerto:</b> <code>{proxy.port or 'N/A'}</code>\n"
+        f"🔑 <b>Secreto:</b> <code>{proxy.secret or 'N/A'}</code>\n"
         f"📅 <b>Expira:</b> {proxy.expires_at.strftime('%Y-%m-%d %H:%M') if proxy.expires_at else 'Nunca'}\n\n"
         f"🔗 <b>Enlace de conexión:</b>\n<code>{connection_string}</code>\n\n"
-        f"💡 <b>¿Qué deseas hacer?</b>",
+        f"💡 <b>¿Qué deseas hacer?</b>"
+    )
+
+    await update.message.reply_text(
+        message,
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
@@ -129,6 +137,9 @@ async def _create_new_proxy(
     chat_id
 ) -> None:
     """Crea un nuevo proxy gratuito."""
+    if not update.message:
+        return
+
     try:
         new_proxy = await proxy_service.create_free_proxy_for_user(session, db_user.id, commit=True)
         if new_proxy:
@@ -157,6 +168,9 @@ async def _create_new_proxy(
 
 async def _show_new_proxy_success(update: Update, new_proxy) -> None:
     """Muestra mensaje de éxito al crear nuevo proxy."""
+    if not update.message:
+        return
+
     proxy_info = await proxy_service.get_proxy_info(new_proxy)
     connection_string = proxy_info["connection_string"]
 
@@ -168,18 +182,22 @@ async def _show_new_proxy_success(update: Update, new_proxy) -> None:
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
+    message = (
         f"✅ <b>¡Proxy MTProto gratuito creado!</b>\n\n"
-        f"📍 <b>Host:</b> <code>{new_proxy.host}</code>\n"
-        f"🔌 <b>Puerto:</b> <code>{new_proxy.port}</code>\n"
-        f"🔑 <b>Secreto:</b> <code>{new_proxy.secret}</code>\n"
+        f"📍 <b>Host:</b> <code>{new_proxy.host or 'N/A'}</code>\n"
+        f"🔌 <b>Puerto:</b> <code>{new_proxy.port or 'N/A'}</code>\n"
+        f"🔑 <b>Secreto:</b> <code>{new_proxy.secret or 'N/A'}</code>\n"
         f"📅 <b>Expira:</b> {new_proxy.expires_at.strftime('%Y-%m-%d %H:%M') if new_proxy.expires_at else 'Nunca'}\n\n"
         f"🔗 <b>Enlace de conexión:</b>\n<code>{connection_string}</code>\n\n"
         f"📱 <b>Instrucciones:</b>\n"
         f"1. Copia el enlace de arriba\n"
         f"2. Ábrelo en Telegram o comparte\n"
         f"3. El proxy se conectará automáticamente\n\n"
-        f"⚠️ <b>Nota:</b> Este proxy es gratuito y expira en 30 días.",
+        f"⚠️ <b>Nota:</b> Este proxy es gratuito y expira en 30 días."
+    )
+
+    await update.message.reply_text(
+        message,
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
