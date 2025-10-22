@@ -30,7 +30,7 @@ def gen_uuid_str() -> str:
 # Allowed literal values for columns enforced via CheckConstraint at DB level and validated in services
 VPN_TYPES = ("outline", "wireguard", "none")
 VPN_STATUSES = ("active", "revoked", "expired", "pending")
-PAYMENT_STATUSES = ("pending", "paid", "failed", "confirming", "expired")
+PAYMENT_STATUSES = ("pending", "completed", "failed", "refunded")
 IP_TYPES = ("wireguard_trial", "outline_trial", "wireguard_paid", "outline_paid") # Añadido para IPManager
 PROXY_STATUSES = ("active", "revoked", "expired")
 
@@ -158,26 +158,28 @@ class UserRole(Base):
 
 
 class Payment(Base):
+    """
+    Modelo para pagos con estrellas de Telegram.
+    Maneja transacciones de pago para servicios como VPN trial, VPN premium, etc.
+    """
     __tablename__ = "payments"
 
-    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=gen_uuid_str)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    vpn_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    months: Mapped[int] = mapped_column(Integer, nullable=False)
-    amount_usd: Mapped[float] = mapped_column(Float, nullable=False)
-    amount_stars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    amount_ton: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    amount_sats: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    payment_method: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    transaction_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    telegram_payment_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    stars_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default='XTR')
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    service_type: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), onupdate=func.utc_timestamp(), nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="payments")
 
     __table_args__ = (
-        CheckConstraint(f"vpn_type IN {VPN_TYPES}", name="ck_payments_vpn_type"),
         CheckConstraint(f"status IN {PAYMENT_STATUSES}", name="ck_payments_status"),
+        Index("ix_payments_user_id", "user_id"),
+        Index("ix_payments_status", "status"),
     )
 
 

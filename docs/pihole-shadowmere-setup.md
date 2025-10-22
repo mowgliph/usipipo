@@ -178,6 +178,11 @@ SHADOWMERE_API_URL="http://localhost:5432"
 # DNS Configuration
 PIHOLE_DNS_HOST="localhost"
 PIHOLE_DNS_PORT="53"
+
+# Pagos con Estrellas de Telegram
+TELEGRAM_BOT_TOKEN="tu_bot_token_aqui"
+STARS_PAYMENT_WEBHOOK_URL="https://tu-dominio.com/webhook/stars"
+STARS_PAYMENT_ENABLED=true
 ```
 
 ### 2. 🗄️ Modelos de Base de Datos
@@ -247,6 +252,70 @@ async def create_free_proxy_for_user(session: AsyncSession, user_id: str) -> Opt
 - ✅ Muestra top 10 proxies funcionando
 - ✅ Incluye estadísticas (total, funcionando, por tipo)
 - ✅ Formato HTML con emojis y códigos
+
+### 5. ⭐ Pagos con Estrellas de Telegram
+
+#### Funcionamiento de los Pagos
+Los pagos con estrellas de Telegram permiten a los usuarios adquirir servicios VPN premium directamente desde el bot usando la moneda nativa de Telegram. El sistema integra:
+
+- **Creación de facturas**: El bot genera facturas usando la API de pagos de Telegram
+- **Moneda XTR**: Las estrellas (XTR) son la moneda oficial de Telegram
+- **Verificación automática**: Los pagos se verifican a través de webhooks o consultas a la API
+- **Activación inmediata**: Una vez confirmado el pago, la VPN se activa automáticamente
+
+#### Variables de Entorno Requeridas
+```bash
+# Archivo: .env
+# Pagos con Estrellas de Telegram
+TELEGRAM_BOT_TOKEN="tu_bot_token_aqui"  # Token del bot de Telegram
+STARS_PAYMENT_WEBHOOK_URL="https://tu-dominio.com/webhook/stars"  # URL para webhooks (opcional)
+STARS_PAYMENT_ENABLED=true  # Habilitar pagos con estrellas
+```
+
+#### Comandos del Bot para Pagos
+```bash
+# Comando /pay o /stars
+/pay wireguard 3    # Pagar 3 meses de WireGuard con estrellas
+/stars outline 6    # Pagar 6 meses de Outline con estrellas
+
+# Ejemplos de uso:
+/pay wireguard 1    # 1 mes WireGuard
+/pay outline 12     # 12 meses Outline
+/stars wireguard 6  # 6 meses WireGuard
+```
+
+#### Modelo de Base de Datos para Pagos
+```python
+# database/models.py
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    telegram_payment_id: Mapped[Optional[str]] = mapped_column(String(255))
+    stars_amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default='XTR')
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    service_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, onupdate=func.utc_timestamp())
+```
+
+#### Servicios de Pagos
+```python
+# services/stars_payments.py
+class StarsPaymentService:
+    async def process_star_payment(self, payment, telegram_user_id, bot):
+        # Crear invoice usando Telegram Payments API
+        # Retorna invoice_id y payment_url
+
+    async def verify_payment(self, payment, invoice_id):
+        # Verificar estado del pago
+        # Retorna "paid", "failed", o "pending"
+
+    async def handle_stars_webhook(self, webhook_data):
+        # Procesar webhooks de pagos exitosos
+```
 
 ---
 
@@ -425,9 +494,11 @@ tail -f /var/log/usipipo/app.log
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Telegram Bot  │────│   uSipipo App   │────│  MariaDB/MySQL  │
 │   (Python)      │    │   (Services)    │    │   (Database)    │
+│                 │    │                 │    │                 │
+│  ⭐ Stars API   │    │ ⭐ Stars Service │    │  ⭐ Payments    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
+          │                       │                       │
+          │                       │                       │
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │     Pi-hole     │    │   Shadowmere    │    │   VPN Services  │
 │   (DNS Server)  │    │ (Proxy Scanner) │    │ (Outline/WG/MTP)│
@@ -503,8 +574,10 @@ Internet
 - [ ] Shadowmere instalado como servicio systemd
 - [ ] API de Shadowmere respondiendo en puerto asignado
 - [ ] Variables de entorno copiadas al .env de uSipipo
-- [ ] Base de datos inicializada con tablas Shadowmere
+- [ ] Base de datos inicializada con tablas Shadowmere y Payments
 - [ ] Comandos /proxy y /shadowmere funcionando en Telegram
+- [ ] Pagos con estrellas de Telegram configurados y funcionando
+- [ ] Comandos /pay y /stars disponibles en el bot
 
 ### Comandos de Verificación
 ```bash

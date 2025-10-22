@@ -45,30 +45,18 @@ WG_DNS=
 WG_ALLOWED_IPS=
 
 # ========================================
-# BTCPay Server (Pagos Lightning)
+# Telegram Stars Payments
 # ========================================
-# URL de tu instancia de BTCPay Server
-BTCPAY_URL=
-# Clave API generada en el panel de control de BTCPay
-BTCPAY_API_KEY=
-# ID de la tienda en BTCPay
-BTCPAY_STORE_ID=
-
-# ========================================
-# OpenNode (Pagos Lightning)
-# ========================================
-# Clave API de OpenNode (obtenida del dashboard)
-OPENNODE_API_KEY=
-
-# ========================================
-# TON Payments
-# ========================================
-# Clave API de TON API (obtenida de tonapi.io)
-TONAPI_KEY=
-# URL base de TON API (por defecto: https://tonapi.io/v2)
-TONAPI_URL=https://tonapi.io/v2
-# Dirección de la billetera TON para recibir pagos
-TON_WALLET_ADDRESS=
+# Token del bot de Telegram (ya definido arriba, pero necesario para pagos)
+# TELEGRAM_BOT_TOKEN=
+# URL del webhook para recibir actualizaciones de pagos (opcional, para webhooks)
+TELEGRAM_WEBHOOK_URL=
+# Puerto para el webhook de Telegram (opcional)
+TELEGRAM_WEBHOOK_PORT=8443
+# Ruta del certificado SSL para webhooks (opcional)
+TELEGRAM_WEBHOOK_CERT_PATH=
+# Ruta de la clave privada SSL para webhooks (opcional)
+TELEGRAM_WEBHOOK_KEY_PATH=
 
 # ========================================
 # Servidor Outline
