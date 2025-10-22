@@ -52,7 +52,7 @@ APScheduler==3.11.0  # Programador de tareas
 psutil==7.1.1  # Información del sistema
 watchdog==6.0.0  # Monitoreo de archivos
 tzlocal==5.3.1  # Zonas horarias locales
-zoneinfo==1.2.1  # Zonas horarias (Python 3.9+)
+tzdata==2025.2  # Base de datos de zonas horarias (requerido para zoneinfo en Windows)
 
 # =============================
 # CLI & Scripts
