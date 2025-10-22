@@ -20,5 +20,5 @@ tzlocal==5.3.1
 urllib3==2.5.0
 watchdog==6.0.0
 aiofiles==25.1.0
-ton==0.1.0
+ton==0.26
 rcode==7.4.2
