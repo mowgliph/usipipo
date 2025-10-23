@@ -114,11 +114,7 @@ async def _generate_mtproto_config() -> Optional[Dict[str, Any]]:
             "tag": config.MTPROXY_TAG,  # Opcional, puede ser None
         }
 
-        logger.info("Configuración MTProto obtenida desde variables de entorno", extra={
-            "host": config_dict["host"],
-            "port": config_dict["port"],
-            "has_tag": config_dict["tag"] is not None
-        })
+        logger.info("Configuración MTProto obtenida desde variables de entorno", extra={"user_id": None})
         return config_dict
 
     except Exception as e:
