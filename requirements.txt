@@ -57,7 +57,7 @@ tzdata==2025.2  # Base de datos de zonas horarias (requerido para zoneinfo en Wi
 # =============================
 # CLI & Scripts
 # =============================
-typer==0.15.1  # CLI framework para scripts
+typer==0.20.0  # CLI framework para scripts
 
 # =============================
 # API & Web Framework (Próximas mejoras)
