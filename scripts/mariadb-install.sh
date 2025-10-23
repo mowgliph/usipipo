@@ -50,7 +50,19 @@ function log_error() {
   local -r ERROR_TEXT="${RED}"  # red
   local -r NO_COLOR="${NC}"
   echo -e "${ERROR_TEXT}$1${NO_COLOR}"
-  echo "$1" >> "${FULL_LOG}"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: $1" >> "${FULL_LOG}"
+}
+
+function log_info() {
+  echo "$1"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') INFO: $1" >> "${FULL_LOG}"
+}
+
+function log_warn() {
+  local -r WARN_TEXT="${ORANGE}"
+  local -r NO_COLOR="${NC}"
+  echo -e "${WARN_TEXT}$1${NO_COLOR}"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') WARN: $1" >> "${FULL_LOG}"
 }
 
 # Pretty prints text to stdout, and also writes to sentry log file if set.
@@ -111,9 +123,57 @@ function checkOS() {
   fi
 }
 
+function checkDiskSpace() {
+  local REQUIRED_SPACE=500  # MB
+  local AVAILABLE_SPACE=$(df / | tail -1 | awk '{print $4}')
+  AVAILABLE_SPACE=$((AVAILABLE_SPACE / 1024))  # Convert to MB
+  if [ "${AVAILABLE_SPACE}" -lt "${REQUIRED_SPACE}" ]; then
+    log_error "Insufficient disk space. Required: ${REQUIRED_SPACE}MB, Available: ${AVAILABLE_SPACE}MB"
+    exit 1
+  fi
+}
+
+function checkDependencies() {
+  local deps=("software-properties-common" "curl" "wget" "gnupg2")
+  for dep in "${deps[@]}"; do
+    if ! dpkg -l | grep -q "^ii  ${dep}"; then
+      log_start_step "Installing dependency: ${dep}"
+      apt-get install -y "${dep}" || {
+        log_error "Failed to install dependency: ${dep}"
+        return 1
+      }
+      echo "OK"
+    fi
+  done
+}
+
+function fixBrokenPackages() {
+  log_start_step "Fixing broken packages"
+  dpkg --configure -a || {
+    log_error "Failed to configure broken packages"
+    return 1
+  }
+  echo "OK"
+}
+
+function updatePackageLists() {
+  log_start_step "Updating package lists"
+  if ! apt-get update; then
+    log_error "apt-get update failed. Attempting to fix repository issues..."
+    # Try to update keys
+    apt-key adv --recv-keys --keyserver keyserver.ubuntu.com || true
+    apt-get update --allow-unauthenticated || {
+      log_error "Failed to update package lists after key update attempt"
+      return 1
+    }
+  fi
+  echo "OK"
+}
+
 function initialCheck() {
   isRoot
   checkOS
+  checkDiskSpace
 }
 
 function checkMariaDBInstalled() {
@@ -124,9 +184,19 @@ function checkMariaDBInstalled() {
   fi
 }
 
+function checkMariaDBRunning() {
+  if systemctl is-active --quiet mariadb; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 # --- Funciones de Instalación ---
 function installMariaDB() {
-  run_step "Updating package lists" apt-get update
+  fixBrokenPackages
+  checkDependencies
+  updatePackageLists
 
   run_step "Installing MariaDB server and client" apt-get install -y mariadb-server mariadb-client
 
@@ -198,10 +268,33 @@ function validateInstallation() {
 
   # Test connection with new user
   if mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" -p"${DB_USER_PASS}" "${DB_NAME}" -e "SELECT 1;" > /dev/null 2>&1; then
+    log_info "Database connection test successful"
     echo "OK"
   else
     log_error "FAILED"
     log_error "Could not connect to MariaDB with the created user"
+    log_error "Please check the database credentials and service status"
+    return 1
+  fi
+
+  # Additional validations
+  log_start_step "Checking MariaDB service status"
+  if systemctl is-active --quiet mariadb; then
+    log_info "MariaDB service is running"
+    echo "OK"
+  else
+    log_error "FAILED"
+    log_error "MariaDB service is not running"
+    return 1
+  fi
+
+  log_start_step "Checking database permissions"
+  if mariadb -u "${DB_USER}" -p"${DB_USER_PASS}" "${DB_NAME}" -e "CREATE TABLE test_permissions (id INT PRIMARY KEY); DROP TABLE test_permissions;" > /dev/null 2>&1; then
+    log_info "Database user has proper permissions"
+    echo "OK"
+  else
+    log_error "FAILED"
+    log_error "Database user does not have proper permissions"
     return 1
   fi
 }
@@ -249,10 +342,7 @@ function generate_env_files() {
 
 # --- Función Principal de Instalación ---
 function installMariaDBFull() {
-  if checkMariaDBInstalled; then
-    log_error "MariaDB is already installed. Use --reinstall if you want to reinstall."
-    exit 1
-  fi
+  log_info "Starting MariaDB installation process..."
 
   run_step "Installing MariaDB server" installMariaDB
   run_step "Securing MariaDB installation" secureMariaDB
@@ -262,27 +352,52 @@ function installMariaDBFull() {
   # Generar archivos .env al finalizar
   generate_env_files
 
+  log_info "MariaDB installation completed successfully"
   echo -e "\n${GREEN}CONGRATULATIONS! MariaDB is installed and configured for uSipipo.${NC}"
   echo -e "${GREEN}Database: ${DB_NAME}${NC}"
   echo -e "${GREEN}User: ${DB_USER}@${DB_HOST}:${DB_PORT}${NC}"
   echo -e "${ORANGE}Remember to copy the generated environment variables to your .env file.${NC}"
 }
 
-# --- Función de Reinstalación ---
-function reinstallMariaDB() {
-  echo -e "${ORANGE}WARNING: This will remove the existing MariaDB installation and all data!${NC}"
+# --- Función de Desinstalación Completa ---
+function uninstallMariaDB() {
+  echo -e "${RED}WARNING: This will completely remove MariaDB and ALL its data!${NC}"
+  echo -e "${RED}This action cannot be undone. Make sure to backup your data first.${NC}"
   echo -n "Are you sure you want to continue? [y/N] "
   read -r response
   response=$(echo "${response}" | tr '[:upper:]' '[:lower:]')
   if [[ "${response}" != "y" && "${response}" != "yes" ]]; then
-    echo "Reinstallation cancelled."
+    echo "Uninstallation cancelled."
     exit 0
   fi
 
-  run_step "Stopping MariaDB service" systemctl stop mariadb
-  run_step "Removing MariaDB packages" apt-get remove -y --purge mariadb-server mariadb-client
-  run_step "Cleaning up MariaDB data" rm -rf "${MARIADB_DATA_DIR}" "${MARIADB_LOG_DIR}" "${MARIADB_RUN_DIR}"
-  run_step "Removing MariaDB configuration" rm -rf "${MARIADB_CONFIG_DIR}"
+  if checkMariaDBRunning; then
+    run_step "Stopping MariaDB service" systemctl stop mariadb
+    run_step "Disabling MariaDB service" systemctl disable mariadb
+  fi
+
+  run_step "Removing MariaDB packages" apt-get remove -y --purge mariadb-server mariadb-client mariadb-common
+
+  # Limpieza profunda
+  run_step "Removing MariaDB data directories" rm -rf "${MARIADB_DATA_DIR}" "${MARIADB_LOG_DIR}" "${MARIADB_RUN_DIR}" "${MARIADB_CONFIG_DIR}"
+  run_step "Removing any remaining MariaDB files" find / -name "*mariadb*" -type f -delete 2>/dev/null || true
+  run_step "Removing MariaDB user and group" userdel mysql 2>/dev/null || true
+  run_step "Removing MariaDB group" groupdel mysql 2>/dev/null || true
+
+  # Limpieza de paquetes
+  run_step "Autoremoving unused packages" apt-get autoremove -y
+  run_step "Autocleaning package cache" apt-get autoclean -y
+  run_step "Cleaning package cache" apt-get clean -y
+
+  echo -e "\n${GREEN}MariaDB has been completely uninstalled and cleaned.${NC}"
+}
+
+# --- Función de Reinstalación ---
+function reinstallMariaDB() {
+  if checkMariaDBInstalled; then
+    echo -e "${ORANGE}MariaDB is currently installed. Proceeding with removal first...${NC}"
+    uninstallMariaDB
+  fi
 
   installMariaDBFull
 }
@@ -293,6 +408,8 @@ function display_usage() {
 Usage: $0 [options]
 
 Options:
+  --install      Install MariaDB (default action if no MariaDB is installed)
+  --uninstall    Completely remove MariaDB and all its data
   --reinstall    Remove existing MariaDB installation and reinstall
   --help         Display this help message
 
@@ -323,10 +440,19 @@ function main() {
   trap finish EXIT
 
   # Parse arguments
+  ACTION="auto"  # auto: install if not installed, error if installed
   while [[ $# -gt 0 ]]; do
     case $1 in
+      --install)
+        ACTION="install"
+        shift
+        ;;
+      --uninstall)
+        ACTION="uninstall"
+        shift
+        ;;
       --reinstall)
-        REINSTALL=true
+        ACTION="reinstall"
         shift
         ;;
       --help)
@@ -343,11 +469,33 @@ function main() {
 
   initialCheck
 
-  if [[ "${REINSTALL:-false}" == "true" ]]; then
-    reinstallMariaDB
-  else
-    installMariaDBFull
-  fi
+  case "${ACTION}" in
+    "install")
+      if checkMariaDBInstalled; then
+        log_error "MariaDB is already installed. Use --reinstall if you want to reinstall."
+        exit 1
+      fi
+      installMariaDBFull
+      ;;
+    "uninstall")
+      if ! checkMariaDBInstalled; then
+        log_error "MariaDB is not installed."
+        exit 1
+      fi
+      uninstallMariaDB
+      ;;
+    "reinstall")
+      reinstallMariaDB
+      ;;
+    "auto")
+      if checkMariaDBInstalled; then
+        log_error "MariaDB is already installed. Use --reinstall to reinstall or --uninstall to remove."
+        exit 1
+      else
+        installMariaDBFull
+      fi
+      ;;
+  esac
 }
 
 main "$@"
