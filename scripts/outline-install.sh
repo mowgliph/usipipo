@@ -389,6 +389,47 @@ function create_config_dirs() {
   chmod ug+rwx,g+s,o-rwx "${HOME_DIR}"
 }
 
+# --- Función de Desinstalación Completa ---
+function uninstallOutline() {
+  echo -e "${RED}WARNING: This will completely remove Outline server and ALL its data!${NC}"
+  echo -e "${RED}This action cannot be undone. Make sure to backup your data first.${NC}"
+  echo -n "Are you sure you want to continue? [y/N] "
+  read -r response
+  response=$(echo "${response}" | tr '[:upper:]' '[:lower:]')
+  if [[ "${response}" != "y" && "${response}" != "yes" ]]; then
+    echo "Uninstallation cancelled."
+    exit 0
+  fi
+
+  # Detener y remover contenedor Docker
+  if docker_container_exists "${OUTLINE_CONTAINER_NAME}"; then
+    run_step "Stopping Outline container" docker stop "${OUTLINE_CONTAINER_NAME}"
+    run_step "Removing Outline container" docker rm -f "${OUTLINE_CONTAINER_NAME}"
+  fi
+
+  # Remover imagen Docker si existe
+  if docker images | grep -q "outline/shadowbox"; then
+    run_step "Removing Outline Docker image" docker rmi "$(docker images | grep "outline/shadowbox" | awk '{print $3}')"
+  fi
+
+  # Remover contenedor watchtower si existe
+  if docker_container_exists "watchtower"; then
+    remove_watchtower_container
+  fi
+
+  # Remover directorios y archivos
+  run_step "Removing Outline installation directory" rm -rf "${OUTLINE_DIR}"
+  run_step "Removing Outline config directories" rm -rf "${HOME_DIR}"
+
+  # Remover archivos .env generados
+  rm -f ".env.outline.generated" ".env.ips.generated"
+
+  # Limpiar archivos temporales
+  rm -f "${FULL_LOG}" "${LAST_ERROR}"
+
+  echo -e "\n${GREEN}Outline server has been completely uninstalled and cleaned.${NC}"
+}
+
 # --- Función de Limpieza Automática ---
 function cleanup_expired_configs() {
   # Esta función se ejecuta periódicamente para limpiar configuraciones vencidas
@@ -401,6 +442,15 @@ function cleanup_expired_configs() {
 
   # Para este script, solo mostramos que la función existe
   echo -e "${GREEN}Función de limpieza automática integrada. Configuraciones vencidas serán eliminadas automáticamente.${NC}"
+}
+
+# --- Función de Verificación de Instalación ---
+function checkOutlineInstalled() {
+  if docker_container_exists "${OUTLINE_CONTAINER_NAME}"; then
+    return 0
+  else
+    return 1
+  fi
 }
 
 function set_hostname() {
@@ -433,6 +483,9 @@ function generate_env_files() {
     echo "OUTLINE_HOSTNAME=\"${OUTLINE_HOSTNAME}\"" >> "${ENV_FILE_OUTLINE}"
     echo "OUTLINE_CONTAINER_NAME=\"${OUTLINE_CONTAINER_NAME}\"" >> "${ENV_FILE_OUTLINE}"
     echo "OUTLINE_IMAGE=\"${OUTLINE_IMAGE}\"" >> "${ENV_FILE_OUTLINE}"
+    echo "OUTLINE_STATE_DIR=\"${OUTLINE_STATE_DIR}\"" >> "${ENV_FILE_OUTLINE}"
+    echo "OUTLINE_CERT_FILE=\"${OUTLINE_CERT_FILE}\"" >> "${ENV_FILE_OUTLINE}"
+    echo "OUTLINE_KEY_FILE=\"${OUTLINE_KEY_FILE}\"" >> "${ENV_FILE_OUTLINE}"
 
     # Agregar configuración DNS si Pi-hole está disponible
     if detect_pihole; then
@@ -458,7 +511,7 @@ function generate_env_files() {
     echo "# outline_paid_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
 
     echo -e "\n${GREEN}--- VARIABLES OUTLINE PARA TU .env DE USIPIPO ---${NC}"
-    echo -e "${ORANGE}Archivo de configuración principal:${NC} ${ENV_FILE_OUTLINE}"
+    echo -e "${ORANGE}Archivo de configuración generado:${NC} ${ENV_FILE_OUTLINE}"
     echo -e "${ORANGE}Archivo de IPs generadas (informativo):${NC} ${ENV_FILE_IPS}"
     echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} ${HOME_DIR}"
     echo -e "${GREEN}----------------------------------------------------------${NC}"
@@ -467,18 +520,27 @@ function generate_env_files() {
     echo -e "\n${GREEN}Contenido de ${ENV_FILE_IPS}:${NC}"
     cat "${ENV_FILE_IPS}"
     echo -e "\n${GREEN}----------------------------------------------------------${NC}"
-    echo -e "¡Copia estas variables a tu archivo .env de uSipipo!
-    "
+    echo -e "${GREEN}¡Copia estas variables a tu archivo .env de uSipipo!${NC}"
+    echo -e "${ORANGE}IMPORTANTE: Guarda las rutas de certificados de forma segura.${NC}"
 }
 
 # --- Funciones de Ayuda y Parseo ---
 function display_usage() {
   cat <<EOF
-Usage: outline-install.sh [--hostname <hostname>] [--api-port <port>] [--keys-port <port>]
+Usage: $0 [options]
 
-  --hostname   The hostname to be used to access the management API and access keys
-  --api-port   The port number for the management API
-  --keys-port  The port number for the access keys
+Options:
+  --install      Install Outline server (default action if no Outline is installed)
+  --uninstall    Completely remove Outline server and all its data
+  --reinstall    Remove existing Outline installation and reinstall
+  --hostname     The hostname to be used to access the management API and access keys
+  --api-port     The port number for the management API
+  --keys-port    The port number for the access keys
+  --help         Display this help message
+
+Environment variables:
+  OUTLINE_DIR        Outline installation directory (default: /opt/outline)
+  OUTLINE_IMAGE      Docker image to use (default: quay.io/outline/shadowbox:stable)
 EOF
 }
 
@@ -508,7 +570,7 @@ function escape_json_string() {
 
 function parse_flags() {
   local params
-  params="$(getopt --longoptions hostname:,api-port:,keys-port: -n "$0" -- "$0" "$@")"
+  params="$(getopt --longoptions hostname:,api-port:,keys-port:,install,uninstall,reinstall,help -n "$0" -- "$0" "$@")"
   eval set -- "${params}"
 
   while (( $# > 0 )); do
@@ -534,6 +596,9 @@ function parse_flags() {
           log_error "Invalid value for ${flag}: ${FLAGS_KEYS_PORT}" >&2
           exit 1
         fi
+        ;;
+      --install|--uninstall|--reinstall|--help)
+        # These are handled in main()
         ;;
       --)
         break
@@ -644,8 +709,66 @@ function main() {
   }
   trap finish EXIT
 
+  # Parse arguments
+  ACTION="auto"  # auto: install if not installed, error if installed
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --install)
+        ACTION="install"
+        shift
+        ;;
+      --uninstall)
+        ACTION="uninstall"
+        shift
+        ;;
+      --reinstall)
+        ACTION="reinstall"
+        shift
+        ;;
+      --help)
+        display_usage
+        exit 0
+        ;;
+      *)
+        # Pass remaining arguments to parse_flags for hostname, ports, etc.
+        break
+        ;;
+    esac
+  done
+
   parse_flags "$@"
-  install_outline
+
+  case "${ACTION}" in
+    "install")
+      if checkOutlineInstalled; then
+        log_error "Outline is already installed. Use --reinstall if you want to reinstall."
+        exit 1
+      fi
+      install_outline
+      ;;
+    "uninstall")
+      if ! checkOutlineInstalled; then
+        log_error "Outline is not installed."
+        exit 1
+      fi
+      uninstallOutline
+      ;;
+    "reinstall")
+      if checkOutlineInstalled; then
+        echo -e "${ORANGE}Outline is currently installed. Proceeding with removal first...${NC}"
+        uninstallOutline
+      fi
+      install_outline
+      ;;
+    "auto")
+      if checkOutlineInstalled; then
+        log_error "Outline is already installed. Use --reinstall to reinstall or --uninstall to remove."
+        exit 1
+      else
+        install_outline
+      fi
+      ;;
+  esac
 }
 
 main "$@"
