@@ -380,7 +380,11 @@ function uninstallMariaDB() {
 
   # Limpieza profunda
   run_step "Removing MariaDB data directories" rm -rf "${MARIADB_DATA_DIR}" "${MARIADB_LOG_DIR}" "${MARIADB_RUN_DIR}" "${MARIADB_CONFIG_DIR}"
-  run_step "Removing any remaining MariaDB files" find / -name "*mariadb*" -type f -delete 2>/dev/null || true
+
+  # Obtener la ruta completa del script para excluirlo de la eliminación
+  SCRIPT_PATH="$(readlink -f "$0")"
+  run_step "Removing any remaining MariaDB files" find / -name "*mariadb*" -type f ! -path "$SCRIPT_PATH" -delete 2>/dev/null || true
+
   run_step "Removing MariaDB user and group" userdel mysql 2>/dev/null || true
   run_step "Removing MariaDB group" groupdel mysql 2>/dev/null || true
 
