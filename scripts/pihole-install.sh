@@ -148,67 +148,151 @@ function get_random_port() {
 function resolve_dns_conflict() {
   log_start_step "Checking for DNS port 53 conflict"
 
-  # Improved detection using netstat and lsof
   local conflict_detected=false
-  local process_using_port=""
+  local systemd_resolved_conflict=false
+  local other_processes=()
+  local docker_containers=()
 
-  # Check with netstat
-  if netstat -tlnp 2>/dev/null | grep -q ":53 "; then
-    process_using_port=$(netstat -tlnp 2>/dev/null | grep ":53 " | awk '{print $7}' | cut -d'/' -f2 | head -1)
-    if [[ "$process_using_port" == "systemd-resolved" ]]; then
-      conflict_detected=true
-      echo "OK (systemd-resolved detected on port 53)"
-    else
-      echo "OK (port 53 in use by: $process_using_port)"
+  # Function to log detailed port usage
+  function log_port_usage() {
+    local tool="$1"
+    local output="$2"
+    echo "Port 53 usage detected by $tool:"
+    echo "$output"
+    echo "---"
+  }
+
+  # Check with ss (modern replacement for netstat)
+  if command -v ss &> /dev/null; then
+    local ss_output
+    ss_output=$(ss -tlnp 2>/dev/null | grep ":53 " || true)
+    if [[ -n "$ss_output" ]]; then
+      log_port_usage "ss" "$ss_output"
+      local process
+      process=$(echo "$ss_output" | awk '{print $6}' | sed 's/.*pid=\([0-9]*\).*/\1/' | head -1)
+      if [[ -n "$process" ]]; then
+        local proc_name
+        proc_name=$(ps -p "$process" -o comm= 2>/dev/null || echo "unknown")
+        if [[ "$proc_name" == "systemd-resolved" ]]; then
+          systemd_resolved_conflict=true
+        else
+          other_processes+=("$proc_name (PID: $process)")
+        fi
+      fi
     fi
+  fi
+
+  # Check with netstat (fallback)
+  if command -v netstat &> /dev/null; then
+    local netstat_output
+    netstat_output=$(netstat -tlnp 2>/dev/null | grep ":53 " || true)
+    if [[ -n "$netstat_output" ]]; then
+      log_port_usage "netstat" "$netstat_output"
+      local process
+      process=$(echo "$netstat_output" | awk '{print $7}' | cut -d'/' -f1 | head -1)
+      if [[ -n "$process" ]]; then
+        local proc_name
+        proc_name=$(ps -p "$process" -o comm= 2>/dev/null || echo "unknown")
+        if [[ "$proc_name" == "systemd-resolved" ]]; then
+          systemd_resolved_conflict=true
+        else
+          other_processes+=("$proc_name (PID: $process)")
+        fi
+      fi
+    fi
+  fi
+
+  # Check with lsof
+  if command -v lsof &> /dev/null; then
+    local lsof_output
+    lsof_output=$(lsof -i :53 2>/dev/null || true)
+    if [[ -n "$lsof_output" ]]; then
+      log_port_usage "lsof" "$lsof_output"
+      while IFS= read -r line; do
+        local proc_name
+        proc_name=$(echo "$line" | awk '{print $1}')
+        local pid
+        pid=$(echo "$line" | awk '{print $2}')
+        if [[ "$proc_name" == "systemd-resolved" ]]; then
+          systemd_resolved_conflict=true
+        else
+          other_processes+=("$proc_name (PID: $pid)")
+        fi
+      done <<< "$lsof_output"
+    fi
+  fi
+
+  # Check Docker containers
+  if command -v docker &> /dev/null; then
+    local docker_output
+    docker_output=$(docker ps --format "table {{.Names}}\t{{.Ports}}" 2>/dev/null | grep ":53" || true)
+    if [[ -n "$docker_output" ]]; then
+      log_port_usage "docker ps" "$docker_output"
+      while IFS= read -r line; do
+        local container_name
+        container_name=$(echo "$line" | awk '{print $1}')
+        docker_containers+=("$container_name")
+      done <<< "$docker_output"
+    fi
+  fi
+
+  # Determine conflict status
+  if $systemd_resolved_conflict; then
+    conflict_detected=true
+    echo "OK (systemd-resolved detected on port 53)"
+  elif [[ ${#other_processes[@]} -gt 0 ]]; then
+    conflict_detected=true
+    echo "WARNING: Port 53 in use by other processes: ${other_processes[*]}"
+  elif [[ ${#docker_containers[@]} -gt 0 ]]; then
+    conflict_detected=true
+    echo "WARNING: Port 53 in use by Docker containers: ${docker_containers[*]}"
   else
     echo "OK (no process using port 53)"
   fi
 
-  # Additional check with lsof if netstat didn't find systemd-resolved
-  if ! $conflict_detected && command -v lsof &> /dev/null; then
-    if lsof -i :53 2>/dev/null | grep -q systemd-resolved; then
-      conflict_detected=true
-      echo "OK (systemd-resolved detected on port 53 via lsof)"
-    fi
-  fi
-
   if $conflict_detected; then
-    run_step "Stopping systemd-resolved" systemctl stop systemd-resolved
-    run_step "Disabling systemd-resolved" systemctl disable systemd-resolved
+    if $systemd_resolved_conflict; then
+      run_step "Stopping systemd-resolved" systemctl stop systemd-resolved
+      run_step "Disabling systemd-resolved" systemctl disable systemd-resolved
 
-    # Verify systemd-resolved is stopped
-    local max_attempts=10
-    local attempt=0
-    while (( attempt < max_attempts )); do
-      if ! systemctl is-active --quiet systemd-resolved; then
-        echo "systemd-resolved stopped successfully"
-        break
+      # Verify systemd-resolved is stopped
+      local max_attempts=10
+      local attempt=0
+      while (( attempt < max_attempts )); do
+        if ! systemctl is-active --quiet systemd-resolved; then
+          echo "systemd-resolved stopped successfully"
+          break
+        fi
+        sleep 1
+        (( attempt++ ))
+      done
+      if (( attempt >= max_attempts )); then
+        log_error "Failed to stop systemd-resolved completely"
+        return 1
       fi
-      sleep 1
-      (( attempt++ ))
-    done
-    if (( attempt >= max_attempts )); then
-      log_error "Failed to stop systemd-resolved completely"
-      return 1
-    fi
 
-    # Reconfigure /etc/resolv.conf
-    run_step "Reconfiguring /etc/resolv.conf" bash -c "
-      rm -f /etc/resolv.conf
-      echo 'nameserver 1.1.1.1' > /etc/resolv.conf
-      echo 'nameserver 8.8.8.8' >> /etc/resolv.conf
-    "
+      # Reconfigure /etc/resolv.conf
+      run_step "Reconfiguring /etc/resolv.conf" bash -c "
+        rm -f /etc/resolv.conf
+        echo 'nameserver 1.1.1.1' > /etc/resolv.conf
+        echo 'nameserver 8.8.8.8' >> /etc/resolv.conf
+      "
 
-    # Force restart Docker service
-    run_step "Restarting Docker service" systemctl restart docker
+      # Force restart Docker service
+      run_step "Restarting Docker service" systemctl restart docker
 
-    # Verify port 53 is free
-    if netstat -tlnp 2>/dev/null | grep -q ":53 "; then
-      log_error "Port 53 still in use after resolving conflict"
-      return 1
+      # Verify port 53 is free
+      if ss -tlnp 2>/dev/null | grep -q ":53 " || netstat -tlnp 2>/dev/null | grep -q ":53 "; then
+        log_error "Port 53 still in use after resolving conflict"
+        return 1
+      else
+        echo "Port 53 is now free"
+      fi
     else
-      echo "Port 53 is now free"
+      log_error "Port 53 is in use by other processes or Docker containers. Please stop them manually before installing Pi-hole."
+      log_error "Processes: ${other_processes[*]}"
+      log_error "Docker containers: ${docker_containers[*]}"
+      return 1
     fi
   else
     echo "No DNS conflict detected, skipping systemd-resolved actions"
