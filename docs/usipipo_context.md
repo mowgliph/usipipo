@@ -102,46 +102,6 @@ Seguimos estrictamente el patrón **models - crud - services - handlers** promov
 - **User Services**: Registro, perfiles, roles
 - **Audit Services**: Logging, notificaciones, alertas
 
-###### **Handlers Layer**
-- Comandos principales: `/start`, `/profile`, `/vpn`, `/proxy`, `/status`
-- Conversaciones: QvaPay, VPN creation, admin panels
-- Callbacks: Gestión de menús inline
-- Validaciones: Rate limiting, permisos, estados
-
-##### 🔧 **Mejoras Arquitecturales Propuestas:**
-
-1. **API REST para Desarrolladores**
-   - Endpoints para integración externa
-   - Autenticación JWT
-   - Documentación OpenAPI/Swagger
-
-2. **Sistema de Cache**
-   - Redis para configuraciones frecuentes
-   - Cache de usuarios y sesiones
-   - Optimización de consultas repetitivas
-
-3. **Microservicios**
-   - Separación de VPN services en contenedores
-   - API Gateway para comunicaciones
-   - Service discovery con Consul
-
-4. **Monitoreo y Observabilidad**
-   - Métricas Prometheus
-   - Dashboards Grafana
-   - Alertas automáticas
-
-5. **Seguridad Mejorada**
-   - Rate limiting avanzado
-   - Encriptación end-to-end
-   - Auditoría de seguridad
-
-##### 📊 **Métricas de Rendimiento:**
-- **Usuarios Activos**: Gestión de 1000+ usuarios concurrentes
-- **Configuraciones VPN**: 5000+ configuraciones activas
-- **Proxies MTProto**: 2000+ proxies gestionados
-- **Shadowmere Proxies**: 10000+ proxies detectados
-- **Uptime**: 99.9% con recuperación automática
-
 ##### 🧪 **Testing y QA:**
 - Tests unitarios para todas las capas
 - Tests de integración para flujos completos
@@ -149,8 +109,6 @@ Seguimos estrictamente el patrón **models - crud - services - handlers** promov
 - CI/CD con GitHub Actions
 
 ---
-
-## 📚 **Guías de Desarrollo**
 
 ### **Buenas Prácticas Implementadas:**
 
@@ -181,39 +139,4 @@ Seguimos estrictamente el patrón **models - crud - services - handlers** promov
    - Try/catch en puntos críticos
    - Notificaciones a admins en errores
    - Logs detallados para debugging
-
-### **Ejemplos de Código:**
-
-#### Crear Configuración VPN
-```python
-# Handler
-async def vpn_create_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = await get_user_id(update)
-    await services.vpn.create_trial_config(user_id, "wireguard")
-
-# Service
-async def create_trial_config(user_id: str, vpn_type: str) -> dict:
-    # Validar usuario
-    # Asignar IP disponible
-    # Crear configuración
-    # Loggear acción
-    # Notificar usuario
-```
-
----
-
-## 🎯 **Próximos Pasos y Mejoras**
-
-1. **Implementar API REST**
-2. **Agregar sistema de cache Redis**
-3. **Mejorar monitoreo con Prometheus**
-4. **Implementar tests automatizados**
-5. **Optimizar consultas de base de datos**
-6. **Agregar soporte para Docker Compose**
-7. **Implementar backup automático**
-8. **Mejorar documentación de API**
-
----
-
-**Última actualización: Octubre 2025**
 
