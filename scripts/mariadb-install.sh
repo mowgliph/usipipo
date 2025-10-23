@@ -217,7 +217,19 @@ function installMariaDB() {
   systemctl status mariadb --no-pager -l || log_warn "Could not get service status after unmasking"
 
   run_step "Enabling MariaDB service" systemctl enable mariadb
-}
+  
+  run_step "Starting MariaDB service after enable" systemctl start mariadb
+  
+  log_info "Checking MariaDB service status after starting..."
+  systemctl status mariadb --no-pager -l || log_warn "Could not get service status after starting"
+  
+  if systemctl is-active --quiet mariadb; then
+      log_info "MariaDB service is running after enable"
+  else
+      log_error "MariaDB service failed to start after enable"
+      return 1
+  fi
+  }
 
 function secureMariaDB() {
   log_start_step "Securing MariaDB installation"
