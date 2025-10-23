@@ -202,10 +202,19 @@ function installMariaDB() {
 
   run_step "Starting MariaDB service" systemctl start mariadb
 
-  # Check if MariaDB service is masked and unmask if necessary
-  if systemctl is-enabled mariadb 2>/dev/null | grep -q "masked"; then
-    run_step "Unmasking MariaDB service" systemctl unmask mariadb
+  # Attempt to unmask MariaDB service always before enabling
+  log_info "Checking MariaDB service status before unmasking..."
+  systemctl status mariadb --no-pager -l || log_warn "Could not get service status"
+
+  if run_step "Unmasking MariaDB service" systemctl unmask mariadb; then
+    log_info "MariaDB service unmasked successfully"
+  else
+    log_warn "Failed to unmask MariaDB service. It may not have been masked, or there could be an issue."
+    log_info "Continuing with service enable attempt..."
   fi
+
+  log_info "Checking MariaDB service status after unmasking..."
+  systemctl status mariadb --no-pager -l || log_warn "Could not get service status after unmasking"
 
   run_step "Enabling MariaDB service" systemctl enable mariadb
 }
