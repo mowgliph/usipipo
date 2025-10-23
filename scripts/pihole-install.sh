@@ -173,7 +173,7 @@ function resolve_dns_conflict() {
       if [[ -n "$process" ]]; then
         local proc_name
         proc_name=$(ps -p "$process" -o comm= 2>/dev/null || echo "unknown")
-        if [[ "$proc_name" == "systemd-resolved" ]]; then
+        if [[ "$proc_name" == "systemd-resolve" ]]; then
           systemd_resolved_conflict=true
         else
           other_processes+=("$proc_name (PID: $process)")
@@ -193,7 +193,7 @@ function resolve_dns_conflict() {
       if [[ -n "$process" ]]; then
         local proc_name
         proc_name=$(ps -p "$process" -o comm= 2>/dev/null || echo "unknown")
-        if [[ "$proc_name" == "systemd-resolved" ]]; then
+        if [[ "$proc_name" == "systemd-resolve" ]]; then
           systemd_resolved_conflict=true
         else
           other_processes+=("$proc_name (PID: $process)")
@@ -213,7 +213,7 @@ function resolve_dns_conflict() {
         proc_name=$(echo "$line" | awk '{print $1}')
         local pid
         pid=$(echo "$line" | awk '{print $2}')
-        if [[ "$proc_name" == "systemd-resolved" ]]; then
+        if [[ "$proc_name" == "systemd-resolve" ]]; then
           systemd_resolved_conflict=true
         else
           other_processes+=("$proc_name (PID: $pid)")
