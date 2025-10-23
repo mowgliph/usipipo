@@ -201,6 +201,12 @@ function installMariaDB() {
   run_step "Installing MariaDB server and client" apt-get install -y mariadb-server mariadb-client
 
   run_step "Starting MariaDB service" systemctl start mariadb
+
+  # Check if MariaDB service is masked and unmask if necessary
+  if systemctl is-enabled mariadb 2>/dev/null | grep -q "masked"; then
+    run_step "Unmasking MariaDB service" systemctl unmask mariadb
+  fi
+
   run_step "Enabling MariaDB service" systemctl enable mariadb
 }
 
