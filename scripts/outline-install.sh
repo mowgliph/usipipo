@@ -36,118 +36,51 @@ OUTLINE_CERT_SHA256=""
 # --- Función de Detección de Pi-hole ---
 
 function detect_pihole() {
-    echo "[DEBUG] Starting detect_pihole() function"
+    echo "[DEBUG] Starting detect_pihole() function - using only .env.pihole.generated"
 
-    # Método 1: Buscar archivo .env.pihole.generated
-    if [[ -f ".env.pihole.generated" ]]; then
-        echo "[DEBUG] Found .env.pihole.generated file, sourcing it"
-        source ".env.pihole.generated"
-        echo "[DEBUG] PIHOLE_HOST: ${PIHOLE_HOST}, PIHOLE_PORT: ${PIHOLE_PORT}"
+    # Validar existencia y legibilidad del archivo
+    if [[ ! -f ".env.pihole.generated" ]]; then
+        echo "[DEBUG] .env.pihole.generated file not found"
+        return 1
+    fi
 
-        # Validar que Pi-hole esté funcionando con timeout
-        echo "[DEBUG] Testing Pi-hole connectivity with curl (timeout 10s)"
-        local curl_output
-        local curl_exit_code
-        curl_output=$(curl -s --max-time 10 --connect-timeout 5 "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" 2>&1)
-        curl_exit_code=$?
+    if [[ ! -r ".env.pihole.generated" ]]; then
+        echo "[ERROR] .env.pihole.generated file exists but is not readable"
+        return 1
+    fi
 
-        echo "[DEBUG] curl exit code: ${curl_exit_code}"
-        if [[ ${curl_exit_code} -eq 0 ]]; then
-            echo "[DEBUG] curl succeeded, Pi-hole is responding via config file"
-            PIHOLE_IP="${PIHOLE_HOST}"
-            echo "[DEBUG] Set PIHOLE_IP to: ${PIHOLE_IP}"
-            return 0
-        else
-            echo "[DEBUG] curl failed with exit code ${curl_exit_code}"
-            echo "[DEBUG] curl output/error: ${curl_output}"
-            echo "[WARN] Pi-hole detected in config but not responding, trying alternative detection methods"
-        fi
+    echo "[DEBUG] Found readable .env.pihole.generated file, sourcing it"
+    source ".env.pihole.generated"
+
+    # Verificar que las variables necesarias estén definidas
+    if [[ -z "${PIHOLE_HOST}" || -z "${PIHOLE_PORT}" ]]; then
+        echo "[ERROR] PIHOLE_HOST or PIHOLE_PORT not defined in .env.pihole.generated"
+        return 1
+    fi
+
+    echo "[DEBUG] Loaded variables from .env.pihole.generated:"
+    echo "[DEBUG]   PIHOLE_HOST: ${PIHOLE_HOST}"
+    echo "[DEBUG]   PIHOLE_PORT: ${PIHOLE_PORT}"
+
+    # Validar que Pi-hole esté funcionando con timeout reducido
+    echo "[DEBUG] Testing Pi-hole connectivity with curl (timeout 3s)"
+    local curl_output
+    local curl_exit_code
+    curl_output=$(curl -s --max-time 3 --connect-timeout 2 "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" 2>&1)
+    curl_exit_code=$?
+
+    echo "[DEBUG] curl exit code: ${curl_exit_code}"
+    if [[ ${curl_exit_code} -eq 0 ]]; then
+        echo "[DEBUG] curl succeeded, Pi-hole is responding via config file"
+        PIHOLE_IP="${PIHOLE_HOST}"
+        echo "[DEBUG] Set PIHOLE_IP to: ${PIHOLE_IP}"
+        return 0
     else
-        echo "[DEBUG] .env.pihole.generated file not found, trying alternative detection methods"
+        echo "[DEBUG] curl failed with exit code ${curl_exit_code}"
+        echo "[DEBUG] curl output/error: ${curl_output}"
+        echo "[WARN] Pi-hole config file found but Pi-hole is not responding"
+        return 1
     fi
-
-    # Método 2: Detectar contenedor Docker de Pi-hole
-    echo "[DEBUG] Checking for Pi-hole Docker container"
-    if command_exists docker && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^pihole$"; then
-        echo "[DEBUG] Found Pi-hole Docker container 'pihole'"
-
-        # Obtener la IP del contenedor
-        local container_ip
-        container_ip=$(docker inspect pihole --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | head -1)
-
-        if [[ -n "${container_ip}" ]]; then
-            echo "[DEBUG] Pi-hole container IP: ${container_ip}"
-
-            # Probar conectividad al API de Pi-hole
-            local curl_output
-            local curl_exit_code
-            curl_output=$(curl -s --max-time 10 --connect-timeout 5 "http://${container_ip}/admin/api.php" 2>&1)
-            curl_exit_code=$?
-
-            if [[ ${curl_exit_code} -eq 0 ]]; then
-                echo "[DEBUG] curl succeeded, Pi-hole container is responding"
-                PIHOLE_IP="${container_ip}"
-                PIHOLE_HOST="${container_ip}"
-                PIHOLE_PORT="80"
-                echo "[DEBUG] Set PIHOLE_IP to: ${PIHOLE_IP} (from Docker container)"
-                return 0
-            else
-                echo "[DEBUG] curl failed for container IP ${container_ip}, exit code: ${curl_exit_code}"
-            fi
-        else
-            echo "[DEBUG] Could not get IP from Pi-hole container"
-        fi
-    else
-        echo "[DEBUG] Pi-hole Docker container not found or Docker not available"
-    fi
-
-    # Método 3: Detectar Pi-hole en localhost (instalación nativa)
-    echo "[DEBUG] Checking for Pi-hole on localhost"
-    local common_ports=("80" "8080" "8081")
-    for port in "${common_ports[@]}"; do
-        echo "[DEBUG] Testing localhost:${port}/admin/api.php"
-        local curl_output
-        local curl_exit_code
-        curl_output=$(curl -s --max-time 5 --connect-timeout 3 "http://localhost:${port}/admin/api.php" 2>&1)
-        curl_exit_code=$?
-
-        if [[ ${curl_exit_code} -eq 0 ]]; then
-            echo "[DEBUG] curl succeeded for localhost:${port}"
-            PIHOLE_IP="127.0.0.1"
-            PIHOLE_HOST="localhost"
-            PIHOLE_PORT="${port}"
-            echo "[DEBUG] Set PIHOLE_IP to: ${PIHOLE_IP} (localhost:${port})"
-            return 0
-        else
-            echo "[DEBUG] curl failed for localhost:${port}, exit code: ${curl_exit_code}"
-        fi
-    done
-
-    # Método 4: Verificar si el puerto DNS 53 está en uso (indicador de Pi-hole)
-    echo "[DEBUG] Checking if DNS port 53 is in use"
-    if command -v ss >/dev/null 2>&1; then
-        if ss -tlnp 2>/dev/null | grep -q ":53 "; then
-            echo "[DEBUG] Port 53 is in use, Pi-hole might be running"
-            # No podemos determinar la IP exacta, pero asumimos localhost
-            PIHOLE_IP="127.0.0.1"
-            PIHOLE_HOST="localhost"
-            PIHOLE_PORT="80"
-            echo "[DEBUG] Assuming Pi-hole at localhost:80 (DNS port 53 is in use)"
-            return 0
-        fi
-    elif command -v netstat >/dev/null 2>&1; then
-        if netstat -tlnp 2>/dev/null | grep -q ":53 "; then
-            echo "[DEBUG] Port 53 is in use, Pi-hole might be running"
-            PIHOLE_IP="127.0.0.1"
-            PIHOLE_HOST="localhost"
-            PIHOLE_PORT="80"
-            echo "[DEBUG] Assuming Pi-hole at localhost:80 (DNS port 53 is in use)"
-            return 0
-        fi
-    fi
-
-    echo "[DEBUG] All Pi-hole detection methods failed"
-    return 1
 }
 # --- Funciones de Validación ---
 function is_valid_port() {
@@ -391,25 +324,16 @@ function write_config() {
 
   # Configurar DNS upstream si Pi-hole está disponible
   echo "[DEBUG] Starting Pi-hole detection..."
-  # Ejecutar detección de Pi-hole con timeout global de 15 segundos
+  # Ejecutar detección de Pi-hole con timeout reducido de 5 segundos
   local pihole_detected=false
-  local pihole_timeout=15
+  local pihole_timeout=5
   local detection_method=""
 
   echo "[DEBUG] Running Pi-hole detection with ${pihole_timeout}s timeout"
   if timeout ${pihole_timeout} bash -c 'detect_pihole' 2>/dev/null; then
     if [[ $? -eq 0 ]]; then
       pihole_detected=true
-      # Determinar el método de detección usado
-      if [[ -f ".env.pihole.generated" ]]; then
-        detection_method="config file (.env.pihole.generated)"
-      elif command_exists docker && docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^pihole$"; then
-        detection_method="Docker container"
-      elif [[ "${PIHOLE_HOST}" == "localhost" ]]; then
-        detection_method="localhost web interface"
-      else
-        detection_method="DNS port detection"
-      fi
+      detection_method="config file (.env.pihole.generated)"
       echo "[DEBUG] Pi-hole detection succeeded via ${detection_method}"
     else
       echo "[DEBUG] Pi-hole detection returned non-zero exit code"
