@@ -324,22 +324,17 @@ function write_config() {
 
   # Configurar DNS upstream si Pi-hole está disponible
   echo "[DEBUG] Starting Pi-hole detection..."
-  # Ejecutar detección de Pi-hole con timeout reducido de 5 segundos
+  # Ejecutar detección de Pi-hole de forma opcional y silenciosa
   local pihole_detected=false
-  local pihole_timeout=5
   local detection_method=""
 
-  echo "[DEBUG] Running Pi-hole detection with ${pihole_timeout}s timeout"
-  if timeout ${pihole_timeout} bash -c 'detect_pihole' 2>/dev/null; then
-    if [[ $? -eq 0 ]]; then
-      pihole_detected=true
-      detection_method="config file (.env.pihole.generated)"
-      echo "[DEBUG] Pi-hole detection succeeded via ${detection_method}"
-    else
-      echo "[DEBUG] Pi-hole detection returned non-zero exit code"
-    fi
+  echo "[DEBUG] Running Pi-hole detection (optional)"
+  if detect_pihole; then
+    pihole_detected=true
+    detection_method="config file (.env.pihole.generated)"
+    echo "[DEBUG] Pi-hole detection succeeded via ${detection_method}"
   else
-    echo "[WARN] Pi-hole detection timed out after ${pihole_timeout} seconds"
+    echo "[DEBUG] Pi-hole not detected, using default DNS"
   fi
 
   if [[ "${pihole_detected}" == "true" ]]; then
@@ -347,9 +342,7 @@ function write_config() {
     echo -e "${GREEN}Pi-hole detected via ${detection_method}. Using ${PIHOLE_IP} as DNS upstream.${NC}"
     echo "[DEBUG] Added dnsResolver: ${PIHOLE_IP}"
   else
-    echo -e "${ORANGE}Pi-hole not detected or timed out. Using default DNS configuration.${NC}"
-    echo "[DEBUG] No Pi-hole detected or timed out, using default DNS"
-    echo "[INFO] To enable Pi-hole DNS upstream, ensure Pi-hole is running and accessible"
+    echo "[DEBUG] Using default DNS configuration"
   fi
 
   echo "[DEBUG] Generating final config JSON"
