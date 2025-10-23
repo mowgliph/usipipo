@@ -36,15 +36,35 @@ OUTLINE_CERT_SHA256=""
 # --- Función de Detección de Pi-hole ---
 
 function detect_pihole() {
+    echo "[DEBUG] Starting detect_pihole() function"
     if [[ -f ".env.pihole.generated" ]]; then
+        echo "[DEBUG] Found .env.pihole.generated file, sourcing it"
         source ".env.pihole.generated"
-        # Validar que Pi-hole esté funcionando
-        if curl -s "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" > /dev/null 2>&1; then
+        echo "[DEBUG] PIHOLE_HOST: ${PIHOLE_HOST}, PIHOLE_PORT: ${PIHOLE_PORT}"
+
+        # Validar que Pi-hole esté funcionando con timeout
+        echo "[DEBUG] Testing Pi-hole connectivity with curl (timeout 10s)"
+        local curl_output
+        local curl_exit_code
+        curl_output=$(curl -s --max-time 10 --connect-timeout 5 "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" 2>&1)
+        curl_exit_code=$?
+
+        echo "[DEBUG] curl exit code: ${curl_exit_code}"
+        if [[ ${curl_exit_code} -eq 0 ]]; then
+            echo "[DEBUG] curl succeeded, Pi-hole is responding"
             PIHOLE_IP="${PIHOLE_HOST}"
+            echo "[DEBUG] Set PIHOLE_IP to: ${PIHOLE_IP}"
             return 0
+        else
+            echo "[DEBUG] curl failed with exit code ${curl_exit_code}"
+            echo "[DEBUG] curl output/error: ${curl_output}"
+            echo "[WARN] Pi-hole detected in config but not responding, skipping DNS configuration"
+            return 1
         fi
+    else
+        echo "[DEBUG] .env.pihole.generated file not found"
+        return 1
     fi
-    return 1
 }
 # --- Funciones de Validación ---
 function is_valid_port() {
@@ -270,26 +290,53 @@ function join() {
 }
 
 function write_config() {
+  echo "[DEBUG] Starting write_config() function"
   local -a config=()
+  echo "[DEBUG] Checking FLAGS_KEYS_PORT: ${FLAGS_KEYS_PORT}"
   if (( FLAGS_KEYS_PORT != 0 )); then
     config+=("\"portForNewAccessKeys\": ${FLAGS_KEYS_PORT}")
+    echo "[DEBUG] Added portForNewAccessKeys: ${FLAGS_KEYS_PORT}"
   fi
   # No se establece nombre por defecto en este script refactorizado
   # if [[ -n "${SB_DEFAULT_SERVER_NAME:-}" ]]; then
   #   config+=("\"name\": \"$(escape_json_string "${SB_DEFAULT_SERVER_NAME}")\"")
   # fi
+  echo "[DEBUG] Adding hostname: ${OUTLINE_HOSTNAME}"
   config+=("\"hostname\": \"$(escape_json_string "${OUTLINE_HOSTNAME}")\"")
   config+=("\"metricsEnabled\": false") # Deshabilitado por defecto
+  echo "[DEBUG] Config array so far: ${config[*]}"
 
   # Configurar DNS upstream si Pi-hole está disponible
-  if detect_pihole; then
-    config+=("\"dnsResolver\": \"${PIHOLE_IP}\"")
-    echo -e "${GREEN}Pi-hole detected. Using ${PIHOLE_IP} as DNS upstream.${NC}"
+  echo "[DEBUG] Starting Pi-hole detection..."
+  # Ejecutar detección de Pi-hole con timeout global de 15 segundos
+  local pihole_detected=false
+  local pihole_timeout=15
+
+  echo "[DEBUG] Running Pi-hole detection with ${pihole_timeout}s timeout"
+  if timeout ${pihole_timeout} bash -c 'detect_pihole' 2>/dev/null; then
+    if [[ $? -eq 0 ]]; then
+      pihole_detected=true
+      echo "[DEBUG] Pi-hole detection succeeded"
+    else
+      echo "[DEBUG] Pi-hole detection returned non-zero exit code"
+    fi
   else
-    echo -e "${ORANGE}Pi-hole not detected. Using default DNS configuration.${NC}"
+    echo "[WARN] Pi-hole detection timed out after ${pihole_timeout} seconds"
   fi
 
+  if [[ "${pihole_detected}" == "true" ]]; then
+    config+=("\"dnsResolver\": \"${PIHOLE_IP}\"")
+    echo -e "${GREEN}Pi-hole detected. Using ${PIHOLE_IP} as DNS upstream.${NC}"
+    echo "[DEBUG] Added dnsResolver: ${PIHOLE_IP}"
+  else
+    echo -e "${ORANGE}Pi-hole not detected or timed out. Using default DNS configuration.${NC}"
+    echo "[DEBUG] No Pi-hole detected or timed out, using default DNS"
+  fi
+
+  echo "[DEBUG] Generating final config JSON"
   echo "{$(join , "${config[@]}")}" > "${OUTLINE_STATE_DIR}/outline_server_config.json"
+  echo "[DEBUG] Config file written to: ${OUTLINE_STATE_DIR}/outline_server_config.json"
+  echo "[DEBUG] write_config() completed successfully"
 }
 
 function start_outline() {
