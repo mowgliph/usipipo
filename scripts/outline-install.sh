@@ -346,13 +346,17 @@ function write_config() {
   fi
 
   echo "[DEBUG] Generating final config JSON"
-  echo "{$(join , "${config[@]}")}" > "${OUTLINE_STATE_DIR}/outline_server_config.json"
+  local config_json="{$(join , "${config[@]}")}"
+  echo "[DEBUG] Config JSON content: ${config_json}"
+  echo "${config_json}" > "${OUTLINE_STATE_DIR}/outline_server_config.json"
   echo "[DEBUG] Config file written to: ${OUTLINE_STATE_DIR}/outline_server_config.json"
-  echo "[DEBUG] write_config() completed successfully"
+  echo "[DEBUG] write_config() completed successfully - returning to install_outline()"
 }
 
 function start_outline() {
+  echo "[DEBUG] Starting start_outline() function"
   local -r START_SCRIPT="${OUTLINE_STATE_DIR}/start_container.sh"
+  echo "[DEBUG] Creating start script at: ${START_SCRIPT}"
   cat <<-EOF > "${START_SCRIPT}"
 # This script starts the Outline server container ("Shadowbox").
 # If you need to customize how the server is run, you can edit this script, then restart with:
@@ -399,10 +403,16 @@ docker_command=(
 "\${docker_command[@]}"
 EOF
   chmod +x "${START_SCRIPT}"
+  echo "[DEBUG] Start script created and made executable"
   # Declare then assign. Assigning on declaration messes up the return code.
   local STDERR_OUTPUT
-  STDERR_OUTPUT="$({ "${START_SCRIPT}" >/dev/null; } 2>&1)" && return
+  echo "[DEBUG] Executing start script..."
+  STDERR_OUTPUT="$({ "${START_SCRIPT}" >/dev/null; } 2>&1)" && {
+    echo "[DEBUG] Start script executed successfully"
+    return 0
+  }
   readonly STDERR_OUTPUT
+  echo "[DEBUG] Start script failed with error: ${STDERR_OUTPUT}"
   log_error "FAILED"
   log_error "${STDERR_OUTPUT}"
   return 1
@@ -431,15 +441,35 @@ function start_watchtower() {
 
 # --- Funciones de Configuración Final ---
 function wait_outline() {
+  echo "[DEBUG] Starting wait_outline() function"
   # We use insecure connection because our threat model doesn't include localhost port
   # interception and our certificate doesn't have localhost as a subject alternative name
   local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
-  until fetch --insecure "${LOCAL_API_URL}/access-keys" >/dev/null; do sleep 1; done
+  echo "[DEBUG] Waiting for Outline API at: ${LOCAL_API_URL}/access-keys"
+  local attempts=0
+  local max_attempts=60  # 60 seconds timeout
+  until fetch --insecure "${LOCAL_API_URL}/access-keys" >/dev/null; do
+    ((attempts++))
+    if (( attempts >= max_attempts )); then
+      echo "[DEBUG] Timeout waiting for Outline API after ${max_attempts} attempts"
+      return 1
+    fi
+    echo "[DEBUG] Attempt ${attempts}/${max_attempts}: Outline API not ready, waiting..."
+    sleep 1
+  done
+  echo "[DEBUG] Outline API is now responding"
 }
 
 function create_first_user() {
+  echo "[DEBUG] Starting create_first_user() function"
   local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
-  fetch --insecure --request POST "${LOCAL_API_URL}/access-keys" >&2
+  echo "[DEBUG] Creating first access key via POST to: ${LOCAL_API_URL}/access-keys"
+  if fetch --insecure --request POST "${LOCAL_API_URL}/access-keys" >&2; then
+    echo "[DEBUG] First access key created successfully"
+  else
+    echo "[DEBUG] Failed to create first access key"
+    return 1
+  fi
 }
 
 # --- Función de Creación de Directorios ---
@@ -530,11 +560,13 @@ function set_hostname() {
 
 # --- Funciones de Generación de .env ---
 function generate_env_files() {
+    echo "[DEBUG] Starting generate_env_files() function"
     # Archivo de configuración principal de Outline
     ENV_FILE_OUTLINE=".env.outline.generated"
     # Archivo de IPs para la base de datos
     ENV_FILE_IPS=".env.ips.generated"
 
+    echo "[DEBUG] Creating ${ENV_FILE_OUTLINE}"
     echo "# --- uSipipo Outline Server Configuration ---" > "${ENV_FILE_OUTLINE}"
     echo "OUTLINE_API_URL=\"https://${OUTLINE_HOSTNAME}:${OUTLINE_API_PORT}/${SB_API_PREFIX}\"" >> "${ENV_FILE_OUTLINE}"
     echo "OUTLINE_CERT_SHA256=\"${OUTLINE_CERT_SHA256}\"" >> "${ENV_FILE_OUTLINE}"
@@ -581,6 +613,7 @@ function generate_env_files() {
     echo -e "\n${GREEN}----------------------------------------------------------${NC}"
     echo -e "${GREEN}¡Copia estas variables a tu archivo .env de uSipipo!${NC}"
     echo -e "${ORANGE}IMPORTANTE: Guarda las rutas de certificados de forma segura.${NC}"
+    echo "[DEBUG] generate_env_files() completed successfully"
 }
 
 # --- Funciones de Ayuda y Parseo ---
@@ -721,23 +754,32 @@ install_outline() {
   run_step "Generating TLS certificate" generate_certificate
   run_step "Generating SHA-256 certificate fingerprint" generate_certificate_fingerprint
   run_step "Writing config" write_config
+  echo "[DEBUG] write_config completed, proceeding to start Outline"
 
   # TODO(dborkan): if the script fails after docker run, it will continue to fail
   # as the names outline and watchtower will already be in use.  Consider
   # deleting the container in the case of failure (e.g. using a trap, or
   # deleting existing containers on each run).
   run_step "Starting Outline" start_outline
+  echo "[DEBUG] start_outline completed, proceeding to start Watchtower"
+
   # TODO(fortuna): Don't wait for Outline to run this.
   run_step "Starting Watchtower" start_watchtower
+  echo "[DEBUG] start_watchtower completed, proceeding to wait for Outline"
 
   run_step "Waiting for Outline server to be healthy" wait_outline
+  echo "[DEBUG] Outline server is healthy, proceeding to create first user"
+
   run_step "Creating first user" create_first_user
+  echo "[DEBUG] First user created, proceeding to cleanup"
 
   # Ejecutar limpieza automática
   cleanup_expired_configs
+  echo "[DEBUG] Cleanup completed, proceeding to generate env files"
 
   # Generar archivos .env al finalizar
   generate_env_files
+  echo "[DEBUG] Env files generated, installation completed successfully"
 
   # Mensaje final
   local OUTLINE_MANAGER_CONFIG
