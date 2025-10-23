@@ -29,8 +29,9 @@ jobs:
     
     - name: Run tests
       run: |
+        cd ${{ github.workspace }}
         if [ -d "test" ]; then
-          python -m pytest test/
+          PYTHONPATH=. python -m pytest test/
         else
           echo "No test directory found, skipping tests"
         fi
