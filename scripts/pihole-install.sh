@@ -148,12 +148,50 @@ function get_random_port() {
 function resolve_dns_conflict() {
   log_start_step "Checking for DNS port 53 conflict"
 
-  # Check if port 53 is in use by systemd-resolved
-  if ss -tlnp 2>/dev/null | grep -q ":53.*systemd-resolved"; then
-    echo "OK (systemd-resolved detected on port 53)"
+  # Improved detection using netstat and lsof
+  local conflict_detected=false
+  local process_using_port=""
 
+  # Check with netstat
+  if netstat -tlnp 2>/dev/null | grep -q ":53 "; then
+    process_using_port=$(netstat -tlnp 2>/dev/null | grep ":53 " | awk '{print $7}' | cut -d'/' -f2 | head -1)
+    if [[ "$process_using_port" == "systemd-resolved" ]]; then
+      conflict_detected=true
+      echo "OK (systemd-resolved detected on port 53)"
+    else
+      echo "OK (port 53 in use by: $process_using_port)"
+    fi
+  else
+    echo "OK (no process using port 53)"
+  fi
+
+  # Additional check with lsof if netstat didn't find systemd-resolved
+  if ! $conflict_detected && command -v lsof &> /dev/null; then
+    if lsof -i :53 2>/dev/null | grep -q systemd-resolved; then
+      conflict_detected=true
+      echo "OK (systemd-resolved detected on port 53 via lsof)"
+    fi
+  fi
+
+  if $conflict_detected; then
     run_step "Stopping systemd-resolved" systemctl stop systemd-resolved
     run_step "Disabling systemd-resolved" systemctl disable systemd-resolved
+
+    # Verify systemd-resolved is stopped
+    local max_attempts=10
+    local attempt=0
+    while (( attempt < max_attempts )); do
+      if ! systemctl is-active --quiet systemd-resolved; then
+        echo "systemd-resolved stopped successfully"
+        break
+      fi
+      sleep 1
+      (( attempt++ ))
+    done
+    if (( attempt >= max_attempts )); then
+      log_error "Failed to stop systemd-resolved completely"
+      return 1
+    fi
 
     # Reconfigure /etc/resolv.conf
     run_step "Reconfiguring /etc/resolv.conf" bash -c "
@@ -162,9 +200,18 @@ function resolve_dns_conflict() {
       echo 'nameserver 8.8.8.8' >> /etc/resolv.conf
     "
 
+    # Force restart Docker service
     run_step "Restarting Docker service" systemctl restart docker
+
+    # Verify port 53 is free
+    if netstat -tlnp 2>/dev/null | grep -q ":53 "; then
+      log_error "Port 53 still in use after resolving conflict"
+      return 1
+    else
+      echo "Port 53 is now free"
+    fi
   else
-    echo "OK (no conflict detected)"
+    echo "No DNS conflict detected, skipping systemd-resolved actions"
   fi
 }
 
