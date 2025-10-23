@@ -145,6 +145,29 @@ function get_random_port() {
   echo "${num}"
 }
 
+function resolve_dns_conflict() {
+  log_start_step "Checking for DNS port 53 conflict"
+
+  # Check if port 53 is in use by systemd-resolved
+  if ss -tlnp 2>/dev/null | grep -q ":53.*systemd-resolved"; then
+    echo "OK (systemd-resolved detected on port 53)"
+
+    run_step "Stopping systemd-resolved" systemctl stop systemd-resolved
+    run_step "Disabling systemd-resolved" systemctl disable systemd-resolved
+
+    # Reconfigure /etc/resolv.conf
+    run_step "Reconfiguring /etc/resolv.conf" bash -c "
+      rm -f /etc/resolv.conf
+      echo 'nameserver 1.1.1.1' > /etc/resolv.conf
+      echo 'nameserver 8.8.8.8' >> /etc/resolv.conf
+    "
+
+    run_step "Restarting Docker service" systemctl restart docker
+  else
+    echo "OK (no conflict detected)"
+  fi
+}
+
 # --- Funciones de Instalación ---
 function installDocker() {
   run_step "Updating package lists" apt-get update
@@ -309,20 +332,22 @@ function installPiholeFull() {
     log_error "Pi-hole is already installed. Use --reinstall if you want to reinstall."
     exit 1
   fi
-  
+
   if ! checkDockerInstalled; then
     run_step "Installing Docker" installDocker
   fi
-  
+
+  run_step "Resolving DNS port conflict" resolve_dns_conflict
+
   run_step "Creating Pi-hole network" createPiholeNetwork
   run_step "Creating Pi-hole volumes" createPiholeVolumes
   run_step "Installing Pi-hole container" installPihole
   run_step "Configuring Pi-hole" configurePihole
   run_step "Validating installation" validateInstallation
-  
+
   # Generar archivos .env al finalizar
   generate_env_files
-  
+
   echo -e "\n${GREEN}CONGRATULATIONS! Pi-hole is installed and configured for uSipipo.${NC}"
   echo -e "${GREEN}Web Interface: http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin${NC}"
   echo -e "${GREEN}DNS Port: ${PIHOLE_DNS_PORT}${NC}"
