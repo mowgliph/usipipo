@@ -608,7 +608,8 @@ function generate_env_files() {
 
      echo "Creating ${ENV_FILE_OUTLINE}"
      echo "# --- uSipipo Outline Server Configuration ---" > "${ENV_FILE_OUTLINE}"
-     echo "OUTLINE_API_URL=\"https://${OUTLINE_HOSTNAME}:${OUTLINE_API_PORT}/${SB_API_PREFIX}\"" >> "${ENV_FILE_OUTLINE}"
+     OUTLINE_API_URL="https://${OUTLINE_HOSTNAME}:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
+     echo "OUTLINE_API_URL=\"${OUTLINE_API_URL}\"" >> "${ENV_FILE_OUTLINE}"
      echo "OUTLINE_CERT_SHA256=\"${OUTLINE_CERT_SHA256}\"" >> "${ENV_FILE_OUTLINE}"
      echo "OUTLINE_API_PORT=\"${OUTLINE_API_PORT}\"" >> "${ENV_FILE_OUTLINE}"
      echo "OUTLINE_HOSTNAME=\"${OUTLINE_HOSTNAME}\"" >> "${ENV_FILE_OUTLINE}"
