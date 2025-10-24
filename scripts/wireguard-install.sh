@@ -29,6 +29,18 @@ function isRoot() {
 		echo "You need to run this script as root"
 		exit 1
 	fi
+}
+
+function get_current_user() {
+	# Detectar el usuario actual no root que ejecutó el script
+	if [ -n "${SUDO_USER}" ]; then
+		echo "${SUDO_USER}"
+	else
+		# Si no se usó sudo, intentar obtener el usuario que ejecutó el script
+		who am i | awk '{print $1}'
+	fi
+}
+
 function detect_pihole() {
     if [[ -f ".env.pihole.generated" ]]; then
         source ".env.pihole.generated"
@@ -123,7 +135,7 @@ function getHomeDirForClient() {
 
 	# Home directory of the user, where the client configuration will be written
 	# Updated to use organized project directory structure
-	HOME_DIR="VPNs Configs/wireguard/"
+	HOME_DIR="VPNs_Configs/wireguard/"
 
 	echo "$HOME_DIR"
 }
@@ -138,13 +150,20 @@ function initialCheck() {
 function create_config_dirs() {
 	mkdir -p "VPNs_Configs/wireguard/"
 	chmod ug+rwx,g+s,o-rwx "VPNs_Configs/wireguard/"
+
+	# Cambiar propietario al usuario actual no root
+	CURRENT_USER=$(get_current_user)
+	if [ -n "${CURRENT_USER}" ]; then
+		chown -R "${CURRENT_USER}:${CURRENT_USER}" "VPNs_Configs/wireguard/"
+		echo -e "${GREEN}Permisos de directorio cambiados al usuario: ${CURRENT_USER}${NC}"
+	fi
 }
 
 # --- Función de Limpieza Automática ---
 function cleanup_expired_configs() {
 	# Esta función se ejecuta periódicamente para limpiar configuraciones vencidas
 	# Integrada con el sistema de limpieza de la base de datos
-	echo -e "${ORANGE}Verificando configuraciones vencidas en VPNs Configs/wireguard/...${NC}"
+	echo -e "${ORANGE}Verificando configuraciones vencidas en VPNs_Configs/wireguard/...${NC}"
 
 	# Aquí se integraría con la base de datos para obtener IDs de usuarios vencidos
 	# Por ahora, es un placeholder que se puede expandir
@@ -420,7 +439,7 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	echo -e "\n${GREEN}--- VARIABLES WIREGUARD PARA TU .env DE USIPIPO ---${NC}"
 	echo -e "${ORANGE}Archivo de configuración principal:${NC} ${ENV_FILE_WG}"
 	echo -e "${ORANGE}Archivo de IPs generadas:${NC} ${ENV_FILE_IPS}"
-	echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} VPNs Configs/wireguard/"
+	echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} VPNs_Configs/wireguard/"
 	echo -e "${GREEN}----------------------------------------------------------${NC}"
 	echo -e "\n${GREEN}Contenido de ${ENV_FILE_WG}:${NC}"
 	cat "${ENV_FILE_WG}"
