@@ -100,6 +100,9 @@ function installMTProxy() {
 
     # Build MTProxy
     echo "Building MTProxy..."
+    # Suppress GCC warnings during build
+    export CFLAGS="-w"
+    export CXXFLAGS="-w"
     if ! make clean; then
         echo -e "${RED}Failed to clean previous build.${NC}"
         exit 1
@@ -154,6 +157,13 @@ Type=simple
 WorkingDirectory=${MTPROXY_DIR}/objs/bin
 ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -u nobody -p 8888 -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
 Restart=on-failure
+RestartSec=5
+User=nobody
+Group=nogroup
+
+# Environment variables for better logging
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/tmp
 
 [Install]
 WantedBy=multi-user.target
@@ -161,33 +171,55 @@ EOL
 
     # Generate proxy secret
     echo "Downloading proxy secret..."
-    if ! curl -s "${MTPROXY_SECRET_FILE_URL}" -o proxy-secret; then
+    if ! curl -s --max-time 30 "${MTPROXY_SECRET_FILE_URL}" -o proxy-secret; then
         echo -e "${RED}Failed to download proxy secret from ${MTPROXY_SECRET_FILE_URL}.${NC}"
+        echo -e "${ORANGE}Check your internet connection and try again.${NC}"
         exit 1
     fi
 
     if [ ! -f "proxy-secret" ] || [ ! -s "proxy-secret" ]; then
         echo -e "${RED}Proxy secret file is empty or not created.${NC}"
+        echo -e "${ORANGE}File details: $(ls -la proxy-secret 2>/dev/null || echo 'File does not exist')${NC}"
         exit 1
     fi
 
+    echo -e "${GREEN}Proxy secret downloaded successfully (size: $(stat -c%s proxy-secret) bytes).${NC}"
+
     # Generate proxy multi-config
     echo "Downloading proxy configuration..."
-    if ! curl -s "${MTPROXY_CONFIG_FILE_URL}" -o proxy-multi.conf; then
+    if ! curl -s --max-time 30 "${MTPROXY_CONFIG_FILE_URL}" -o proxy-multi.conf; then
         echo -e "${RED}Failed to download proxy config from ${MTPROXY_CONFIG_FILE_URL}.${NC}"
+        echo -e "${ORANGE}Check your internet connection and try again.${NC}"
         exit 1
     fi
 
     if [ ! -f "proxy-multi.conf" ] || [ ! -s "proxy-multi.conf" ]; then
         echo -e "${RED}Proxy config file is empty or not created.${NC}"
+        echo -e "${ORANGE}File details: $(ls -la proxy-multi.conf 2>/dev/null || echo 'File does not exist')${NC}"
         exit 1
     fi
 
+    echo -e "${GREEN}Proxy configuration downloaded successfully (size: $(stat -c%s proxy-multi.conf) bytes).${NC}"
     echo -e "${GREEN}Configuration files downloaded successfully.${NC}"
 
     # Set permissions
+    echo "Setting proper permissions for MTProxy files..."
     chmod 755 "${MTPROXY_SERVICE_FILE}"
     chmod 644 proxy-secret proxy-multi.conf # Restrict permissions on secrets
+
+    # Ensure the binary has execute permissions
+    if [ -f "mtproto-proxy" ]; then
+        chmod 755 mtproto-proxy
+        echo -e "${GREEN}Binary permissions set.${NC}"
+    else
+        echo -e "${RED}Warning: mtproto-proxy binary not found in working directory.${NC}"
+    fi
+
+    # Ensure working directory permissions
+    if [ -d "${MTPROXY_DIR}/objs/bin" ]; then
+        chown -R nobody:nogroup "${MTPROXY_DIR}/objs/bin" 2>/dev/null || echo -e "${ORANGE}Warning: Could not change ownership to nobody:nogroup. This may cause permission issues.${NC}"
+        echo -e "${GREEN}Working directory permissions set.${NC}"
+    fi
 
     # Enable and start service
     echo "Enabling and starting MTProxy service..."
@@ -200,31 +232,58 @@ EOL
 
     if ! systemctl start mtproto-proxy; then
         echo -e "${RED}Failed to start MTProxy service.${NC}"
-        echo -e "${ORANGE}Attempting to start service with retries...${NC}"
+        echo -e "${ORANGE}Attempting to start service with retries and diagnostics...${NC}"
+
+        # Show diagnostic information before retries
+        echo -e "${ORANGE}Diagnostic information:${NC}"
+        echo -e "Service file: ${MTPROXY_SERVICE_FILE}"
+        echo -e "Working directory: ${MTPROXY_DIR}/objs/bin"
+        echo -e "Binary exists: $([ -f "${MTPROXY_DIR}/objs/bin/mtproto-proxy" ] && echo 'Yes' || echo 'No')"
+        echo -e "Secret file exists: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-secret" ] && echo 'Yes' || echo 'No')"
+        echo -e "Config file exists: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-multi.conf" ] && echo 'Yes' || echo 'No')"
+
+        # Check systemd status
+        systemctl status mtproto-proxy --no-pager -l || echo -e "${RED}Could not get service status.${NC}"
 
         # Retry starting the service up to 3 times
         for i in {1..3}; do
             echo -e "${ORANGE}Retry attempt $i/3...${NC}"
-            sleep 2
+            sleep 3
             if systemctl start mtproto-proxy; then
                 echo -e "${GREEN}Service started successfully on retry $i.${NC}"
                 break
             fi
             if [ $i -eq 3 ]; then
                 echo -e "${RED}Service failed to start after 3 attempts.${NC}"
-                echo -e "${ORANGE}You can check service status with: systemctl status mtproto-proxy${NC}"
-                echo -e "${ORANGE}And view logs with: journalctl -u mtproto-proxy -f${NC}"
+                echo -e "${ORANGE}Troubleshooting commands:${NC}"
+                echo -e "  systemctl status mtproto-proxy"
+                echo -e "  journalctl -u mtproto-proxy -f --no-pager -n 50"
+                echo -e "  journalctl -xe --no-pager -n 20"
                 echo -e "${ORANGE}Installation completed but service may need manual intervention.${NC}"
                 # Don't exit here, continue with configuration
             fi
         done
     fi
 
-    # Check service status but don't fail if it's not active
+    # Check service status and provide detailed information
+    echo "Checking final service status..."
     if systemctl is-active --quiet mtproto-proxy; then
-        echo -e "${GREEN}MTProxy service is running.${NC}"
+        echo -e "${GREEN}MTProxy service is running successfully.${NC}"
+        # Show listening ports
+        ss -tlnp | grep :${PORT} || echo -e "${ORANGE}Warning: Port ${PORT} not found in listening sockets.${NC}"
     else
-        echo -e "${ORANGE}Warning: MTProxy service is not active. Check status manually.${NC}"
+        echo -e "${RED}Warning: MTProxy service is not active.${NC}"
+        echo -e "${ORANGE}Service status details:${NC}"
+        systemctl status mtproto-proxy --no-pager -l || echo -e "${RED}Could not retrieve service status.${NC}"
+
+        echo -e "${ORANGE}Recent logs:${NC}"
+        journalctl -u mtproto-proxy --no-pager -n 10 -q || echo -e "${RED}Could not retrieve logs.${NC}"
+
+        echo -e "${ORANGE}Common troubleshooting steps:${NC}"
+        echo -e "1. Check if all required files exist: ls -la ${MTPROXY_DIR}/objs/bin/"
+        echo -e "2. Verify permissions: ls -ld ${MTPROXY_DIR}/objs/bin/"
+        echo -e "3. Test manual execution: cd ${MTPROXY_DIR}/objs/bin && sudo -u nobody ./mtproto-proxy --version"
+        echo -e "4. Check systemd logs: journalctl -u mtproto-proxy -f"
     fi
 
     # Save configuration
@@ -344,8 +403,26 @@ function showMenu() {
                 echo -e "IP: ${IP}"
                 echo -e "Port: ${PORT}"
                 echo -e "Secret: ${SECRET}"
+                echo -e "Directory: ${MTPROXY_DIR}"
+                echo -e "Service File: ${MTPROXY_SERVICE_FILE}"
                 echo -e "\nConnection Link:"
                 echo -e "tg://proxy?server=${IP}&port=${PORT}&secret=${SECRET}"
+
+                echo -e "\n${GREEN}Service Status:${NC}"
+                if systemctl is-active --quiet mtproto-proxy; then
+                    echo -e "${GREEN}Service is running${NC}"
+                    # Show listening port
+                    ss -tlnp | grep :${PORT} && echo -e "${GREEN}Port ${PORT} is listening${NC}" || echo -e "${ORANGE}Warning: Port ${PORT} not found in listening sockets${NC}"
+                else
+                    echo -e "${RED}Service is not running${NC}"
+                    echo -e "${ORANGE}Last logs:${NC}"
+                    journalctl -u mtproto-proxy --no-pager -n 5 -q 2>/dev/null || echo -e "${RED}Could not retrieve logs${NC}"
+                fi
+
+                echo -e "\n${GREEN}File Status:${NC}"
+                echo -e "Binary: $([ -f "${MTPROXY_DIR}/objs/bin/mtproto-proxy" ] && echo 'Present' || echo 'Missing')"
+                echo -e "Secret: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-secret" ] && echo 'Present' || echo 'Missing')"
+                echo -e "Config: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-multi.conf" ] && echo 'Present' || echo 'Missing')"
             else
                 echo -e "${RED}MTProxy is not installed or configuration file not found.${NC}"
             fi
