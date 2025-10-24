@@ -264,11 +264,18 @@ EOL
     fi
 
     # Check service status and provide detailed information
+    echo "Waiting 5 seconds for the service to stabilize..."
+    sleep 5
     echo "Checking final service status..."
     if systemctl is-active --quiet mtproto-proxy; then
         echo -e "${GREEN}MTProxy service is running successfully.${NC}"
         # Show listening ports
-        ss -tlnp | grep :${PORT} || echo -e "${ORANGE}Warning: Port ${PORT} not found in listening sockets.${NC}"
+        if ss -tlnp | grep -q :${PORT}; then
+            echo -e "${GREEN}Port ${PORT} is listening.${NC}"
+        else
+            echo -e "${ORANGE}Warning: Port ${PORT} not found in listening sockets. The service might have failed to bind to the port.${NC}"
+        fi
+        checkFirewallAndSuggest "${PORT}"
     else
         echo -e "${RED}Warning: MTProxy service is not active.${NC}"
         echo -e "${ORANGE}Service status details:${NC}"
@@ -304,6 +311,20 @@ EOL
     echo -e "Secret: ${SECRET}"
     echo -e "\n${GREEN}You can use this link to connect to your proxy:${NC}"
     echo -e "tg://proxy?server=${IP}&port=${PORT}&secret=${SECRET}"
+}
+
+function checkFirewallAndSuggest() {
+    local port=$1
+    if command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
+        echo "Firewall (ufw) is active. Checking port ${port}..."
+        if ! ufw status | grep -q "${port}"; then
+            echo -e "${ORANGE}Warning: Port ${port} does not appear to be allowed in the firewall.${NC}"
+            echo -e "To allow traffic on this port, run the following command:"
+            echo -e "${GREEN}sudo ufw allow ${port}/tcp${NC}"
+        else
+            echo -e "${GREEN}Port ${port} appears to be correctly configured in the firewall.${NC}"
+        fi
+    fi
 }
 
 function generate_env_files() {
