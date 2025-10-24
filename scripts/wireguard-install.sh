@@ -52,7 +52,6 @@ function detect_pihole() {
     fi
     return 1
 }
-}
 
 function checkVirt() {
 	function openvzErr() {
