@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # Secure Outline server installer for uSipipo
-# Refactored to generate uSipipo .env variables and manage trial IPs
+# Refactored to generate uSipipo .env variables and obtain Outline Manager configuration
 # Based on: https://github.com/Jigsaw-Code/outline-server
 #
 # This script installs Outline VPN server without Pi-hole integration.
-# It generates necessary environment variables for uSipipo system.
+# It generates necessary environment variables for uSipipo system and provides
+# the apiUrl and certSha256 for Outline Manager configuration.
 #
 # Usage: ./outline-install.sh [options]
 # Options:
@@ -458,31 +459,31 @@ function wait_outline() {
   echo "Outline API is now responding"
 }
 
-function create_first_user() {
-  echo "Starting create_first_user() function"
-  local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
-  echo "Creating first access key via POST to: ${LOCAL_API_URL}/access-keys"
+# function create_first_user() {
+#   echo "Starting create_first_user() function"
+#   local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
+#   echo "Creating first access key via POST to: ${LOCAL_API_URL}/access-keys"
 
-  # Capturar la respuesta JSON de la API
-  local response
-  response=$(curl --silent --insecure --request POST "${LOCAL_API_URL}/access-keys" 2>/dev/null)
+#   # Capturar la respuesta JSON de la API
+#   local response
+#   response=$(curl --silent --insecure --request POST "${LOCAL_API_URL}/access-keys" 2>/dev/null)
 
-  # Verificar si curl tuvo éxito y la respuesta contiene JSON válido
-  if [[ $? -eq 0 ]] && [[ -n "$response" ]] && echo "$response" | jq . >/dev/null 2>&1; then
-    # Verificar si la respuesta contiene los campos esperados de una clave de acceso exitosa
-    if echo "$response" | jq -e '.id and .accessUrl' >/dev/null 2>&1; then
-      echo "First access key created successfully"
-      echo "Response: $response"
-      return 0
-    else
-      echo "API returned success but invalid response format: $response"
-      return 1
-    fi
-  else
-    echo "Failed to create first access key. Response: $response"
-    return 1
-  fi
-}
+#   # Verificar si curl tuvo éxito y la respuesta contiene JSON válido
+#   if [[ $? -eq 0 ]] && [[ -n "$response" ]] && echo "$response" | jq . >/dev/null 2>&1; then
+#     # Verificar si la respuesta contiene los campos esperados de una clave de acceso exitosa
+#     if echo "$response" | jq -e '.id and .accessUrl' >/dev/null 2>&1; then
+#       echo "First access key created successfully"
+#       echo "Response: $response"
+#       return 0
+#     else
+#       echo "API returned success but invalid response format: $response"
+#       return 1
+#     fi
+#   else
+#     echo "Failed to create first access key. Response: $response"
+#     return 1
+#     fi
+# }
 
 # --- Función de Creación de Directorios ---
 function create_config_dirs() {
@@ -824,10 +825,7 @@ install_outline() {
   echo "start_watchtower completed, proceeding to wait for Outline"
 
   run_step "Waiting for Outline server to be healthy" wait_outline
-  echo "Outline server is healthy, proceeding to create first user"
-
-  run_step "Creating first user" create_first_user
-  echo "First user created, proceeding to cleanup"
+  echo "Outline server is healthy, proceeding to obtain manager configuration"
 
   # Ejecutar limpieza automática
   cleanup_expired_configs
@@ -837,6 +835,14 @@ install_outline() {
   generate_env_files
   echo "Env files generated, installation completed successfully"
   echo "Outline installation process finished"
+
+  # Verificar que la configuración del manager esté disponible
+  if [[ -n "${OUTLINE_API_URL}" && -n "${OUTLINE_CERT_SHA256}" ]]; then
+    echo "Manager configuration obtained successfully: apiUrl=${OUTLINE_API_URL}, certSha256=${OUTLINE_CERT_SHA256}"
+  else
+    echo "ERROR: Failed to obtain manager configuration"
+    return 1
+  fi
 
   # Mensaje final
   local OUTLINE_MANAGER_CONFIG
