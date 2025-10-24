@@ -136,8 +136,8 @@ function initialCheck() {
 
 # --- Función de Creación de Directorios ---
 function create_config_dirs() {
-	mkdir -p "VPNs Configs/wireguard/"
-	chmod ug+rwx,g+s,o-rwx "VPNs Configs/wireguard/"
+	mkdir -p "VPNs_Configs/wireguard/"
+	chmod ug+rwx,g+s,o-rwx "VPNs_Configs/wireguard/"
 }
 
 # --- Función de Limpieza Automática ---
