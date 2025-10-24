@@ -73,6 +73,16 @@ function command_exists {
   command -v "$@" &> /dev/null
 }
 
+function get_current_user() {
+	# Detectar el usuario actual no root que ejecutó el script
+	if [ -n "${SUDO_USER}" ]; then
+		echo "${SUDO_USER}"
+	else
+		# Si no se usó sudo, intentar obtener el usuario que ejecutó el script
+		who am i | awk '{print $1}'
+	fi
+}
+
 # Genera un puerto aleatorio en el rango válido (1024-65535)
 function get_random_port {
   local -i num=0  # Inicializar con valor inválido para evitar errores de variable no ligada
@@ -266,6 +276,13 @@ function create_persisted_state_dir() {
   OUTLINE_STATE_DIR="${OUTLINE_DIR}/persisted-state"
   mkdir -p "${OUTLINE_STATE_DIR}"
   chmod ug+rwx,g+s,o-rwx "${OUTLINE_STATE_DIR}"
+
+  # Cambiar propietario al usuario actual no root
+  CURRENT_USER=$(get_current_user)
+  if [ -n "${CURRENT_USER}" ]; then
+    chown -R "${CURRENT_USER}:${CURRENT_USER}" "${OUTLINE_STATE_DIR}"
+    echo -e "${GREEN}Permisos de directorio de estado cambiados al usuario: ${CURRENT_USER}${NC}"
+  fi
 }
 
 function safe_base64() {
@@ -489,6 +506,13 @@ function wait_outline() {
 function create_config_dirs() {
   mkdir -p "${HOME_DIR}"
   chmod ug+rwx,g+s,o-rwx "${HOME_DIR}"
+
+  # Cambiar propietario al usuario actual no root
+  CURRENT_USER=$(get_current_user)
+  if [ -n "${CURRENT_USER}" ]; then
+    chown -R "${CURRENT_USER}:${CURRENT_USER}" "${HOME_DIR}"
+    echo -e "${GREEN}Permisos de directorio cambiados al usuario: ${CURRENT_USER}${NC}"
+  fi
 }
 
 # --- Función de Desinstalación Completa ---
@@ -777,6 +801,13 @@ install_outline() {
   echo "Creating Outline directory: ${OUTLINE_DIR}"
   mkdir -p "${OUTLINE_DIR}"
   chmod u+s,ug+rwx,o-rwx "${OUTLINE_DIR}"
+
+  # Cambiar propietario al usuario actual no root
+  CURRENT_USER=$(get_current_user)
+  if [ -n "${CURRENT_USER}" ]; then
+    chown -R "${CURRENT_USER}:${CURRENT_USER}" "${OUTLINE_DIR}"
+    echo -e "${GREEN}Permisos de directorio Outline cambiados al usuario: ${CURRENT_USER}${NC}"
+  fi
 
   # Asignar puertos después de parse_flags
   OUTLINE_API_PORT="${FLAGS_API_PORT}"
