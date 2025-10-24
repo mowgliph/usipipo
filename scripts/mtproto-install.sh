@@ -89,7 +89,7 @@ function installMTProxy() {
     # Build MTProxy
     echo "Building MTProxy..."
     make clean # Ensure clean build
-    make LDFLAGS="-Wl,--allow-multiple-definition" || { echo -e "${RED}Build failed.${NC}"; exit 1; }
+    make LDFLAGS="-Wl,--allow-multiple-definition -lssl -lcrypto -lm" || { echo -e "${RED}Build failed.${NC}"; exit 1; }
 
     # Navigate to binary directory
     cd objs/bin || { echo -e "${RED}Build directory not found.${NC}"; exit 1; }
