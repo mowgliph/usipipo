@@ -221,6 +221,13 @@ EOL
         echo -e "${GREEN}Directory ownership set to root.${NC}"
     fi
 
+    # Verify required files before starting service
+    echo "Verifying required configuration files..."
+    if ! verify_mtproxy_files; then
+        echo -e "${RED}Required files verification failed. Cannot start service.${NC}"
+        exit 1
+    fi
+
     # Enable and start service
     echo "Enabling and starting MTProxy service..."
     systemctl daemon-reload
@@ -241,6 +248,10 @@ EOL
         echo -e "Binary exists: $([ -f "${MTPROXY_DIR}/objs/bin/mtproto-proxy" ] && echo 'Yes' || echo 'No')"
         echo -e "Secret file exists: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-secret" ] && echo 'Yes' || echo 'No')"
         echo -e "Config file exists: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-multi.conf" ] && echo 'Yes' || echo 'No')"
+
+        # Manual verification of ExecStart command
+        echo -e "${ORANGE}Performing manual verification of ExecStart command...${NC}"
+        manual_execstart_check "${PORT}" "${SECRET}" "${DNS_ARG}"
 
         # Check systemd status
         systemctl status mtproto-proxy --no-pager -l || echo -e "${RED}Could not get service status.${NC}"
@@ -313,6 +324,171 @@ EOL
     echo -e "Secret: ${SECRET}"
     echo -e "\n${GREEN}You can use this link to connect to your proxy:${NC}"
     echo -e "tg://proxy?server=${IP}&port=${PORT}&secret=${SECRET}"
+}
+
+function verify_mtproxy_files() {
+    local bin_dir="${MTPROXY_DIR}/objs/bin"
+    local secret_file="${bin_dir}/proxy-secret"
+    local config_file="${bin_dir}/proxy-multi.conf"
+    local binary_file="${bin_dir}/mtproto-proxy"
+
+    echo "Checking MTProxy files in ${bin_dir}:"
+
+    # Check binary
+    if [ ! -f "${binary_file}" ]; then
+        echo -e "${RED}ERROR: MTProto binary not found at ${binary_file}${NC}"
+        return 1
+    fi
+    if [ ! -x "${binary_file}" ]; then
+        echo -e "${RED}ERROR: MTProto binary is not executable${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}✓ Binary: Present and executable${NC}"
+
+    # Check secret file
+    if [ ! -f "${secret_file}" ]; then
+        echo -e "${RED}ERROR: Proxy secret file not found at ${secret_file}${NC}"
+        return 1
+    fi
+    if [ ! -s "${secret_file}" ]; then
+        echo -e "${RED}ERROR: Proxy secret file is empty${NC}"
+        return 1
+    fi
+    local secret_size=$(stat -c%s "${secret_file}")
+    if [ "${secret_size}" -lt 10 ]; then
+        echo -e "${RED}ERROR: Proxy secret file seems too small (${secret_size} bytes)${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}✓ Secret file: Present and valid (${secret_size} bytes)${NC}"
+
+    # Check config file
+    if [ ! -f "${config_file}" ]; then
+        echo -e "${RED}ERROR: Proxy config file not found at ${config_file}${NC}"
+        return 1
+    fi
+    if [ ! -s "${config_file}" ]; then
+        echo -e "${RED}ERROR: Proxy config file is empty${NC}"
+        return 1
+    fi
+    local config_size=$(stat -c%s "${config_file}")
+    if [ "${config_size}" -lt 10 ]; then
+        echo -e "${RED}ERROR: Proxy config file seems too small (${config_size} bytes)${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}✓ Config file: Present and valid (${config_size} bytes)${NC}"
+
+    # Check permissions
+    local secret_perms=$(stat -c%a "${secret_file}")
+    local config_perms=$(stat -c%a "${config_file}")
+    if [ "${secret_perms}" != "644" ] && [ "${secret_perms}" != "600" ]; then
+        echo -e "${ORANGE}WARNING: Secret file permissions are ${secret_perms}, recommended 644 or 600${NC}"
+    fi
+    if [ "${config_perms}" != "644" ] && [ "${config_perms}" != "600" ]; then
+        echo -e "${ORANGE}WARNING: Config file permissions are ${config_perms}, recommended 644 or 600${NC}"
+    fi
+
+    return 0
+}
+
+function manual_execstart_check() {
+    local port=$1
+    local secret=$2
+    local dns_arg=$3
+
+    local bin_dir="${MTPROXY_DIR}/objs/bin"
+    local exec_cmd="${bin_dir}/mtproto-proxy -H ${port} -S ${secret} ${dns_arg} --aes-pwd proxy-secret proxy-multi.conf"
+
+    echo -e "${ORANGE}Manual ExecStart command verification:${NC}"
+    echo -e "Command: ${exec_cmd}"
+    echo -e "Working directory: ${bin_dir}"
+
+    # Change to working directory
+    if ! cd "${bin_dir}"; then
+        echo -e "${RED}ERROR: Cannot change to working directory ${bin_dir}${NC}"
+        return 1
+    fi
+
+    # Test if binary can be executed with --help or --version
+    echo -e "${ORANGE}Testing binary execution...${NC}"
+    if timeout 10s ./${bin_dir}/mtproto-proxy --help > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Binary executes successfully with --help${NC}"
+    elif timeout 10s ./${bin_dir}/mtproto-proxy --version > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Binary executes successfully with --version${NC}"
+    else
+        echo -e "${RED}ERROR: Binary cannot be executed or timed out${NC}"
+        echo -e "${ORANGE}Testing with a simple command...${NC}"
+        if timeout 5s ./${bin_dir}/mtproto-proxy > /tmp/mtproxy_test.log 2>&1; then
+            echo -e "${GREEN}✓ Binary starts (may have exited due to missing arguments)${NC}"
+            if [ -s /tmp/mtproxy_test.log ]; then
+                echo -e "${ORANGE}Binary output:${NC}"
+                head -10 /tmp/mtproxy_test.log
+            fi
+        else
+            echo -e "${RED}ERROR: Binary completely fails to execute${NC}"
+            echo -e "${ORANGE}Check binary permissions and dependencies${NC}"
+            ldd "${bin_dir}/mtproto-proxy" 2>/dev/null || echo -e "${RED}Cannot check dependencies${NC}"
+        fi
+        rm -f /tmp/mtproxy_test.log
+    fi
+
+    # Test the full command with timeout
+    echo -e "${ORANGE}Testing full ExecStart command with timeout...${NC}"
+    local test_cmd="./mtproto-proxy -H ${port} -S ${secret} ${dns_arg} --aes-pwd proxy-secret proxy-multi.conf"
+    echo -e "Test command: ${test_cmd}"
+
+    # Run with timeout and capture output
+    timeout 15s ${test_cmd} > /tmp/mtproxy_full_test.log 2>&1 &
+    local pid=$!
+    sleep 5
+
+    if kill -0 $pid 2>/dev/null; then
+        echo -e "${GREEN}✓ Command is running after 5 seconds${NC}"
+        kill $pid 2>/dev/null
+        wait $pid 2>/dev/null
+    else
+        wait $pid 2>/dev/null
+        local exit_code=$?
+        echo -e "${ORANGE}Command exited with code ${exit_code}${NC}"
+        if [ -s /tmp/mtproxy_full_test.log ]; then
+            echo -e "${ORANGE}Command output:${NC}"
+            cat /tmp/mtproxy_full_test.log
+        fi
+    fi
+
+    rm -f /tmp/mtproxy_full_test.log
+
+    # Check for common issues
+    echo -e "${ORANGE}Checking for common issues:${NC}"
+
+    # Check if port is already in use
+    if ss -tln | grep -q ":${port} "; then
+        echo -e "${RED}WARNING: Port ${port} is already in use${NC}"
+        ss -tlnp | grep ":${port} "
+    else
+        echo -e "${GREEN}✓ Port ${port} is available${NC}"
+    fi
+
+    # Check if secret is valid format
+    if [[ ! ${secret} =~ ^[0-9a-fA-F]{32}$ ]]; then
+        echo -e "${RED}WARNING: Secret '${secret}' does not appear to be a valid 32-character hex string${NC}"
+    else
+        echo -e "${GREEN}✓ Secret format appears valid${NC}"
+    fi
+
+    # Check DNS argument
+    if [ -n "${dns_arg}" ]; then
+        local dns_ip=$(echo "${dns_arg}" | sed 's/-d //')
+        echo -e "${ORANGE}DNS argument: ${dns_arg} (IP: ${dns_ip})${NC}"
+        if ping -c 1 -W 2 "${dns_ip}" > /dev/null 2>&1; then
+            echo -e "${GREEN}✓ DNS IP ${dns_ip} is reachable${NC}"
+        else
+            echo -e "${RED}WARNING: DNS IP ${dns_ip} is not reachable${NC}"
+        fi
+    else
+        echo -e "${ORANGE}No custom DNS configured${NC}"
+    fi
+
+    echo -e "${ORANGE}Manual verification completed.${NC}"
 }
 
 function checkFirewallAndSuggest() {
