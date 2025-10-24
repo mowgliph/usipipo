@@ -3,108 +3,90 @@
 # Secure Outline server installer for uSipipo
 # Refactored to generate uSipipo .env variables and manage trial IPs
 # Based on: https://github.com/Jigsaw-Code/outline-server
+#
+# This script installs Outline VPN server without Pi-hole integration.
+# It generates necessary environment variables for uSipipo system.
+#
+# Usage: ./outline-install.sh [options]
+# Options:
+#   --install      Install Outline server
+#   --uninstall    Remove Outline server completely
+#   --reinstall    Reinstall Outline server
+#   --hostname     Server hostname/IP
+#   --api-port     Management API port
+#   --keys-port    Access keys port
+#   --help         Show help
 
 set -euo pipefail
 
-# --- Constantes ---
-OUTLINE_DIR="/opt/outline"
-OUTLINE_CONTAINER_NAME="outline"
-OUTLINE_IMAGE_DEFAULT="quay.io/outline/shadowbox:stable"
-HOME_DIR="VPNs Configs/outline/"
-TRIAL_IP_START=2  # Primera IP usable
-TRIAL_IP_END=26   # Última IP para trial (25 IPs: 2 a 26)
-PAID_IP_START=27  # Primera IP para usuarios pagos
-PAID_IP_END=254   # Última IP usable (254 es el límite común)
+# --- Constantes de Configuración ---
+OUTLINE_DIR_DEFAULT="/opt/outline"                 # Directorio de instalación en Linux
+HOME_DIR_DEFAULT="VPNs_Configs/outline/"           # Directorio relativo
 
-# --- Variables globales ---
-FLAGS_HOSTNAME=""
-FLAGS_API_PORT=0
-FLAGS_KEYS_PORT=0
+OUTLINE_DIR="${OUTLINE_DIR:-$OUTLINE_DIR_DEFAULT}"   # Directorio de instalación de Outline
+OUTLINE_CONTAINER_NAME="outline"                     # Nombre del contenedor Docker
+OUTLINE_IMAGE_DEFAULT="quay.io/outline/shadowbox:stable"  # Imagen Docker por defecto
+HOME_DIR="${HOME_DIR:-$HOME_DIR_DEFAULT}"            # Directorio para configuraciones de cliente
+
+# Rangos de IPs para gestión de usuarios (informativo para Outline)
+TRIAL_IP_START=2  # Primera IP usable para usuarios trial
+TRIAL_IP_END=26   # Última IP para trial (25 IPs disponibles)
+PAID_IP_START=27  # Primera IP para usuarios pagos
+PAID_IP_END=254   # Última IP usable (límite común de subred /24)
+
+# --- Colores para salida de terminal ---
+GREEN='\033[0;32m'   # Verde para mensajes de éxito
+ORANGE='\033[0;33m'  # Naranja para advertencias
+RED='\033[0;31m'     # Rojo para errores
+NC='\033[0m'         # Reset de color
+
+# --- Variables Globales ---
+# Variables de flags de línea de comandos
+FLAGS_HOSTNAME=""     # Hostname proporcionado por usuario
+FLAGS_API_PORT=0      # Puerto API proporcionado por usuario
+FLAGS_KEYS_PORT=0     # Puerto de claves proporcionado por usuario
+
 # Variables de entorno que pueden ser sobrescritas
 OUTLINE_DIR="${OUTLINE_DIR:-/opt/outline}"
 OUTLINE_CONTAINER_NAME="${CONTAINER_NAME:-${OUTLINE_CONTAINER_NAME}}"
 OUTLINE_IMAGE="${SB_IMAGE:-${OUTLINE_IMAGE_DEFAULT}}"
-OUTLINE_API_PORT=0 # Se asignará después de parse_flags
-OUTLINE_KEYS_PORT=0 # Se asignará después de parse_flags
-OUTLINE_HOSTNAME=""
-OUTLINE_STATE_DIR=""
-OUTLINE_CERT_FILE=""
-OUTLINE_KEY_FILE=""
-OUTLINE_API_URL=""
-OUTLINE_CERT_SHA256=""
 
-# --- Función de Detección de Pi-hole ---
+# Variables que se asignan durante la instalación
+OUTLINE_API_PORT=0    # Puerto para la API de gestión (se asigna después de parse_flags)
+OUTLINE_KEYS_PORT=0   # Puerto para claves de acceso (se asigna después de parse_flags)
+OUTLINE_HOSTNAME=""   # Hostname/IP del servidor
+OUTLINE_STATE_DIR=""  # Directorio de estado persistente
+OUTLINE_CERT_FILE=""  # Archivo de certificado TLS
+OUTLINE_KEY_FILE=""   # Archivo de clave privada TLS
+OUTLINE_API_URL=""    # URL completa de la API
+OUTLINE_CERT_SHA256="" # Fingerprint SHA256 del certificado
 
-function detect_pihole() {
-    echo "[DEBUG] Starting detect_pihole() function - using only .env.pihole.generated"
-
-    # Validar existencia y legibilidad del archivo
-    if [[ ! -f ".env.pihole.generated" ]]; then
-        echo "[DEBUG] .env.pihole.generated file not found"
-        return 1
-    fi
-
-    if [[ ! -r ".env.pihole.generated" ]]; then
-        echo "[ERROR] .env.pihole.generated file exists but is not readable"
-        return 1
-    fi
-
-    echo "[DEBUG] Found readable .env.pihole.generated file, sourcing it"
-    source ".env.pihole.generated"
-
-    # Verificar que las variables necesarias estén definidas
-    if [[ -z "${PIHOLE_HOST}" || -z "${PIHOLE_PORT}" ]]; then
-        echo "[ERROR] PIHOLE_HOST or PIHOLE_PORT not defined in .env.pihole.generated"
-        return 1
-    fi
-
-    echo "[DEBUG] Loaded variables from .env.pihole.generated:"
-    echo "[DEBUG]   PIHOLE_HOST: ${PIHOLE_HOST}"
-    echo "[DEBUG]   PIHOLE_PORT: ${PIHOLE_PORT}"
-
-    # Validar que Pi-hole esté funcionando con timeout reducido
-    echo "[DEBUG] Testing Pi-hole connectivity with curl (timeout 3s)"
-    local curl_output
-    local curl_exit_code
-    curl_output=$(curl -s --max-time 3 --connect-timeout 2 "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" 2>&1)
-    curl_exit_code=$?
-
-    echo "[DEBUG] curl exit code: ${curl_exit_code}"
-    if [[ ${curl_exit_code} -eq 0 ]]; then
-        echo "[DEBUG] curl succeeded, Pi-hole is responding via config file"
-        PIHOLE_IP="${PIHOLE_HOST}"
-        echo "[DEBUG] Set PIHOLE_IP to: ${PIHOLE_IP}"
-        return 0
-    else
-        echo "[DEBUG] curl failed with exit code ${curl_exit_code}"
-        echo "[DEBUG] curl output/error: ${curl_output}"
-        echo "[WARN] Pi-hole config file found but Pi-hole is not responding"
-        return 1
-    fi
-}
 # --- Funciones de Validación ---
+# Verifica si un puerto es válido (1-65535)
 function is_valid_port() {
   (( 0 < "$1" && "$1" <= 65535 ))
 }
 
+# Verifica si un comando existe en el sistema
 function command_exists {
   command -v "$@" &> /dev/null
 }
 
+# Genera un puerto aleatorio en el rango válido (1024-65535)
 function get_random_port {
-  local -i num=0  # Init to an invalid value, to prevent "unbound variable" errors.
+  local -i num=0  # Inicializar con valor inválido para evitar errores de variable no ligada
   until (( 1024 <= num && num < 65536)); do
-    num=$(( RANDOM + (RANDOM % 2) * 32768 ));
-  done;
-  echo "${num}";
+    num=$(( RANDOM + (RANDOM % 2) * 32768 ))
+  done
+  echo "${num}"
 }
 
 # --- Funciones de Logging ---
-# I/O conventions for this script:
-# - Ordinary status messages are printed to STDOUT
-# - STDERR is only used in the event of a fatal error
-# - Detailed logs are recorded to this FULL_LOG, which is preserved if an error occurred.
-# - The most recent error is stored in LAST_ERROR, which is never preserved.
+# Convenciones de I/O para este script:
+# - Mensajes de estado ordinarios se imprimen en STDOUT
+# - STDERR se usa solo en caso de error fatal
+# - Logs detallados se registran en FULL_LOG, que se preserva si ocurre un error
+# - El error más reciente se almacena en LAST_ERROR, que nunca se preserva
 FULL_LOG="$(mktemp -t outline_logXXXXXXXXXX)"
 LAST_ERROR="$(mktemp -t outline_last_errorXXXXXXXXXX)"
 readonly FULL_LOG LAST_ERROR
@@ -160,6 +142,7 @@ function confirm() {
 }
 
 function fetch() {
+  # Usar curl directamente para mayor compatibilidad
   curl --silent --show-error --fail "$@"
 }
 
@@ -171,21 +154,18 @@ function log_for_sentry() {
 }
 
 # --- Funciones de Verificación ---
-# Check to see if docker is installed.
+# Verifica si Docker está instalado en el sistema
 function verify_docker_installed() {
   if command_exists docker; then
+    echo "Docker is already installed"
     return 0
   fi
   log_error "NOT INSTALLED"
-  if ! confirm "Would you like to install Docker? This will run 'curl https://get.docker.com/ | sh'."; then
-    exit 0
-  fi
-  if ! run_step "Installing Docker" install_docker; then
-    log_error "Docker installation failed, please visit https://docs.docker.com/install for instructions."
-    exit 1
-  fi
-  log_start_step "Verifying Docker installation"
-  command_exists docker
+  echo "Docker not found. This script requires Docker to be installed."
+  echo "For Linux systems, please install Docker using your package manager."
+  echo "Example for Ubuntu/Debian: sudo apt-get install docker.io"
+  echo "Example for CentOS/RHEL: sudo yum install docker"
+  exit 1
 }
 
 function verify_docker_running() {
@@ -193,38 +173,67 @@ function verify_docker_running() {
   STDERR_OUTPUT="$(docker info 2>&1 >/dev/null)" || return
   local -ir RET=$?
   if (( RET == 0 )); then
+    echo "Docker daemon is running"
     return 0
   elif [[ "${STDERR_OUTPUT}" == *"Is the docker daemon running"* ]]; then
+    echo "Docker daemon not running, attempting to start it"
     start_docker
-    return
+    return $?
   fi
+  echo "Docker verification failed with code: ${RET}"
+  echo "Error output: ${STDERR_OUTPUT}"
   return "${RET}"
 }
 
 function install_docker() {
   (
-    # Change umask so that /usr/share/keyrings/docker-archive-keyring.gpg has the right permissions.
-    # See https://github.com/Jigsaw-Code/outline-server/issues/951.
-    # We do this in a subprocess so the umask for the calling process is unaffected.
+    # Cambiar umask para que /usr/share/keyrings/docker-archive-keyring.gpg tenga los permisos correctos
+    # Ver: https://github.com/Jigsaw-Code/outline-server/issues/951
+    # Se hace en un subproceso para que el umask del proceso padre no se vea afectado
     umask 0022
-    fetch https://get.docker.com/ | sh
+    echo "Installing Docker via get.docker.com script"
+    # Usar curl directamente en lugar de fetch para mayor compatibilidad
+    if ! command_exists curl; then
+      echo "curl is required but not found. Please install curl first."
+      return 1
+    fi
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    rm get-docker.sh
+    echo "Docker installed successfully. You may need to start the Docker service."
   ) >&2
 }
 
 function start_docker() {
-  systemctl enable --now docker.service >&2
+  echo "Starting Docker service"
+  # Intentar diferentes métodos para iniciar Docker según el sistema
+  if command -v systemctl >/dev/null 2>&1; then
+    echo "Using systemctl to start Docker"
+    systemctl enable --now docker.service >&2
+  elif command -v service >/dev/null 2>&1; then
+    echo "Using service command to start Docker"
+    service docker start >&2
+  else
+    echo "Systemctl/service not available, trying to start Docker daemon directly"
+    dockerd >&2 &
+    sleep 2
+  fi
 }
 
 # --- Funciones de Docker ---
+# Verifica si un contenedor Docker existe (incluyendo detenidos)
 function docker_container_exists() {
   docker ps -a --format '{{.Names}}' | grep --quiet "^$1$"
 }
 
+# Remueve el contenedor watchtower
 function remove_watchtower_container() {
   remove_docker_container watchtower
 }
 
+# Remueve un contenedor Docker de forma forzada
 function remove_docker_container() {
+  echo "Removing Docker container: $1"
   docker rm -f "$1" >&2
 }
 
@@ -261,12 +270,7 @@ function create_persisted_state_dir() {
 function safe_base64() {
   # Implements URL-safe base64 of stdin, stripping trailing = chars.
   # Writes result to stdout.
-  # TODO: this gives the following errors on Mac:
-  #   base64: invalid option -- w
-  #   tr: illegal option -- - -
-  local url_safe
-  url_safe="$(base64 -w 0 - | tr '/+' '_-')"
-  echo -n "${url_safe%%=*}"  # Strip trailing = chars
+  base64 | tr '/+' '_-' | sed 's/=*$//'
 }
 
 function generate_secret_key() {
@@ -284,6 +288,11 @@ function generate_certificate() {
     -subj "/CN=${OUTLINE_HOSTNAME}"
     -keyout "${OUTLINE_KEY_FILE}" -out "${OUTLINE_CERT_FILE}"
   )
+  # Verificar que openssl esté disponible
+  if ! command_exists openssl; then
+    log_error "OpenSSL is required but not found. Please install OpenSSL."
+    exit 1
+  fi
   openssl req "${openssl_req_flags[@]}" >&2
 }
 
@@ -291,6 +300,10 @@ function generate_certificate_fingerprint() {
   # Add a tag with the SHA-256 fingerprint of the certificate.
   # (Electron uses SHA-256 fingerprints: https://github.com/electron/electron/blob/9624bc140353b3771bd07c55371f6db65fd1b67e/atom/common/native_mate_converters/net_converter.cc#L60)
   # Example format: "SHA256 Fingerprint=BD:DB:C9:A4:39:5C:B3:4E:6E:CF:18:43:61:9F:07:A2:09:07:37:35:63:67"
+  if ! command_exists openssl; then
+    log_error "OpenSSL is required for certificate fingerprint generation."
+    return 1
+  fi
   local CERT_OPENSSL_FINGERPRINT
   CERT_OPENSSL_FINGERPRINT="$(openssl x509 -in "${OUTLINE_CERT_FILE}" -noout -sha256 -fingerprint)" || return
   # Example format: "BDDBC9A4395CB34E6ECF1843619F07A2090737356367"
@@ -306,57 +319,41 @@ function join() {
 }
 
 function write_config() {
-  echo "[DEBUG] Starting write_config() function"
-  local -a config=()
-  echo "[DEBUG] Checking FLAGS_KEYS_PORT: ${FLAGS_KEYS_PORT}"
-  if (( FLAGS_KEYS_PORT != 0 )); then
-    config+=("\"portForNewAccessKeys\": ${FLAGS_KEYS_PORT}")
-    echo "[DEBUG] Added portForNewAccessKeys: ${FLAGS_KEYS_PORT}"
-  fi
-  # No se establece nombre por defecto en este script refactorizado
-  # if [[ -n "${SB_DEFAULT_SERVER_NAME:-}" ]]; then
-  #   config+=("\"name\": \"$(escape_json_string "${SB_DEFAULT_SERVER_NAME}")\"")
-  # fi
-  echo "[DEBUG] Adding hostname: ${OUTLINE_HOSTNAME}"
-  config+=("\"hostname\": \"$(escape_json_string "${OUTLINE_HOSTNAME}")\"")
-  config+=("\"metricsEnabled\": false") # Deshabilitado por defecto
-  echo "[DEBUG] Config array so far: ${config[*]}"
+   echo "Starting write_config() function"
+   local -a config=()
+   echo "Checking FLAGS_KEYS_PORT: ${FLAGS_KEYS_PORT}"
+   if (( FLAGS_KEYS_PORT != 0 )); then
+     config+=("\"portForNewAccessKeys\": ${FLAGS_KEYS_PORT}")
+     echo "Added portForNewAccessKeys: ${FLAGS_KEYS_PORT}"
+   fi
+   # No se establece nombre por defecto en este script refactorizado
+   # if [[ -n "${SB_DEFAULT_SERVER_NAME:-}" ]]; then
+   #   config+=("\"name\": \"$(escape_json_string "${SB_DEFAULT_SERVER_NAME}")\"")
+   # fi
+   echo "Adding hostname: ${OUTLINE_HOSTNAME}"
+   config+=("\"hostname\": \"$(escape_json_string "${OUTLINE_HOSTNAME}")\"")
+   config+=("\"metricsEnabled\": false") # Deshabilitado por defecto
+   echo "Config array so far: ${config[*]}"
 
-  # Configurar DNS upstream si Pi-hole está disponible
-  echo "[DEBUG] Starting Pi-hole detection..."
-  # Ejecutar detección de Pi-hole de forma opcional y silenciosa
-  local pihole_detected=false
-  local detection_method=""
+   # Usar configuración DNS por defecto (sin Pi-hole)
+   echo "Using default DNS configuration"
 
-  echo "[DEBUG] Running Pi-hole detection (optional)"
-  if detect_pihole; then
-    pihole_detected=true
-    detection_method="config file (.env.pihole.generated)"
-    echo "[DEBUG] Pi-hole detection succeeded via ${detection_method}"
-  else
-    echo "[DEBUG] Pi-hole not detected, using default DNS"
-  fi
-
-  if [[ "${pihole_detected}" == "true" ]]; then
-    config+=("\"dnsResolver\": \"${PIHOLE_IP}\"")
-    echo -e "${GREEN}Pi-hole detected via ${detection_method}. Using ${PIHOLE_IP} as DNS upstream.${NC}"
-    echo "[DEBUG] Added dnsResolver: ${PIHOLE_IP}"
-  else
-    echo "[DEBUG] Using default DNS configuration"
-  fi
-
-  echo "[DEBUG] Generating final config JSON"
-  local config_json="{$(join , "${config[@]}")}"
-  echo "[DEBUG] Config JSON content: ${config_json}"
-  echo "${config_json}" > "${OUTLINE_STATE_DIR}/outline_server_config.json"
-  echo "[DEBUG] Config file written to: ${OUTLINE_STATE_DIR}/outline_server_config.json"
-  echo "[DEBUG] write_config() completed successfully - returning to install_outline()"
+   echo "Generating final config JSON"
+   local config_json="{$(join , "${config[@]}")}"
+   echo "Config JSON content: ${config_json}"
+   echo "${config_json}" > "${OUTLINE_STATE_DIR}/outline_server_config.json"
+   echo "Config file written to: ${OUTLINE_STATE_DIR}/outline_server_config.json"
+   echo "write_config() completed successfully - returning to install_outline()"
 }
 
 function start_outline() {
-  echo "[DEBUG] Starting start_outline() function"
+  echo "Starting start_outline() function"
   local -r START_SCRIPT="${OUTLINE_STATE_DIR}/start_container.sh"
-  echo "[DEBUG] Creating start script at: ${START_SCRIPT}"
+  echo "Creating start script at: ${START_SCRIPT}"
+
+  # Usar host network mode para Linux
+  local DOCKER_NETWORK_MODE="--net host"
+
   cat <<-EOF > "${START_SCRIPT}"
 # This script starts the Outline server container ("Shadowbox").
 # If you need to customize how the server is run, you can edit this script, then restart with:
@@ -372,7 +369,7 @@ docker_command=(
   docker
   run
   -d
-  --name "${OUTLINE_CONTAINER_NAME}" --restart always --net host
+  --name "${OUTLINE_CONTAINER_NAME}" --restart always ${DOCKER_NETWORK_MODE}
 
   # Used by Watchtower to know which containers to monitor.
   --label 'com.centurylinklabs.watchtower.enable=true'
@@ -403,16 +400,16 @@ docker_command=(
 "\${docker_command[@]}"
 EOF
   chmod +x "${START_SCRIPT}"
-  echo "[DEBUG] Start script created and made executable"
+  echo "Start script created and made executable"
   # Declare then assign. Assigning on declaration messes up the return code.
   local STDERR_OUTPUT
-  echo "[DEBUG] Executing start script..."
+  echo "Executing start script..."
   STDERR_OUTPUT="$({ "${START_SCRIPT}" >/dev/null; } 2>&1)" && {
-    echo "[DEBUG] Start script executed successfully"
+    echo "Start script executed successfully"
     return 0
   }
   readonly STDERR_OUTPUT
-  echo "[DEBUG] Start script failed with error: ${STDERR_OUTPUT}"
+  echo "Start script failed with error: ${STDERR_OUTPUT}"
   log_error "FAILED"
   log_error "${STDERR_OUTPUT}"
   return 1
@@ -423,8 +420,9 @@ function start_watchtower() {
   # Set watchtower to refresh every 30 seconds if a custom SB_IMAGE is used (for
   # testing).  Otherwise refresh every hour.
   local -ir WATCHTOWER_REFRESH_SECONDS="${WATCHTOWER_REFRESH_SECONDS:-3600}"
+
   local -ar docker_watchtower_flags=(--name watchtower --log-driver local --restart always \
-      -v /var/run/docker.sock:/var/run/docker.sock)
+      -v "/var/run/docker.sock:/var/run/docker.sock")
   # By itself, local messes up the return code.
   local STDERR_OUTPUT
   STDERR_OUTPUT="$(docker run -d "${docker_watchtower_flags[@]}" containrrr/watchtower --cleanup --label-enable --tlsverify --interval "${WATCHTOWER_REFRESH_SECONDS}" 2>&1 >/dev/null)" && return
@@ -441,33 +439,33 @@ function start_watchtower() {
 
 # --- Funciones de Configuración Final ---
 function wait_outline() {
-  echo "[DEBUG] Starting wait_outline() function"
+  echo "Starting wait_outline() function"
   # We use insecure connection because our threat model doesn't include localhost port
   # interception and our certificate doesn't have localhost as a subject alternative name
   local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
-  echo "[DEBUG] Waiting for Outline API at: ${LOCAL_API_URL}/access-keys"
+  echo "Waiting for Outline API at: ${LOCAL_API_URL}/access-keys"
   local attempts=0
   local max_attempts=60  # 60 seconds timeout
-  until fetch --insecure "${LOCAL_API_URL}/access-keys" >/dev/null; do
+  until curl --silent --insecure "${LOCAL_API_URL}/access-keys" >/dev/null; do
     ((attempts++))
     if (( attempts >= max_attempts )); then
-      echo "[DEBUG] Timeout waiting for Outline API after ${max_attempts} attempts"
+      echo "Timeout waiting for Outline API after ${max_attempts} attempts"
       return 1
     fi
-    echo "[DEBUG] Attempt ${attempts}/${max_attempts}: Outline API not ready, waiting..."
+    echo "Attempt ${attempts}/${max_attempts}: Outline API not ready, waiting..."
     sleep 1
   done
-  echo "[DEBUG] Outline API is now responding"
+  echo "Outline API is now responding"
 }
 
 function create_first_user() {
-  echo "[DEBUG] Starting create_first_user() function"
+  echo "Starting create_first_user() function"
   local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
-  echo "[DEBUG] Creating first access key via POST to: ${LOCAL_API_URL}/access-keys"
-  if fetch --insecure --request POST "${LOCAL_API_URL}/access-keys" >&2; then
-    echo "[DEBUG] First access key created successfully"
+  echo "Creating first access key via POST to: ${LOCAL_API_URL}/access-keys"
+  if curl --silent --insecure --request POST "${LOCAL_API_URL}/access-keys" >&2; then
+    echo "First access key created successfully"
   else
-    echo "[DEBUG] Failed to create first access key"
+    echo "Failed to create first access key"
     return 1
   fi
 }
@@ -533,11 +531,27 @@ function cleanup_expired_configs() {
   echo -e "${GREEN}Función de limpieza automática integrada. Configuraciones vencidas serán eliminadas automáticamente.${NC}"
 }
 
-# --- Función de Verificación de Instalación ---
-function checkOutlineInstalled() {
-  if docker_container_exists "${OUTLINE_CONTAINER_NAME}"; then
+# --- Función de Verificación de Sintaxis ---
+function check_syntax() {
+  # Verificar sintaxis del script usando bash -n
+  echo "Verificando sintaxis del script..."
+  if bash -n "$0"; then
+    echo "Sintaxis correcta"
     return 0
   else
+    echo "Error de sintaxis en el script"
+    return 1
+  fi
+}
+
+# --- Función de Verificación de Instalación ---
+function checkOutlineInstalled() {
+  # Verificar si el contenedor Outline existe y está ejecutándose
+  if docker_container_exists "${OUTLINE_CONTAINER_NAME}"; then
+    echo "Outline container '${OUTLINE_CONTAINER_NAME}' exists"
+    return 0
+  else
+    echo "Outline container '${OUTLINE_CONTAINER_NAME}' not found"
     return 1
   fi
 }
@@ -551,69 +565,87 @@ function set_hostname() {
     'https://ipinfo.io/ip'
     'https://domains.google.com/checkip'
   )
+  echo "Attempting to determine external IP address..."
+  if ! command_exists curl; then
+    echo -e "${RED}[ERROR] curl is required but not found. Please install curl.${NC}" >&2
+    return 1
+  fi
   for url in "${urls[@]}"; do
-    OUTLINE_HOSTNAME="$(fetch --ipv4 "${url}")" && return
+    echo "Trying URL: ${url}"
+    if OUTLINE_HOSTNAME="$(curl --silent --ipv4 "${url}" 2>/dev/null)"; then
+      echo "Successfully obtained IP: ${OUTLINE_HOSTNAME}"
+      return 0
+    else
+      echo "Failed to fetch from ${url}"
+    fi
   done
-  echo "Failed to determine the server's IP address.  Try using --hostname <server IP>." >&2
+  echo -e "${RED}[ERROR] Failed to determine the server's IP address. Try using --hostname <server IP>.${NC}" >&2
   return 1
 }
 
 # --- Funciones de Generación de .env ---
 function generate_env_files() {
-    echo "[DEBUG] Starting generate_env_files() function"
-    # Archivo de configuración principal de Outline
-    ENV_FILE_OUTLINE=".env.outline.generated"
-    # Archivo de IPs para la base de datos
-    ENV_FILE_IPS=".env.ips.generated"
+     echo "Starting generate_env_files() function"
+     # Archivo de configuración principal de Outline
+     ENV_FILE_OUTLINE=".env.outline.generated"
+     # Archivo de IPs para la base de datos
+     ENV_FILE_IPS=".env.ips.generated"
 
-    echo "[DEBUG] Creating ${ENV_FILE_OUTLINE}"
-    echo "# --- uSipipo Outline Server Configuration ---" > "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_API_URL=\"https://${OUTLINE_HOSTNAME}:${OUTLINE_API_PORT}/${SB_API_PREFIX}\"" >> "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_CERT_SHA256=\"${OUTLINE_CERT_SHA256}\"" >> "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_API_PORT=\"${OUTLINE_API_PORT}\"" >> "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_HOSTNAME=\"${OUTLINE_HOSTNAME}\"" >> "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_CONTAINER_NAME=\"${OUTLINE_CONTAINER_NAME}\"" >> "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_IMAGE=\"${OUTLINE_IMAGE}\"" >> "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_STATE_DIR=\"${OUTLINE_STATE_DIR}\"" >> "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_CERT_FILE=\"${OUTLINE_CERT_FILE}\"" >> "${ENV_FILE_OUTLINE}"
-    echo "OUTLINE_KEY_FILE=\"${OUTLINE_KEY_FILE}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "Creating ${ENV_FILE_OUTLINE}"
+     echo "# --- uSipipo Outline Server Configuration ---" > "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_API_URL=\"https://${OUTLINE_HOSTNAME}:${OUTLINE_API_PORT}/${SB_API_PREFIX}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_CERT_SHA256=\"${OUTLINE_CERT_SHA256}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_API_PORT=\"${OUTLINE_API_PORT}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_HOSTNAME=\"${OUTLINE_HOSTNAME}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_CONTAINER_NAME=\"${OUTLINE_CONTAINER_NAME}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_IMAGE=\"${OUTLINE_IMAGE}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_STATE_DIR=\"${OUTLINE_STATE_DIR}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_CERT_FILE=\"${OUTLINE_CERT_FILE}\"" >> "${ENV_FILE_OUTLINE}"
+     echo "OUTLINE_KEY_FILE=\"${OUTLINE_KEY_FILE}\"" >> "${ENV_FILE_OUTLINE}"
 
-    # Agregar configuración DNS si Pi-hole está disponible
-    if detect_pihole; then
-        echo "OUTLINE_DNS_UPSTREAM=\"${PIHOLE_IP}\"" >> "${ENV_FILE_OUTLINE}"
-        echo "# DNS: Using Pi-hole (${PIHOLE_IP}) as upstream DNS" >> "${ENV_FILE_OUTLINE}"
-    else
-        echo "# DNS: Using default DNS configuration" >> "${ENV_FILE_OUTLINE}"
-    fi
-    echo "" >> "${ENV_FILE_OUTLINE}"
+     # Verificar que las variables críticas estén definidas antes de escribir
+     if [[ -z "${SB_API_PREFIX}" ]]; then
+       echo "SB_API_PREFIX no está definido"
+       return 1
+     fi
 
-    echo "# --- uSipipo IP Management for Outline (Placeholder) ---" > "${ENV_FILE_IPS}"
-    # En Outline, las IPs no se gestionan directamente como en WireGuard.
-    # La configuración de cada clave de acceso no incluye una IP fija asignada por el script.
-    # Sin embargo, podemos definir rangos para el sistema uSipipo si se usan clientes personalizados o firewalls.
-    # Para este script, generamos solo una variable base.
-    echo "# Este servidor Outline no asigna IPs fijas por clave de acceso como WireGuard." >> "${ENV_FILE_IPS}"
-    echo "# Las IPs de los clientes se gestionan dinámicamente por el túnel VPN." >> "${ENV_FILE_IPS}"
-    echo "# Para fines de uSipipo, puedes definir rangos de IPs internas o reglas de firewall aquí." >> "${ENV_FILE_IPS}"
-    echo "# OUTLINE_INTERNAL_SUBNET=\"10.0.86.0/24\" # Ejemplo de subnet interna (no asignada por este script)" >> "${ENV_FILE_IPS}"
-    echo "" >> "${ENV_FILE_IPS}"
-    echo "# IP Type Definitions for uSipipo DB (Copy to your Python code for Outline)" >> "${ENV_FILE_IPS}"
-    echo "# outline_trial_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
-    echo "# outline_paid_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
+     # Usar configuración DNS por defecto (sin Pi-hole)
+     echo "# DNS: Using default DNS configuration" >> "${ENV_FILE_OUTLINE}"
+     echo "" >> "${ENV_FILE_OUTLINE}"
 
-    echo -e "\n${GREEN}--- VARIABLES OUTLINE PARA TU .env DE USIPIPO ---${NC}"
-    echo -e "${ORANGE}Archivo de configuración generado:${NC} ${ENV_FILE_OUTLINE}"
-    echo -e "${ORANGE}Archivo de IPs generadas (informativo):${NC} ${ENV_FILE_IPS}"
-    echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} ${HOME_DIR}"
-    echo -e "${GREEN}----------------------------------------------------------${NC}"
-    echo -e "\n${GREEN}Contenido de ${ENV_FILE_OUTLINE}:${NC}"
-    cat "${ENV_FILE_OUTLINE}"
-    echo -e "\n${GREEN}Contenido de ${ENV_FILE_IPS}:${NC}"
-    cat "${ENV_FILE_IPS}"
-    echo -e "\n${GREEN}----------------------------------------------------------${NC}"
-    echo -e "${GREEN}¡Copia estas variables a tu archivo .env de uSipipo!${NC}"
-    echo -e "${ORANGE}IMPORTANTE: Guarda las rutas de certificados de forma segura.${NC}"
-    echo "[DEBUG] generate_env_files() completed successfully"
+     echo "# --- uSipipo IP Management for Outline (Placeholder) ---" > "${ENV_FILE_IPS}"
+     # En Outline, las IPs no se gestionan directamente como en WireGuard.
+     # La configuración de cada clave de acceso no incluye una IP fija asignada por el script.
+     # Sin embargo, podemos definir rangos para el sistema uSipipo si se usan clientes personalizados o firewalls.
+     # Para este script, generamos solo una variable base.
+     echo "# Este servidor Outline no asigna IPs fijas por clave de acceso como WireGuard." >> "${ENV_FILE_IPS}"
+     echo "# Las IPs de los clientes se gestionan dinámicamente por el túnel VPN." >> "${ENV_FILE_IPS}"
+     echo "# Para fines de uSipipo, puedes definir rangos de IPs internas o reglas de firewall aquí." >> "${ENV_FILE_IPS}"
+     echo "# OUTLINE_INTERNAL_SUBNET=\"10.0.86.0/24\" # Ejemplo de subnet interna (no asignada por este script)" >> "${ENV_FILE_IPS}"
+     echo "" >> "${ENV_FILE_IPS}"
+     echo "# IP Type Definitions for uSipipo DB (Copy to your Python code for Outline)" >> "${ENV_FILE_IPS}"
+     echo "# outline_trial_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
+     echo "# outline_paid_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
+
+     echo -e "\n${GREEN}--- VARIABLES OUTLINE PARA TU .env DE USIPIPO ---${NC}"
+     echo -e "${ORANGE}Archivo de configuración generado:${NC} ${ENV_FILE_OUTLINE}"
+     echo -e "${ORANGE}Archivo de IPs generadas (informativo):${NC} ${ENV_FILE_IPS}"
+     echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} ${HOME_DIR}"
+     echo -e "${GREEN}----------------------------------------------------------${NC}"
+     echo -e "\n${GREEN}Contenido de ${ENV_FILE_OUTLINE}:${NC}"
+     cat "${ENV_FILE_OUTLINE}"
+     echo -e "\n${GREEN}Contenido de ${ENV_FILE_IPS}:${NC}"
+     cat "${ENV_FILE_IPS}"
+     echo -e "\n${GREEN}----------------------------------------------------------${NC}"
+     echo -e "${GREEN}¡Copia estas variables a tu archivo .env de uSipipo!${NC}"
+     echo -e "${ORANGE}IMPORTANTE: Guarda las rutas de certificados de forma segura.${NC}"
+
+     # Verificar que las variables críticas estén definidas
+     if [[ -z "${OUTLINE_API_URL}" || -z "${OUTLINE_CERT_SHA256}" || -z "${OUTLINE_API_PORT}" || -z "${OUTLINE_HOSTNAME}" ]]; then
+       echo -e "${RED}ERROR: Algunas variables críticas no se generaron correctamente${NC}"
+       return 1
+     fi
+     echo "generate_env_files() completed successfully"
 }
 
 # --- Funciones de Ayuda y Parseo ---
@@ -713,37 +745,47 @@ function parse_flags() {
 install_outline() {
   local MACHINE_TYPE
   MACHINE_TYPE="$(uname -m)"
-  if [[ "${MACHINE_TYPE}" != "x86_64" ]]; then
-    log_error "Unsupported machine type: ${MACHINE_TYPE}. Please run this script on a x86_64 machine"
+  if [[ "${MACHINE_TYPE}" != "x86_64" && "${MACHINE_TYPE}" != "aarch64" && "${MACHINE_TYPE}" != "arm64" ]]; then
+    log_error "Unsupported machine type: ${MACHINE_TYPE}. Please run this script on a x86_64, aarch64, or arm64 machine"
     exit 1
   fi
 
   # Make sure we don't leak readable files to other users.
   umask 0007
 
+  echo "Starting Outline installation process"
   run_step "Verifying that Docker is installed" verify_docker_installed
   run_step "Verifying that Docker daemon is running" verify_docker_running
 
   log_for_sentry "Creating Outline directory"
+  echo "Creating Outline directory: ${OUTLINE_DIR}"
   mkdir -p "${OUTLINE_DIR}"
   chmod u+s,ug+rwx,o-rwx "${OUTLINE_DIR}"
 
-  # Asignar puertos despues de parse_flags
+  # Asignar puertos después de parse_flags
   OUTLINE_API_PORT="${FLAGS_API_PORT}"
   if (( OUTLINE_API_PORT == 0 )); then
     OUTLINE_API_PORT=$(get_random_port)
+    echo "Generated random API port: ${OUTLINE_API_PORT}"
+  else
+    echo "Using provided API port: ${OUTLINE_API_PORT}"
   fi
   readonly OUTLINE_API_PORT
 
   OUTLINE_KEYS_PORT="${FLAGS_KEYS_PORT}"
   if (( OUTLINE_KEYS_PORT == 0 )); then
     OUTLINE_KEYS_PORT=$(get_random_port)
+    echo "Generated random keys port: ${OUTLINE_KEYS_PORT}"
+  else
+    echo "Using provided keys port: ${OUTLINE_KEYS_PORT}"
   fi
   readonly OUTLINE_KEYS_PORT # Aunque no se usa directamente en la configuración, se registra
 
   OUTLINE_HOSTNAME="${FLAGS_HOSTNAME}"
   if [[ -z "${OUTLINE_HOSTNAME}" ]]; then
     run_step "Setting OUTLINE_HOSTNAME to external IP" set_hostname
+  else
+    echo "Using provided hostname: ${OUTLINE_HOSTNAME}"
   fi
   readonly OUTLINE_HOSTNAME
 
@@ -754,32 +796,33 @@ install_outline() {
   run_step "Generating TLS certificate" generate_certificate
   run_step "Generating SHA-256 certificate fingerprint" generate_certificate_fingerprint
   run_step "Writing config" write_config
-  echo "[DEBUG] write_config completed, proceeding to start Outline"
+  echo "write_config completed, proceeding to start Outline"
 
   # TODO(dborkan): if the script fails after docker run, it will continue to fail
   # as the names outline and watchtower will already be in use.  Consider
   # deleting the container in the case of failure (e.g. using a trap, or
   # deleting existing containers on each run).
   run_step "Starting Outline" start_outline
-  echo "[DEBUG] start_outline completed, proceeding to start Watchtower"
+  echo "start_outline completed, proceeding to start Watchtower"
 
   # TODO(fortuna): Don't wait for Outline to run this.
   run_step "Starting Watchtower" start_watchtower
-  echo "[DEBUG] start_watchtower completed, proceeding to wait for Outline"
+  echo "start_watchtower completed, proceeding to wait for Outline"
 
   run_step "Waiting for Outline server to be healthy" wait_outline
-  echo "[DEBUG] Outline server is healthy, proceeding to create first user"
+  echo "Outline server is healthy, proceeding to create first user"
 
   run_step "Creating first user" create_first_user
-  echo "[DEBUG] First user created, proceeding to cleanup"
+  echo "First user created, proceeding to cleanup"
 
   # Ejecutar limpieza automática
   cleanup_expired_configs
-  echo "[DEBUG] Cleanup completed, proceeding to generate env files"
+  echo "Cleanup completed, proceeding to generate env files"
 
   # Generar archivos .env al finalizar
   generate_env_files
-  echo "[DEBUG] Env files generated, installation completed successfully"
+  echo "Env files generated, installation completed successfully"
+  echo "Outline installation process finished"
 
   # Mensaje final
   local OUTLINE_MANAGER_CONFIG
@@ -794,6 +837,11 @@ install_outline() {
 
 # --- Función Principal ---
 function main() {
+  # Verificar sintaxis antes de proceder
+  if ! check_syntax; then
+    exit 1
+  fi
+
   # Set trap which publishes error tag only if there is an error.
   function finish {
     local -ir EXIT_CODE=$?
@@ -873,18 +921,3 @@ function main() {
 }
 
 main "$@"
-
-
-
----
-
-### 🔍 **Cambios Realizados**
-#
-#     1.  **Nombre de Variables:** Cambié las variables internas del script para que reflejen que es Outline (`OUTLINE_*` en lugar de `SB_*`) y sean consistentes con el propósito del script.
-#     2.  **Constantes:** Definí constantes para rutas, imagen por defecto y rangos de IPs (aunque para Outline, la asignación de IPs fijas no es directa como en WireGuard, se incluyen para consistencia con el objetivo general del proyecto uSipipo).
-#     3.  **Generación de IPs:** Añadí la función `generate_env_files` que crea dos archivos:
-#         *   `.env.outline.generated`: Contiene las variables principales de Outline (API URL, cert SHA256, hostname, etc.).
-#         *   `.env.ips.generated`: Contiene comentarios explicativos sobre cómo Outline no asigna IPs fijas por clave, pero se pueden definir rangos para fines de auditoría o reglas de firewall. Se incluye un placeholder para el código Python.
-#     4.  **Colores:** Añadí definiciones de colores (`GREEN`, `ORANGE`, `NC`) y usé `echo -e` para colorear la salida final del `.env`.
-#     5.  **Comentarios Claros:** Agregué comentarios para explicar la generación de IPs y su propósito específico para Outline.
-#     6.  **Mensaje Final:** El mensaje final ahora incluye la generación de los archivos `.env` y un mensaje claro sobre qué hacer con ellos, similar al script de WireGuard.
