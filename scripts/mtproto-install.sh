@@ -148,26 +148,26 @@ function installMTProxy() {
     fi
 
     cat > "${MTPROXY_SERVICE_FILE}" << EOL
-[Unit]
-Description=MTProto for Telegram - uSipipo
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=${MTPROXY_DIR}/objs/bin
-ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
-User=root
-Group=root
-Restart=always
-RestartSec=10
-
-# Environment variables for better logging
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment=HOME=/tmp
-
-[Install]
-WantedBy=multi-user.target
-EOL
+    [Unit]
+    Description=MTProto for Telegram - uSipipo
+    After=network.target
+    
+    [Service]
+    Type=simple
+    WorkingDirectory=${MTPROXY_DIR}/objs/bin
+    ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf
+    User=root
+    Group=root
+    Restart=always
+    RestartSec=10
+    
+    # Environment variables for better logging
+    Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    Environment=HOME=/tmp
+    
+    [Install]
+    WantedBy=multi-user.target
+    EOL
 
     # Generate proxy secret
     echo "Downloading proxy secret..."
@@ -290,7 +290,7 @@ EOL
         echo -e "1. Check if all required files exist: ls -la ${MTPROXY_DIR}/objs/bin/"
         echo -e "2. Verify permissions: ls -ld ${MTPROXY_DIR}/objs/bin/"
         echo -e "3. Test manual execution: cd ${MTPROXY_DIR}/objs/bin && ./mtproto-proxy --version"
-        echo -e "4. Check systemd logs: journalctl -u mtproto-proxy -f"
+        echo -e "4. Check systemd logs: sudo journalctl -u mtproto-proxy -f"
     fi
 
     # Save configuration
