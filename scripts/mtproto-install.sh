@@ -81,25 +81,8 @@ function installDependencies() {
 
     echo -e "${GREEN}Dependencies installed successfully.${NC}"
 }
-function createUser() {
-    # Create a system user and group for mtproxy
-    if ! getent group mtproxy >/dev/null; then
-        echo "Creating group 'mtproxy'..."
-        addgroup --system mtproxy
-    else
-        echo "Group 'mtproxy' already exists."
-    fi
-
-    if ! id -u mtproxy >/dev/null 2>&1; then
-        echo "Creating system user 'mtproxy'..."
-        adduser --system --no-create-home --ingroup mtproxy --disabled-login mtproxy
-    else
-        echo "User 'mtproxy' already exists."
-    fi
-}
 
 function installMTProxy() {
-    createUser
     # Create directory for MTProxy
     mkdir -p "${MTPROXY_DIR}"
     cd "${MTPROXY_DIR}" || exit
@@ -172,9 +155,9 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=${MTPROXY_DIR}/objs/bin
-ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -p 8888 -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
-User=mtproxy
-Group=mtproxy
+ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
+User=root
+Group=root
 Restart=always
 RestartSec=10
 
@@ -234,8 +217,8 @@ EOL
 
     # Ensure working directory permissions
     if [ -d "${MTPROXY_DIR}" ]; then
-        chown -R mtproxy:mtproxy "${MTPROXY_DIR}"
-        echo -e "${GREEN}Directory ownership set to mtproxy.${NC}"
+        chown -R root:root "${MTPROXY_DIR}"
+        echo -e "${GREEN}Directory ownership set to root.${NC}"
     fi
 
     # Enable and start service
@@ -306,7 +289,7 @@ EOL
         echo -e "${ORANGE}Common troubleshooting steps:${NC}"
         echo -e "1. Check if all required files exist: ls -la ${MTPROXY_DIR}/objs/bin/"
         echo -e "2. Verify permissions: ls -ld ${MTPROXY_DIR}/objs/bin/"
-        echo -e "3. Test manual execution: cd ${MTPROXY_DIR}/objs/bin && sudo -u nobody ./mtproto-proxy --version"
+        echo -e "3. Test manual execution: cd ${MTPROXY_DIR}/objs/bin && ./mtproto-proxy --version"
         echo -e "4. Check systemd logs: journalctl -u mtproto-proxy -f"
     fi
 
