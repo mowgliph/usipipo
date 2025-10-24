@@ -81,8 +81,25 @@ function installDependencies() {
 
     echo -e "${GREEN}Dependencies installed successfully.${NC}"
 }
+function createUser() {
+    # Create a system user and group for mtproxy
+    if ! getent group mtproxy >/dev/null; then
+        echo "Creating group 'mtproxy'..."
+        addgroup --system mtproxy
+    else
+        echo "Group 'mtproxy' already exists."
+    fi
+
+    if ! id -u mtproxy >/dev/null 2>&1; then
+        echo "Creating system user 'mtproxy'..."
+        adduser --system --no-create-home --ingroup mtproxy --disabled-login mtproxy
+    else
+        echo "User 'mtproxy' already exists."
+    fi
+}
 
 function installMTProxy() {
+    createUser
     # Create directory for MTProxy
     mkdir -p "${MTPROXY_DIR}"
     cd "${MTPROXY_DIR}" || exit
@@ -156,6 +173,8 @@ After=network.target
 Type=simple
 WorkingDirectory=${MTPROXY_DIR}/objs/bin
 ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -p 8888 -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
+User=mtproxy
+Group=mtproxy
 Restart=always
 RestartSec=10
 
@@ -214,9 +233,9 @@ EOL
     fi
 
     # Ensure working directory permissions
-    if [ -d "${MTPROXY_DIR}/objs/bin" ]; then
-        chown -R nobody:nogroup "${MTPROXY_DIR}/objs/bin" 2>/dev/null || echo -e "${ORANGE}Warning: Could not change ownership to nobody:nogroup. This may cause permission issues.${NC}"
-        echo -e "${GREEN}Working directory permissions set.${NC}"
+    if [ -d "${MTPROXY_DIR}" ]; then
+        chown -R mtproxy:mtproxy "${MTPROXY_DIR}"
+        echo -e "${GREEN}Directory ownership set to mtproxy.${NC}"
     fi
 
     # Enable and start service
