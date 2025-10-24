@@ -155,7 +155,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=${MTPROXY_DIR}/objs/bin
-ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -u nobody -p 8888 -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
+ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -u nobody -p 2398 -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
 Restart=on-failure
 RestartSec=5
 User=nobody
