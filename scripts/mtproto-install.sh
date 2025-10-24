@@ -155,11 +155,9 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=${MTPROXY_DIR}/objs/bin
-ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -u nobody -p 2398 -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
-Restart=on-failure
-RestartSec=5
-User=nobody
-Group=nogroup
+ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -p 8888 -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf -M 1
+Restart=always
+RestartSec=10
 
 # Environment variables for better logging
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
