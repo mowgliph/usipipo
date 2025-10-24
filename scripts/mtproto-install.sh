@@ -167,7 +167,7 @@ function installMTProxy() {
     
     [Install]
     WantedBy=multi-user.target
-    EOL
+EOL
 
     # Generate proxy secret
     echo "Downloading proxy secret..."
@@ -357,8 +357,7 @@ function generate_env_files() {
     echo -e "\n${GREEN}Contenido de ${ENV_FILE_MTPROXY}:${NC}"
     cat "${ENV_FILE_MTPROXY}"
     echo -e "\n${GREEN}----------------------------------------------------------${NC}"
-    echo -e "¡Copia estas variables a tu archivo .env de uSipipo!
-    "
+    echo -e "¡Copia estas variables a tu archivo .env de uSipipo!"
 }
 
 function uninstallMTProxy() {
