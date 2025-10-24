@@ -462,10 +462,24 @@ function create_first_user() {
   echo "Starting create_first_user() function"
   local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
   echo "Creating first access key via POST to: ${LOCAL_API_URL}/access-keys"
-  if curl --silent --insecure --request POST "${LOCAL_API_URL}/access-keys" >&2; then
-    echo "First access key created successfully"
+
+  # Capturar la respuesta JSON de la API
+  local response
+  response=$(curl --silent --insecure --request POST "${LOCAL_API_URL}/access-keys" 2>/dev/null)
+
+  # Verificar si curl tuvo éxito y la respuesta contiene JSON válido
+  if [[ $? -eq 0 ]] && [[ -n "$response" ]] && echo "$response" | jq . >/dev/null 2>&1; then
+    # Verificar si la respuesta contiene los campos esperados de una clave de acceso exitosa
+    if echo "$response" | jq -e '.id and .accessUrl' >/dev/null 2>&1; then
+      echo "First access key created successfully"
+      echo "Response: $response"
+      return 0
+    else
+      echo "API returned success but invalid response format: $response"
+      return 1
+    fi
   else
-    echo "Failed to create first access key"
+    echo "Failed to create first access key. Response: $response"
     return 1
   fi
 }
