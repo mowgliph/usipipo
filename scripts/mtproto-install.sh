@@ -69,8 +69,17 @@ function initialCheck() {
 # --- Funciones de Instalación ---
 function installDependencies() {
     echo "Installing required packages..."
-    apt-get update
-    apt-get install -y git curl build-essential libssl-dev zlib1g-dev xxd
+    if ! apt-get update; then
+        echo -e "${RED}Failed to update package list. Check your internet connection.${NC}"
+        exit 1
+    fi
+
+    if ! apt-get install -y git curl build-essential libssl-dev zlib1g-dev xxd; then
+        echo -e "${RED}Failed to install required packages.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}Dependencies installed successfully.${NC}"
 }
 
 function installMTProxy() {
@@ -81,15 +90,27 @@ function installMTProxy() {
     # Clone MTProxy repository if not already present or if it's empty
     if [ ! -d ".git" ] || [ -z "$(ls -A "${MTPROXY_DIR}")" ]; then
         echo "Cloning MTProxy repository..."
-        git clone "${MTPROXY_REPO_URL}" .
+        if ! git clone "${MTPROXY_REPO_URL}" .; then
+            echo -e "${RED}Failed to clone MTProxy repository. Check your internet connection.${NC}"
+            exit 1
+        fi
     else
         echo "MTProxy repository already exists, skipping clone."
     fi
 
     # Build MTProxy
     echo "Building MTProxy..."
-    make clean # Ensure clean build
-    make LDFLAGS="-Wl,--allow-multiple-definition -lssl -lcrypto -lm" || { echo -e "${RED}Build failed.${NC}"; exit 1; }
+    if ! make clean; then
+        echo -e "${RED}Failed to clean previous build.${NC}"
+        exit 1
+    fi
+
+    if ! make LDFLAGS="-Wl,--allow-multiple-definition -lssl -lcrypto -lm"; then
+        echo -e "${RED}Build failed. Check build dependencies and logs above.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}MTProxy built successfully.${NC}"
 
     # Navigate to binary directory
     cd objs/bin || { echo -e "${RED}Build directory not found.${NC}"; exit 1; }
@@ -139,32 +160,71 @@ WantedBy=multi-user.target
 EOL
 
     # Generate proxy secret
-    curl -s "${MTPROXY_SECRET_FILE_URL}" -o proxy-secret
+    echo "Downloading proxy secret..."
+    if ! curl -s "${MTPROXY_SECRET_FILE_URL}" -o proxy-secret; then
+        echo -e "${RED}Failed to download proxy secret from ${MTPROXY_SECRET_FILE_URL}.${NC}"
+        exit 1
+    fi
+
     if [ ! -f "proxy-secret" ] || [ ! -s "proxy-secret" ]; then
-        echo -e "${RED}Failed to download proxy secret.${NC}"
+        echo -e "${RED}Proxy secret file is empty or not created.${NC}"
         exit 1
     fi
 
     # Generate proxy multi-config
-    curl -s "${MTPROXY_CONFIG_FILE_URL}" -o proxy-multi.conf
-    if [ ! -f "proxy-multi.conf" ] || [ ! -s "proxy-multi.conf" ]; then
-        echo -e "${RED}Failed to download proxy config.${NC}"
+    echo "Downloading proxy configuration..."
+    if ! curl -s "${MTPROXY_CONFIG_FILE_URL}" -o proxy-multi.conf; then
+        echo -e "${RED}Failed to download proxy config from ${MTPROXY_CONFIG_FILE_URL}.${NC}"
         exit 1
     fi
+
+    if [ ! -f "proxy-multi.conf" ] || [ ! -s "proxy-multi.conf" ]; then
+        echo -e "${RED}Proxy config file is empty or not created.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}Configuration files downloaded successfully.${NC}"
 
     # Set permissions
     chmod 755 "${MTPROXY_SERVICE_FILE}"
     chmod 644 proxy-secret proxy-multi.conf # Restrict permissions on secrets
 
     # Enable and start service
+    echo "Enabling and starting MTProxy service..."
     systemctl daemon-reload
-    systemctl enable mtproto-proxy
-    systemctl start mtproto-proxy
 
-    # Verify service is running
-    if ! systemctl is-active --quiet mtproto-proxy; then
-        echo -e "${RED}MTProxy service failed to start.${NC}"
+    if ! systemctl enable mtproto-proxy; then
+        echo -e "${RED}Failed to enable MTProxy service.${NC}"
         exit 1
+    fi
+
+    if ! systemctl start mtproto-proxy; then
+        echo -e "${RED}Failed to start MTProxy service.${NC}"
+        echo -e "${ORANGE}Attempting to start service with retries...${NC}"
+
+        # Retry starting the service up to 3 times
+        for i in {1..3}; do
+            echo -e "${ORANGE}Retry attempt $i/3...${NC}"
+            sleep 2
+            if systemctl start mtproto-proxy; then
+                echo -e "${GREEN}Service started successfully on retry $i.${NC}"
+                break
+            fi
+            if [ $i -eq 3 ]; then
+                echo -e "${RED}Service failed to start after 3 attempts.${NC}"
+                echo -e "${ORANGE}You can check service status with: systemctl status mtproto-proxy${NC}"
+                echo -e "${ORANGE}And view logs with: journalctl -u mtproto-proxy -f${NC}"
+                echo -e "${ORANGE}Installation completed but service may need manual intervention.${NC}"
+                # Don't exit here, continue with configuration
+            fi
+        done
+    fi
+
+    # Check service status but don't fail if it's not active
+    if systemctl is-active --quiet mtproto-proxy; then
+        echo -e "${GREEN}MTProxy service is running.${NC}"
+    else
+        echo -e "${ORANGE}Warning: MTProxy service is not active. Check status manually.${NC}"
     fi
 
     # Save configuration
@@ -222,23 +282,37 @@ function generate_env_files() {
 }
 
 function uninstallMTProxy() {
-    echo -e "\n${RED}WARNING: This will uninstall MTProxy and remove all configuration files!${NC}"
-    read -rp "Do you really want to remove MTProxy? [y/n]: " -e REMOVE
+    local FORCE_REMOVE="${1:-false}"
 
-    if [[ $REMOVE == 'y' ]]; then
-        systemctl stop mtproto-proxy
-        systemctl disable mtproto-proxy
-        rm -f "${MTPROXY_SERVICE_FILE}"
-        rm -rf "${MTPROXY_DIR}"
-        systemctl daemon-reload
+    if [[ "${FORCE_REMOVE}" != "true" ]]; then
+        echo -e "\n${RED}WARNING: This will uninstall MTProxy and remove all configuration files!${NC}"
+        read -rp "Do you really want to remove MTProxy? [y/n]: " -e REMOVE
 
-        # Remove generated .env file
-        rm -f ".env.mtproxy.generated"
-
-        echo -e "${GREEN}MTProxy has been removed successfully!${NC}"
-    else
-        echo -e "${ORANGE}Uninstall cancelled${NC}"
+        if [[ $REMOVE != 'y' ]]; then
+            echo -e "${ORANGE}Uninstall cancelled${NC}"
+            return 1
+        fi
     fi
+
+    echo "Stopping and disabling MTProxy service..."
+    systemctl stop mtproto-proxy 2>/dev/null || echo -e "${ORANGE}Service was not running.${NC}"
+    systemctl disable mtproto-proxy 2>/dev/null || echo -e "${ORANGE}Service was not enabled.${NC}"
+
+    echo "Removing service file and installation directory..."
+    rm -f "${MTPROXY_SERVICE_FILE}"
+    rm -rf "${MTPROXY_DIR}"
+
+    echo "Reloading systemd daemon..."
+    systemctl daemon-reload
+
+    # Remove generated .env file
+    rm -f ".env.mtproxy.generated"
+
+    # Remove config file if it exists
+    rm -f "${MTPROXY_CONFIG_FILE}"
+
+    echo -e "${GREEN}MTProxy has been completely removed!${NC}"
+    return 0
 }
 
 function showMenu() {
@@ -282,13 +356,87 @@ function showMenu() {
     esac
 }
 
+# --- Funciones de Argumentos ---
+function showHelp() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --install          Install MTProxy (default if not installed)"
+    echo "  --uninstall        Uninstall MTProxy completely"
+    echo "  --reinstall        Reinstall MTProxy (uninstall then install)"
+    echo "  --help             Show this help message"
+    echo ""
+    echo "If no options are provided, an interactive menu will be shown."
+}
+
+function parseArgs() {
+    ACTION=""
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --install)
+                ACTION="install"
+                shift
+                ;;
+            --uninstall)
+                ACTION="uninstall"
+                shift
+                ;;
+            --reinstall)
+                ACTION="reinstall"
+                shift
+                ;;
+            --help)
+                showHelp
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Unknown option: $1${NC}"
+                showHelp
+                exit 1
+                ;;
+        esac
+    done
+}
+
 # --- Punto de entrada ---
-# Check if MTProxy is already installed
-if [ -f "${MTPROXY_CONFIG_FILE}" ]; then
-    showMenu
-else
-    # If not installed, start installation
-    initialCheck
-    installDependencies
-    installMTProxy
-fi
+parseArgs "$@"
+
+case "${ACTION}" in
+    "install")
+        if [ -f "${MTPROXY_CONFIG_FILE}" ]; then
+            echo -e "${ORANGE}MTProxy is already installed. Use --reinstall to reinstall.${NC}"
+            exit 0
+        fi
+        initialCheck
+        installDependencies
+        installMTProxy
+        ;;
+    "uninstall")
+        if [ ! -f "${MTPROXY_CONFIG_FILE}" ]; then
+            echo -e "${ORANGE}MTProxy is not installed.${NC}"
+            exit 0
+        fi
+        uninstallMTProxy
+        ;;
+    "reinstall")
+        if [ -f "${MTPROXY_CONFIG_FILE}" ]; then
+            echo "Uninstalling existing MTProxy installation..."
+            uninstallMTProxy true
+        fi
+        echo "Starting fresh installation..."
+        initialCheck
+        installDependencies
+        installMTProxy
+        ;;
+    "")
+        # No arguments provided, show interactive menu
+        if [ -f "${MTPROXY_CONFIG_FILE}" ]; then
+            showMenu
+        else
+            # If not installed, start installation
+            initialCheck
+            installDependencies
+            installMTProxy
+        fi
+        ;;
+esac
