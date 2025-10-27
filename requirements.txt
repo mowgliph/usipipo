@@ -47,7 +47,7 @@ fragment-api-lib==1.0.1  # Cliente de Fragment API para precios de Telegram Star
 # =============================
 # Utilities & Tools
 # =============================
-python-dotenv==1.1.1  # Gestión de variables de entorno
+python-dotenv==1.2.1  # Gestión de variables de entorno
 APScheduler==3.11.0  # Programador de tareas
 psutil==7.1.1  # Información del sistema
 watchdog==6.0.0  # Monitoreo de archivos
