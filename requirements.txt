@@ -49,7 +49,7 @@ fragment-api-lib==1.0.1  # Cliente de Fragment API para precios de Telegram Star
 # =============================
 python-dotenv==1.1.1  # Gestión de variables de entorno
 APScheduler==3.11.0  # Programador de tareas
-psutil==7.1.1  # Información del sistema
+psutil==7.1.2  # Información del sistema
 watchdog==6.0.0  # Monitoreo de archivos
 tzlocal==5.3.1  # Zonas horarias locales
 tzdata==2025.2  # Base de datos de zonas horarias (requerido para zoneinfo en Windows)
