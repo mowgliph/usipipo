@@ -18,6 +18,7 @@ from bot.handlers.start import start_command
 from bot.handlers.ms import ms_handler
 from bot.handlers.proxy import proxy_command
 from bot.handlers.qvapay import qvapay_conversation
+from bot.handlers.tunnel import register_tunnel_handlers
 
 
 def register_handlers(app: Application):
@@ -53,3 +54,8 @@ def register_handlers(app: Application):
     # QvaPay Integration
     # --------------------------
     app.add_handler(qvapay_conversation)
+
+    # --------------------------
+    # Tunnel Domains
+    # --------------------------
+    register_tunnel_handlers(app)
