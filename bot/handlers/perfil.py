@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import AsyncSessionLocal
 from services import roles, user as user_service, vpn as vpn_service
+from database.crud import tunnel_domains as crud_tunnel_domains
 from utils.helpers import (
     send_usage_error,
     send_warning,
@@ -50,11 +51,22 @@ async def _get_user_profile_data(session: AsyncSession, user_id: str):
         if user_roles else "Ninguno"
     )
 
-    return total_configs, last_info, roles_text
+    # Tunnel domains (dual tunnel status)
+    tunnel_domains = await crud_tunnel_domains.get_active_tunnel_domains_for_user(session, user_id)
+    tunnel_info = ""
+    if tunnel_domains:
+        tunnel_info = f"<b>Dual Tunnel Activo:</b> ✅ Sí\n<b>Dominios bypass:</b>\n" + "\n".join(
+            f"• <code>{html.escape(d.domain_name)}</code> ({'✅ Verificado' if d.is_verified else '⏳ Pendiente'})"
+            for d in tunnel_domains
+        )
+    else:
+        tunnel_info = "<b>Dual Tunnel Activo:</b> ❌ No"
+
+    return total_configs, last_info, roles_text, tunnel_info
 
 
 async def _format_profile_message(
-    db_user, total_configs: int, last_info: str, roles_text: str
+    db_user, total_configs: int, last_info: str, roles_text: str, tunnel_info: str
 ) -> str:
     """Formatea el mensaje del perfil."""
     return (
@@ -66,7 +78,8 @@ async def _format_profile_message(
         f"<b>Registrado:</b> {db_user.created_at.strftime('%Y-%m-%d')}\n"
         f"<b>Total de configuraciones:</b> {total_configs}\n"
         f"<b>Última configuración:</b> {last_info}\n"
-        f"<b>Roles activos:</b>\n{roles_text}"
+        f"<b>Roles activos:</b>\n{roles_text}\n\n"
+        f"{tunnel_info}"
     )
 
 
@@ -100,10 +113,10 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id_for_log = str(db_user.id)
 
             # 3. Obtener datos del perfil (usar UUID string)
-            total_configs, last_info, roles_text = await _get_user_profile_data(db, str(db_user.id))
+            total_configs, last_info, roles_text, tunnel_info = await _get_user_profile_data(db, str(db_user.id))
 
             # 4. Formatear respuesta
-            text = await _format_profile_message(db_user, total_configs, last_info, roles_text)
+            text = await _format_profile_message(db_user, total_configs, last_info, roles_text, tunnel_info)
 
             # Determinar texto del botón QvaPay basado en vinculación
             qvapay_button_text = "💳 Ver QvaPay" if getattr(db_user, "qvapay_user_id", None) else "💳 Agregar QvaPay"
@@ -155,7 +168,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _format_whois_message(
-    username: str, db_user, total_configs: int, last_info: str, roles_text: str
+    username: str, db_user, total_configs: int, last_info: str, roles_text: str, tunnel_info: str
 ) -> str:
     """Formatea el mensaje del comando whois."""
     return (
@@ -166,7 +179,8 @@ async def _format_whois_message(
         f"<b>Registrado:</b> {db_user.created_at.strftime('%Y-%m-%d')}\n"
         f"<b>Total de configuraciones:</b> {total_configs}\n"
         f"<b>Última configuración:</b> {last_info}\n"
-        f"<b>Roles activos:</b>\n{roles_text}"
+        f"<b>Roles activos:</b>\n{roles_text}\n\n"
+        f"{tunnel_info}"
     )
 
 
@@ -193,10 +207,10 @@ async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id_for_log = str(db_user.id)
 
             # 3. Obtener datos del perfil
-            total_configs, last_info, roles_text = await _get_user_profile_data(db, str(db_user.id))
+            total_configs, last_info, roles_text, tunnel_info = await _get_user_profile_data(db, str(db_user.id))
 
             # 4. Formatear respuesta
-            text = await _format_whois_message(username, db_user, total_configs, last_info, roles_text)
+            text = await _format_whois_message(username, db_user, total_configs, last_info, roles_text, tunnel_info)
 
             if update.message:
                 await update.message.reply_text(text, parse_mode="HTML")

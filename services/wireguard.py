@@ -138,6 +138,7 @@ async def create_peer(
     duration_months: int = 1,
     dns: Optional[str] = None,
     config_name: Optional[str] = None,
+    bypass_domains: Optional[List[str]] = None,
     commit: bool = False,
 ) -> Dict[str, Any]:
     
@@ -165,6 +166,33 @@ async def create_peer(
     expires_at = datetime.utcnow() + timedelta(days=30 * max(1, int(duration_months)))
     # Usar WG_DNS del entorno o 1.1.1.1 como valor por defecto
     dns = dns or os.getenv("WG_DNS", "1.1.1.1")
+
+    # 1.5. Procesar dominios para bypass (dual tunnel)
+    allowed_ips = "0.0.0.0/0, ::/0"  # Default full tunnel
+    bypass_ips = []
+    if bypass_domains:
+        try:
+            import socket
+            for domain in bypass_domains:
+                try:
+                    # Resolver dominio a IPs (IPv4 e IPv6)
+                    ipv4 = socket.getaddrinfo(domain, None, socket.AF_INET)
+                    ipv6 = socket.getaddrinfo(domain, None, socket.AF_INET6)
+                    for addr_info in ipv4 + ipv6:
+                        ip = addr_info[4][0]
+                        if ':' in ip:  # IPv6
+                            bypass_ips.append(f"{ip}/128")
+                        else:  # IPv4
+                            bypass_ips.append(f"{ip}/32")
+                except socket.gaierror as e:
+                    logger.warning("Could not resolve domain %s: %s", domain, e)
+                    continue
+            if bypass_ips:
+                # Excluir IPs de bypass del túnel completo
+                allowed_ips = f"0.0.0.0/0, ::/0, {', '.join('!' + ip for ip in bypass_ips)}"
+        except Exception as e:
+            logger.exception("Error processing bypass domains", extra={"user_id": user_id})
+            # Continuar con full tunnel si hay error
     
     config_data = (
         f"[Interface]\n"
@@ -174,7 +202,7 @@ async def create_peer(
         f"[Peer]\n"
         f"PublicKey = {SERVER_PUBLIC_KEY}\n"
         f"Endpoint = {SERVER_ENDPOINT}\n"
-        f"AllowedIPs = 0.0.0.0/0, ::/0\n"
+        f"AllowedIPs = {allowed_ips}\n"
         f"PersistentKeepalive = 25\n"
     )
 
@@ -191,6 +219,9 @@ async def create_peer(
         "address": address,
         "dns": dns,
         "conf_path": conf_path,
+        "bypass_domains": bypass_domains or [],
+        "bypass_ips": bypass_ips,
+        "allowed_ips": allowed_ips,
     }
 
     # 3. Crear registro DB inicial con status 'creating'
