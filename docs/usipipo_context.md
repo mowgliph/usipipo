@@ -140,3 +140,5 @@ Seguimos estrictamente el patrón **models - crud - services - handlers** promov
    - Notificaciones a admins en errores
    - Logs detallados para debugging
 
+6. **Info adicional**
+aclararte para mejjor entenimiento todo usipipo funcionara en el mismo VPS desde la instalacion de los servidores de vpn wireguard, outline, los proxys , pi-hole, shadowmere para la busqueda de proxys disponibles . y todo esto sera procedado por usipipo y mostrado en telegram a traves de este bot 

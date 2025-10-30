@@ -1,495 +1,512 @@
 #!/bin/bash
 
-# Secure MTProto Proxy installer for Telegram - uSipipo Refactored
+# Free MTProto Proxy installer for Telegram - uSipipo
+# Docker-based installation for free Telegram proxy configuration
 # Based on https://github.com/TelegramMessenger/MTProxy
 # Generates uSipipo .env variables upon installation.
 
-RED='\033[0;31m'
-ORANGE='\033[0;33m'
-GREEN='\033[0;32m'
-NC='\033[0m'
+set -euo pipefail
 
-# --- Constantes ---
-MTPROXY_DIR="/opt/mtproto-proxy"
-MTPROXY_SERVICE_FILE="/etc/systemd/system/mtproto-proxy.service"
-MTPROXY_CONFIG_FILE="${MTPROXY_DIR}/config.env"
-MTPROXY_REPO_URL="https://github.com/TelegramMessenger/MTProxy.git"
-MTPROXY_SECRET_FILE="${MTPROXY_DIR}/objs/bin/proxy-secret"
-MTPROXY_CONFIG_FILE_URL="https://core.telegram.org/getProxyConfig"
-MTPROXY_SECRET_FILE_URL="https://core.telegram.org/getProxySecret"
+# --- Constantes de Configuración ---
+MTPROXY_DIR_DEFAULT="/opt/mtproto-proxy"                 # Directorio de instalación en Linux
+HOME_DIR_DEFAULT="VPNs_Configs/mtproto/"                 # Directorio relativo para configuraciones
+
+MTPROXY_DIR="${MTPROXY_DIR:-$MTPROXY_DIR_DEFAULT}"       # Directorio de instalación de MTProto
+MTPROXY_CONTAINER_NAME="mtproto-proxy"                   # Nombre del contenedor Docker
+MTPROXY_IMAGE_DEFAULT="telegrammessenger/proxy:latest"   # Imagen Docker por defecto
+HOME_DIR="${HOME_DIR:-$HOME_DIR_DEFAULT}"                # Directorio para configuraciones de cliente
+
+
+# --- Colores para salida de terminal ---
+GREEN='\033[0;32m'   # Verde para mensajes de éxito
+ORANGE='\033[0;33m'  # Naranja para advertencias
+RED='\033[0;31m'     # Rojo para errores
+NC='\033[0m'         # Reset de color
+
+# --- Variables Globales ---
+# Variables de flags de línea de comandos
+FLAGS_HOSTNAME=""     # Hostname proporcionado por usuario
+FLAGS_PORT=0          # Puerto proporcionado por usuario
+
+# Variables de entorno que pueden ser sobrescritas
+MTPROXY_DIR="${MTPROXY_DIR:-/opt/mtproto-proxy}"
+MTPROXY_CONTAINER_NAME="${CONTAINER_NAME:-${MTPROXY_CONTAINER_NAME}}"
+MTPROXY_IMAGE="${MTPROXY_IMAGE:-${MTPROXY_IMAGE_DEFAULT}}"
+
+# Variables que se asignan durante la instalación
+MTPROXY_PORT=0       # Puerto para el proxy MTProto
+MTPROXY_HOSTNAME=""   # Hostname/IP del servidor
+MTPROXY_STATE_DIR=""  # Directorio de estado persistente
+MTPROXY_SECRET=""     # Secreto generado para MTProto
+
 
 # --- Funciones de Validación ---
-function isRoot() {
-    if [ "${EUID}" -ne 0 ]; then
-        echo "You need to run this script as root"
-        exit 1
-    fi
-}
-function detect_pihole() {
-    if [[ -f ".env.pihole.generated" ]]; then
-        source ".env.pihole.generated"
-        # Validar que Pi-hole esté funcionando
-        if curl -s "http://${PIHOLE_HOST}:${PIHOLE_PORT}/admin/api.php" > /dev/null 2>&1; then
-            PIHOLE_IP="${PIHOLE_HOST}"
-            return 0
-        fi
-    fi
-    return 1
+# Verifica si un puerto es válido (1-65535)
+function is_valid_port() {
+  (( 0 < "$1" && "$1" <= 65535 ))
 }
 
-function checkOS() {
-    source /etc/os-release
-    OS="${ID}"
-    if [[ ${OS} == "debian" || ${OS} == "raspbian" ]]; then
-        if [[ ${VERSION_ID} -lt 10 ]]; then
-            echo "Your version of Debian is not supported."
-            echo "Please use Debian 10 Buster or later"
-            exit 1
-        fi
-        OS=debian # overwrite if raspbian
-    elif [[ ${OS} == "ubuntu" ]]; then
-        RELEASE_YEAR=$(echo "${VERSION_ID}" | cut -d'.' -f1)
-        if [[ ${RELEASE_YEAR} -lt 18 ]]; then
-            echo "Your version of Ubuntu is not supported."
-            echo "Please use Ubuntu 18.04 or later"
-            exit 1
-        fi
-    else
-        echo "This installer seems to be running on an unsupported distribution."
-        echo "Supported distributions are Debian and Ubuntu."
-        exit 1
-    fi
+# Verifica si un comando existe en el sistema
+function command_exists {
+  command -v "$@" &> /dev/null
 }
 
-function initialCheck() {
-    isRoot
-    checkOS
+function get_current_user() {
+	# Detectar el usuario actual no root que ejecutó el script
+	if [ -n "${SUDO_USER}" ]; then
+		echo "${SUDO_USER}"
+	else
+		# Si no se usó sudo, intentar obtener el usuario que ejecutó el script
+		who am i | awk '{print $1}'
+	fi
 }
 
-# --- Funciones de Instalación ---
-function installDependencies() {
-    echo "Installing required packages..."
-    if ! apt-get update; then
-        echo -e "${RED}Failed to update package list. Check your internet connection.${NC}"
-        exit 1
-    fi
-
-    if ! apt-get install -y git curl build-essential libssl-dev zlib1g-dev xxd; then
-        echo -e "${RED}Failed to install required packages.${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}Dependencies installed successfully.${NC}"
+# Genera un puerto aleatorio en el rango válido (1024-65535)
+function get_random_port {
+  local -i num=0  # Inicializar con valor inválido para evitar errores de variable no ligada
+  until (( 1024 <= num && num < 65536)); do
+    num=$(( RANDOM + (RANDOM % 2) * 32768 ))
+  done
+  echo "${num}"
 }
 
-function installMTProxy() {
-    # Create directory for MTProxy
-    mkdir -p "${MTPROXY_DIR}"
-    cd "${MTPROXY_DIR}" || exit
 
-    # Clone MTProxy repository if not already present or if it's empty
-    if [ ! -d ".git" ] || [ -z "$(ls -A "${MTPROXY_DIR}")" ]; then
-        echo "Cloning MTProxy repository..."
-        if ! git clone "${MTPROXY_REPO_URL}" .; then
-            echo -e "${RED}Failed to clone MTProxy repository. Check your internet connection.${NC}"
-            exit 1
-        fi
-    else
-        echo "MTProxy repository already exists, skipping clone."
-    fi
+# --- Funciones de Logging ---
+# Convenciones de I/O para este script:
+# - Mensajes de estado ordinarios se imprimen en STDOUT
+# - STDERR se usa solo en caso de error fatal
+# - Logs detallados se registran en FULL_LOG, que se preserva si ocurre un error
+# - El error más reciente se almacena en LAST_ERROR, que nunca se preserva
+FULL_LOG="$(mktemp -t mtproto_logXXXXXXXXXX)"
+LAST_ERROR="$(mktemp -t mtproto_last_errorXXXXXXXXXX)"
+readonly FULL_LOG LAST_ERROR
 
-    # Build MTProxy
-    echo "Building MTProxy..."
-    # Suppress GCC warnings during build
-    export CFLAGS="-w"
-    export CXXFLAGS="-w"
-    if ! make clean; then
-        echo -e "${RED}Failed to clean previous build.${NC}"
-        exit 1
-    fi
-
-    if ! make LDFLAGS="-Wl,--allow-multiple-definition -lssl -lcrypto -lm"; then
-        echo -e "${RED}Build failed. Check build dependencies and logs above.${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}MTProxy built successfully.${NC}"
-
-    # Navigate to binary directory
-    cd objs/bin || { echo -e "${RED}Build directory not found.${NC}"; exit 1; }
-
-    # Generate a secret
-    SECRET=$(head -c 16 /dev/urandom | xxd -ps)
-    if [ -z "$SECRET" ] || [ ${#SECRET} -ne 32 ]; then
-        echo -e "${RED}Failed to generate secret.${NC}"
-        exit 1
-    fi
-
-    # Get your external IP
-    IP=$(curl -4 -s https://api.ipify.org)
-    if [ -z "$IP" ]; then
-        echo -e "${RED}Failed to get external IP.${NC}"
-        exit 1
-    fi
-
-    # Generate a random port between 10000-60000
-    PORT=$(( ((RANDOM<<15)|RANDOM) % 49152 + 10000 ))
-
-    # Create systemd service
-    echo "Creating systemd service..."
-
-    # Configurar DNS si Pi-hole está disponible
-    DNS_ARG=""
-    if detect_pihole; then
-        DNS_ARG="-d ${PIHOLE_IP}"
-        echo -e "${GREEN}Pi-hole detected. Using ${PIHOLE_IP} as DNS for MTProto proxy.${NC}"
-    else
-        echo -e "${ORANGE}Pi-hole not detected. Using default DNS configuration.${NC}"
-    fi
-
-    cat > "${MTPROXY_SERVICE_FILE}" << EOL
-    [Unit]
-    Description=MTProto for Telegram - uSipipo
-    After=network.target
-    
-    [Service]
-    Type=simple
-    WorkingDirectory=${MTPROXY_DIR}/objs/bin
-    ExecStart=${MTPROXY_DIR}/objs/bin/mtproto-proxy -H ${PORT} -S ${SECRET} ${DNS_ARG} --aes-pwd proxy-secret proxy-multi.conf
-    User=root
-    Group=root
-    Restart=always
-    RestartSec=10
-    
-    # Environment variables for better logging
-    Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    Environment=HOME=/tmp
-    
-    [Install]
-    WantedBy=multi-user.target
-EOL
-
-    # Generate proxy secret
-    echo "Downloading proxy secret..."
-    if ! curl -s --max-time 30 "${MTPROXY_SECRET_FILE_URL}" -o proxy-secret; then
-        echo -e "${RED}Failed to download proxy secret from ${MTPROXY_SECRET_FILE_URL}.${NC}"
-        echo -e "${ORANGE}Check your internet connection and try again.${NC}"
-        exit 1
-    fi
-
-    if [ ! -f "proxy-secret" ] || [ ! -s "proxy-secret" ]; then
-        echo -e "${RED}Proxy secret file is empty or not created.${NC}"
-        echo -e "${ORANGE}File details: $(ls -la proxy-secret 2>/dev/null || echo 'File does not exist')${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}Proxy secret downloaded successfully (size: $(stat -c%s proxy-secret) bytes).${NC}"
-
-    # Generate proxy multi-config
-    echo "Downloading proxy configuration..."
-    if ! curl -s --max-time 30 "${MTPROXY_CONFIG_FILE_URL}" -o proxy-multi.conf; then
-        echo -e "${RED}Failed to download proxy config from ${MTPROXY_CONFIG_FILE_URL}.${NC}"
-        echo -e "${ORANGE}Check your internet connection and try again.${NC}"
-        exit 1
-    fi
-
-    if [ ! -f "proxy-multi.conf" ] || [ ! -s "proxy-multi.conf" ]; then
-        echo -e "${RED}Proxy config file is empty or not created.${NC}"
-        echo -e "${ORANGE}File details: $(ls -la proxy-multi.conf 2>/dev/null || echo 'File does not exist')${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}Proxy configuration downloaded successfully (size: $(stat -c%s proxy-multi.conf) bytes).${NC}"
-    echo -e "${GREEN}Configuration files downloaded successfully.${NC}"
-
-    # Set permissions
-    echo "Setting proper permissions for MTProxy files..."
-    chmod 755 "${MTPROXY_SERVICE_FILE}"
-    chmod 644 proxy-secret proxy-multi.conf # Restrict permissions on secrets
-
-    # Ensure the binary has execute permissions
-    if [ -f "mtproto-proxy" ]; then
-        chmod 755 mtproto-proxy
-        echo -e "${GREEN}Binary permissions set.${NC}"
-    else
-        echo -e "${RED}Warning: mtproto-proxy binary not found in working directory.${NC}"
-    fi
-
-    # Ensure working directory permissions
-    if [ -d "${MTPROXY_DIR}" ]; then
-        chown -R root:root "${MTPROXY_DIR}"
-        echo -e "${GREEN}Directory ownership set to root.${NC}"
-    fi
-
-    # Verify required files before starting service
-    echo "Verifying required configuration files..."
-    if ! verify_mtproxy_files; then
-        echo -e "${RED}Required files verification failed. Cannot start service.${NC}"
-        exit 1
-    fi
-
-    # Enable and start service
-    echo "Enabling and starting MTProxy service..."
-    systemctl daemon-reload
-
-    if ! systemctl enable mtproto-proxy; then
-        echo -e "${RED}Failed to enable MTProxy service.${NC}"
-        exit 1
-    fi
-
-    if ! systemctl start mtproto-proxy; then
-        echo -e "${RED}Failed to start MTProxy service.${NC}"
-        echo -e "${ORANGE}Attempting to start service with retries and diagnostics...${NC}"
-
-        # Show diagnostic information before retries
-        echo -e "${ORANGE}Diagnostic information:${NC}"
-        echo -e "Service file: ${MTPROXY_SERVICE_FILE}"
-        echo -e "Working directory: ${MTPROXY_DIR}/objs/bin"
-        echo -e "Binary exists: $([ -f "${MTPROXY_DIR}/objs/bin/mtproto-proxy" ] && echo 'Yes' || echo 'No')"
-        echo -e "Secret file exists: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-secret" ] && echo 'Yes' || echo 'No')"
-        echo -e "Config file exists: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-multi.conf" ] && echo 'Yes' || echo 'No')"
-
-        # Manual verification of ExecStart command
-        echo -e "${ORANGE}Performing manual verification of ExecStart command...${NC}"
-        manual_execstart_check "${PORT}" "${SECRET}" "${DNS_ARG}"
-
-        # Check systemd status
-        systemctl status mtproto-proxy --no-pager -l || echo -e "${RED}Could not get service status.${NC}"
-
-        # Retry starting the service up to 3 times
-        for i in {1..3}; do
-            echo -e "${ORANGE}Retry attempt $i/3...${NC}"
-            sleep 3
-            if systemctl start mtproto-proxy; then
-                echo -e "${GREEN}Service started successfully on retry $i.${NC}"
-                break
-            fi
-            if [ $i -eq 3 ]; then
-                echo -e "${RED}Service failed to start after 3 attempts.${NC}"
-                echo -e "${ORANGE}Troubleshooting commands:${NC}"
-                echo -e "  systemctl status mtproto-proxy"
-                echo -e "  journalctl -u mtproto-proxy -f --no-pager -n 50"
-                echo -e "  journalctl -xe --no-pager -n 20"
-                echo -e "${ORANGE}Installation completed but service may need manual intervention.${NC}"
-                # Don't exit here, continue with configuration
-            fi
-        done
-    fi
-
-    # Check service status and provide detailed information
-    echo "Waiting 5 seconds for the service to stabilize..."
-    sleep 5
-    echo "Checking final service status..."
-    if systemctl is-active --quiet mtproto-proxy; then
-        echo -e "${GREEN}MTProxy service is running successfully.${NC}"
-        # Show listening ports
-        if ss -tlnp | grep -q :${PORT}; then
-            echo -e "${GREEN}Port ${PORT} is listening.${NC}"
-        else
-            echo -e "${ORANGE}Warning: Port ${PORT} not found in listening sockets. The service might have failed to bind to the port.${NC}"
-        fi
-        checkFirewallAndSuggest "${PORT}"
-    else
-        echo -e "${RED}Warning: MTProxy service is not active.${NC}"
-        echo -e "${ORANGE}Service status details:${NC}"
-        systemctl status mtproto-proxy --no-pager -l || echo -e "${RED}Could not retrieve service status.${NC}"
-
-        echo -e "${ORANGE}Recent logs:${NC}"
-        journalctl -u mtproto-proxy --no-pager -n 10 -q || echo -e "${RED}Could not retrieve logs.${NC}"
-
-        echo -e "${ORANGE}Common troubleshooting steps:${NC}"
-        echo -e "1. Check if all required files exist: ls -la ${MTPROXY_DIR}/objs/bin/"
-        echo -e "2. Verify permissions: ls -ld ${MTPROXY_DIR}/objs/bin/"
-        echo -e "3. Test manual execution: cd ${MTPROXY_DIR}/objs/bin && ./mtproto-proxy --version"
-        echo -e "4. Check systemd logs: sudo journalctl -u mtproto-proxy -f"
-    fi
-
-    # Save configuration
-    cat > "${MTPROXY_CONFIG_FILE}" << EOL
-IP=${IP}
-PORT=${PORT}
-SECRET=${SECRET}
-MTPROXY_DIR=${MTPROXY_DIR}
-MTPROXY_SERVICE_FILE=${MTPROXY_SERVICE_FILE}
-EOL
-
-    # --- Generación de .env para uSipipo ---
-    generate_env_files
-
-    # Print connection info
-    echo -e "\n${GREEN}MTProto Proxy installed successfully!${NC}"
-    echo -e "${GREEN}Configuration:${NC}"
-    echo -e "IP: ${IP}"
-    echo -e "Port: ${PORT}"
-    echo -e "Secret: ${SECRET}"
-    echo -e "\n${GREEN}You can use this link to connect to your proxy:${NC}"
-    echo -e "tg://proxy?server=${IP}&port=${PORT}&secret=${SECRET}"
+function log_command() {
+  # Direct STDOUT and STDERR to FULL_LOG, and forward STDOUT.
+  # The most recent STDERR output will also be stored in LAST_ERROR.
+  "$@" > >(tee -a "${FULL_LOG}") 2> >(tee -a "${FULL_LOG}" > "${LAST_ERROR}")
 }
 
-function verify_mtproxy_files() {
-    local bin_dir="${MTPROXY_DIR}/objs/bin"
-    local secret_file="${bin_dir}/proxy-secret"
-    local config_file="${bin_dir}/proxy-multi.conf"
-    local binary_file="${bin_dir}/mtproto-proxy"
+function log_error() {
+  local -r ERROR_TEXT="\033[0;31m"  # red
+  local -r NO_COLOR="\033[0m"
+  echo -e "${ERROR_TEXT}$1${NO_COLOR}"
+  echo "$1" >> "${FULL_LOG}"
+}
 
-    echo "Checking MTProxy files in ${bin_dir}:"
+# Pretty prints text to stdout, and also writes to sentry log file if set.
+function log_start_step() {
+  # log_for_sentry "$@" # Opcional, si se quiere mantener
+  local -r str="> $*"
+  local -ir lineLength=47
+  echo -n "${str}"
+  local -ir numDots=$(( lineLength - ${#str} - 1 ))
+  if (( numDots > 0 )); then
+    echo -n " "
+    for _ in $(seq 1 "${numDots}"); do echo -n .; done
+  fi
+  echo -n " "
+}
 
-    # Check binary
-    if [ ! -f "${binary_file}" ]; then
-        echo -e "${RED}ERROR: MTProto binary not found at ${binary_file}${NC}"
-        return 1
-    fi
-    if [ ! -x "${binary_file}" ]; then
-        echo -e "${RED}ERROR: MTProto binary is not executable${NC}"
-        return 1
-    fi
-    echo -e "${GREEN}✓ Binary: Present and executable${NC}"
+# Prints $1 as the step name and runs the remainder as a command.
+# STDOUT will be forwarded.  STDERR will be logged silently, and
+# revealed only in the event of a fatal error.
+function run_step() {
+  local -r msg="$1"
+  log_start_step "${msg}"
+  shift 1
+  if log_command "$@"; then
+    echo "OK"
+  else
+    # Propagates the error code
+    return
+  fi
+}
 
-    # Check secret file
-    if [ ! -f "${secret_file}" ]; then
-        echo -e "${RED}ERROR: Proxy secret file not found at ${secret_file}${NC}"
-        return 1
-    fi
-    if [ ! -s "${secret_file}" ]; then
-        echo -e "${RED}ERROR: Proxy secret file is empty${NC}"
-        return 1
-    fi
-    local secret_size=$(stat -c%s "${secret_file}")
-    if [ "${secret_size}" -lt 10 ]; then
-        echo -e "${RED}ERROR: Proxy secret file seems too small (${secret_size} bytes)${NC}"
-        return 1
-    fi
-    echo -e "${GREEN}✓ Secret file: Present and valid (${secret_size} bytes)${NC}"
+function confirm() {
+  echo -n "> $1 [Y/n] "
+  local RESPONSE
+  read -r RESPONSE
+  RESPONSE=$(echo "${RESPONSE}" | tr '[:upper:]' '[:lower:]') || return
+  [[ -z "${RESPONSE}" || "${RESPONSE}" == "y" || "${RESPONSE}" == "yes" ]]
+}
 
-    # Check config file
-    if [ ! -f "${config_file}" ]; then
-        echo -e "${RED}ERROR: Proxy config file not found at ${config_file}${NC}"
-        return 1
-    fi
-    if [ ! -s "${config_file}" ]; then
-        echo -e "${RED}ERROR: Proxy config file is empty${NC}"
-        return 1
-    fi
-    local config_size=$(stat -c%s "${config_file}")
-    if [ "${config_size}" -lt 10 ]; then
-        echo -e "${RED}ERROR: Proxy config file seems too small (${config_size} bytes)${NC}"
-        return 1
-    fi
-    echo -e "${GREEN}✓ Config file: Present and valid (${config_size} bytes)${NC}"
+function fetch() {
+  # Usar curl directamente para mayor compatibilidad
+  curl --silent --show-error --fail "$@"
+}
 
-    # Check permissions
-    local secret_perms=$(stat -c%a "${secret_file}")
-    local config_perms=$(stat -c%a "${config_file}")
-    if [ "${secret_perms}" != "644" ] && [ "${secret_perms}" != "600" ]; then
-        echo -e "${ORANGE}WARNING: Secret file permissions are ${secret_perms}, recommended 644 or 600${NC}"
-    fi
-    if [ "${config_perms}" != "644" ] && [ "${config_perms}" != "600" ]; then
-        echo -e "${ORANGE}WARNING: Config file permissions are ${config_perms}, recommended 644 or 600${NC}"
-    fi
+function log_for_sentry() {
+  # if [[ -n "${SENTRY_LOG_FILE}" ]]; then # Opcional, si se quiere mantener
+  #   echo "$@" >> "${SENTRY_LOG_FILE}"
+  # fi
+  echo "$@" >> "${FULL_LOG}"
+}
 
+# --- Funciones de Verificación ---
+# Verifica si Docker está instalado en el sistema
+function verify_docker_installed() {
+  if command_exists docker; then
+    echo "Docker is already installed"
     return 0
+  fi
+  log_error "NOT INSTALLED"
+  echo "Docker not found. This script requires Docker to be installed."
+  echo "For Linux systems, please install Docker using your package manager."
+  echo "Example for Ubuntu/Debian: sudo apt-get install docker.io"
+  echo "Example for CentOS/RHEL: sudo yum install docker"
+  exit 1
 }
 
-function manual_execstart_check() {
-    local port=$1
-    local secret=$2
-    local dns_arg=$3
-
-    local bin_dir="${MTPROXY_DIR}/objs/bin"
-    local exec_cmd="${bin_dir}/mtproto-proxy -H ${port} -S ${secret} ${dns_arg} --aes-pwd proxy-secret proxy-multi.conf"
-
-    echo -e "${ORANGE}Manual ExecStart command verification:${NC}"
-    echo -e "Command: ${exec_cmd}"
-    echo -e "Working directory: ${bin_dir}"
-
-    # Change to working directory
-    if ! cd "${bin_dir}"; then
-        echo -e "${RED}ERROR: Cannot change to working directory ${bin_dir}${NC}"
-        return 1
-    fi
-
-    # Test if binary can be executed with --help or --version
-    echo -e "${ORANGE}Testing binary execution...${NC}"
-    if timeout 10s ./${bin_dir}/mtproto-proxy --help > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ Binary executes successfully with --help${NC}"
-    elif timeout 10s ./${bin_dir}/mtproto-proxy --version > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ Binary executes successfully with --version${NC}"
-    else
-        echo -e "${RED}ERROR: Binary cannot be executed or timed out${NC}"
-        echo -e "${ORANGE}Testing with a simple command...${NC}"
-        if timeout 5s ./${bin_dir}/mtproto-proxy > /tmp/mtproxy_test.log 2>&1; then
-            echo -e "${GREEN}✓ Binary starts (may have exited due to missing arguments)${NC}"
-            if [ -s /tmp/mtproxy_test.log ]; then
-                echo -e "${ORANGE}Binary output:${NC}"
-                head -10 /tmp/mtproxy_test.log
-            fi
-        else
-            echo -e "${RED}ERROR: Binary completely fails to execute${NC}"
-            echo -e "${ORANGE}Check binary permissions and dependencies${NC}"
-            ldd "${bin_dir}/mtproto-proxy" 2>/dev/null || echo -e "${RED}Cannot check dependencies${NC}"
-        fi
-        rm -f /tmp/mtproxy_test.log
-    fi
-
-    # Test the full command with timeout
-    echo -e "${ORANGE}Testing full ExecStart command with timeout...${NC}"
-    local test_cmd="./mtproto-proxy -H ${port} -S ${secret} ${dns_arg} --aes-pwd proxy-secret proxy-multi.conf"
-    echo -e "Test command: ${test_cmd}"
-
-    # Run with timeout and capture output
-    timeout 15s ${test_cmd} > /tmp/mtproxy_full_test.log 2>&1 &
-    local pid=$!
-    sleep 5
-
-    if kill -0 $pid 2>/dev/null; then
-        echo -e "${GREEN}✓ Command is running after 5 seconds${NC}"
-        kill $pid 2>/dev/null
-        wait $pid 2>/dev/null
-    else
-        wait $pid 2>/dev/null
-        local exit_code=$?
-        echo -e "${ORANGE}Command exited with code ${exit_code}${NC}"
-        if [ -s /tmp/mtproxy_full_test.log ]; then
-            echo -e "${ORANGE}Command output:${NC}"
-            cat /tmp/mtproxy_full_test.log
-        fi
-    fi
-
-    rm -f /tmp/mtproxy_full_test.log
-
-    # Check for common issues
-    echo -e "${ORANGE}Checking for common issues:${NC}"
-
-    # Check if port is already in use
-    if ss -tln | grep -q ":${port} "; then
-        echo -e "${RED}WARNING: Port ${port} is already in use${NC}"
-        ss -tlnp | grep ":${port} "
-    else
-        echo -e "${GREEN}✓ Port ${port} is available${NC}"
-    fi
-
-    # Check if secret is valid format
-    if [[ ! ${secret} =~ ^[0-9a-fA-F]{32}$ ]]; then
-        echo -e "${RED}WARNING: Secret '${secret}' does not appear to be a valid 32-character hex string${NC}"
-    else
-        echo -e "${GREEN}✓ Secret format appears valid${NC}"
-    fi
-
-    # Check DNS argument
-    if [ -n "${dns_arg}" ]; then
-        local dns_ip=$(echo "${dns_arg}" | sed 's/-d //')
-        echo -e "${ORANGE}DNS argument: ${dns_arg} (IP: ${dns_ip})${NC}"
-        if ping -c 1 -W 2 "${dns_ip}" > /dev/null 2>&1; then
-            echo -e "${GREEN}✓ DNS IP ${dns_ip} is reachable${NC}"
-        else
-            echo -e "${RED}WARNING: DNS IP ${dns_ip} is not reachable${NC}"
-        fi
-    else
-        echo -e "${ORANGE}No custom DNS configured${NC}"
-    fi
-
-    echo -e "${ORANGE}Manual verification completed.${NC}"
+function verify_docker_running() {
+  local STDERR_OUTPUT
+  STDERR_OUTPUT="$(docker info 2>&1 >/dev/null)" || return
+  local -ir RET=$?
+  if (( RET == 0 )); then
+    echo "Docker daemon is running"
+    return 0
+  elif [[ "${STDERR_OUTPUT}" == *"Is the docker daemon running"* ]]; then
+    echo "Docker daemon not running, attempting to start it"
+    start_docker
+    return $?
+  fi
+  echo "Docker verification failed with code: ${RET}"
+  echo "Error output: ${STDERR_OUTPUT}"
+  return "${RET}"
 }
+
+function install_docker() {
+  (
+    # Cambiar umask para que /usr/share/keyrings/docker-archive-keyring.gpg tenga los permisos correctos
+    # Ver: https://github.com/Jigsaw-Code/outline-server/issues/951
+    # Se hace en un subproceso para que el umask del proceso padre no se vea afectado
+    umask 0022
+    echo "Installing Docker via get.docker.com script"
+    # Usar curl directamente en lugar de fetch para mayor compatibilidad
+    if ! command_exists curl; then
+      echo "curl is required but not found. Please install curl first."
+      return 1
+    fi
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    rm get-docker.sh
+    echo "Docker installed successfully. You may need to start the Docker service."
+  ) >&2
+}
+
+function start_docker() {
+  echo "Starting Docker service"
+  # Intentar diferentes métodos para iniciar Docker según el sistema
+  if command -v systemctl >/dev/null 2>&1; then
+    echo "Using systemctl to start Docker"
+    systemctl enable --now docker.service >&2
+  elif command -v service >/dev/null 2>&1; then
+    echo "Using service command to start Docker"
+    service docker start >&2
+  else
+    echo "Systemctl/service not available, trying to start Docker daemon directly"
+    dockerd >&2 &
+    sleep 2
+  fi
+}
+
+# --- Funciones de Docker ---
+# Verifica si un contenedor Docker existe (incluyendo detenidos)
+function docker_container_exists() {
+  docker ps -a --format '{{.Names}}' | grep --quiet "^$1$"
+}
+
+# Remueve el contenedor watchtower
+function remove_watchtower_container() {
+  remove_docker_container watchtower
+}
+
+# Remueve un contenedor Docker de forma forzada
+function remove_docker_container() {
+  echo "Removing Docker container: $1"
+  docker rm -f "$1" >&2
+}
+
+function handle_docker_container_conflict() {
+  local -r CONTAINER_NAME="$1"
+  local -r EXIT_ON_NEGATIVE_USER_RESPONSE="$2"
+  local PROMPT="The container name \"${CONTAINER_NAME}\" is already in use by another container. This may happen when running this script multiple times."
+  if [[ "${EXIT_ON_NEGATIVE_USER_RESPONSE}" == 'true' ]]; then
+    PROMPT="${PROMPT} We will attempt to remove the existing container and restart it. Would you like to proceed?"
+  else
+    PROMPT="${PROMPT} Would you like to replace this container? If you answer no, we will proceed with the remainder of the installation."
+  fi
+  if ! confirm "${PROMPT}"; then
+    if ${EXIT_ON_NEGATIVE_USER_RESPONSE}; then
+      exit 0
+    fi
+    return 0
+  fi
+  if run_step "Removing ${CONTAINER_NAME} container" "remove_${CONTAINER_NAME}_container" ; then
+    log_start_step "Restarting ${CONTAINER_NAME}"
+    "start_${CONTAINER_NAME}"
+    return $?
+  fi
+  return 1
+}
+
+# --- Funciones de Configuración ---
+function create_persisted_state_dir() {
+  MTPROXY_STATE_DIR="${MTPROXY_DIR}/persisted-state"
+  mkdir -p "${MTPROXY_STATE_DIR}"
+  chmod ug+rwx,g+s,o-rwx "${MTPROXY_STATE_DIR}"
+
+  # Cambiar propietario al usuario actual no root
+  CURRENT_USER=$(get_current_user)
+  if [ -n "${CURRENT_USER}" ]; then
+    chown -R "${CURRENT_USER}:${CURRENT_USER}" "${MTPROXY_STATE_DIR}"
+    echo -e "${GREEN}Permisos de directorio de estado cambiados al usuario: ${CURRENT_USER}${NC}"
+  fi
+}
+
+function generate_secret_key() {
+  # Generar secreto para MTProto (32 caracteres hexadecimales)
+  MTPROXY_SECRET="$(head -c 16 /dev/urandom | xxd -ps)"
+  readonly MTPROXY_SECRET
+}
+
+function write_config() {
+    echo "Starting write_config() function"
+    local -r CONFIG_FILE="${MTPROXY_STATE_DIR}/mtproto_config.env"
+    echo "Writing config to: ${CONFIG_FILE}"
+
+    cat <<-EOF > "${CONFIG_FILE}"
+# MTProto Proxy Configuration
+MTPROXY_HOSTNAME=${MTPROXY_HOSTNAME}
+MTPROXY_PORT=${MTPROXY_PORT}
+MTPROXY_SECRET=${MTPROXY_SECRET}
+EOF
+    echo "Config file written to: ${CONFIG_FILE}"
+    echo "write_config() completed successfully"
+}
+
+function start_mtproto() {
+  echo "Starting start_mtproto() function"
+  local -r START_SCRIPT="${MTPROXY_STATE_DIR}/start_container.sh"
+  echo "Creating start script at: ${START_SCRIPT}"
+
+  cat <<-EOF > "${START_SCRIPT}"
+# This script starts the MTProto proxy container.
+# If you need to customize how the proxy is run, you can edit this script, then restart with:
+#
+#     "${START_SCRIPT}"
+
+set -eu
+
+docker stop "${MTPROXY_CONTAINER_NAME}" 2> /dev/null || true
+docker rm -f "${MTPROXY_CONTAINER_NAME}" 2> /dev/null || true
+
+docker_command=(
+  docker
+  run
+  -d
+  --name "${MTPROXY_CONTAINER_NAME}" --restart always
+  --net host
+
+  # Used by Watchtower to know which containers to monitor.
+  --label 'com.centurylinklabs.watchtower.enable=true'
+
+  # Use log rotation. See https://docs.docker.com/config/containers/logging/configure/.
+  --log-driver local
+
+  # Mount the persisted state directory
+  -v "${MTPROXY_STATE_DIR}:${MTPROXY_STATE_DIR}"
+
+  # The MTProto proxy image to run.
+  "${MTPROXY_IMAGE}"
+)
+
+# Add MTProto specific arguments
+docker_command+=( -H "${MTPROXY_PORT}" -S "${MTPROXY_SECRET}" )
+
+"\${docker_command[@]}"
+EOF
+  chmod +x "${START_SCRIPT}"
+  echo "Start script created and made executable"
+  # Declare then assign. Assigning on declaration messes up the return code.
+  local STDERR_OUTPUT
+  echo "Executing start script..."
+  STDERR_OUTPUT="$({ "${START_SCRIPT}" >/dev/null; } 2>&1)" && {
+    echo "Start script executed successfully"
+    return 0
+  }
+  readonly STDERR_OUTPUT
+  echo "Start script failed with error: ${STDERR_OUTPUT}"
+  log_error "FAILED"
+  log_error "${STDERR_OUTPUT}"
+  return 1
+}
+
+function start_watchtower() {
+  # Start watchtower to automatically fetch docker image updates.
+  # Set watchtower to refresh every 30 seconds if a custom MTPROXY_IMAGE is used (for
+  # testing).  Otherwise refresh every hour.
+  local -ir WATCHTOWER_REFRESH_SECONDS="${WATCHTOWER_REFRESH_SECONDS:-3600}"
+
+  local -ar docker_watchtower_flags=(--name watchtower --log-driver local --restart always \
+      -v "/var/run/docker.sock:/var/run/docker.sock")
+  # By itself, local messes up the return code.
+  local STDERR_OUTPUT
+  STDERR_OUTPUT="$(docker run -d "${docker_watchtower_flags[@]}" containrrr/watchtower --cleanup --label-enable --tlsverify --interval "${WATCHTOWER_REFRESH_SECONDS}" 2>&1 >/dev/null)" && return
+  readonly STDERR_OUTPUT
+  log_error "FAILED"
+  if docker_container_exists watchtower; then
+    handle_docker_container_conflict watchtower false
+    return
+  else
+    log_error "${STDERR_OUTPUT}"
+    return 1
+  fi
+}
+
+# --- Función de Creación de Directorios ---
+function create_config_dirs() {
+  mkdir -p "${HOME_DIR}"
+  chmod ug+rwx,g+s,o-rwx "${HOME_DIR}"
+
+  # Cambiar propietario al usuario actual no root
+  CURRENT_USER=$(get_current_user)
+  if [ -n "${CURRENT_USER}" ]; then
+    chown -R "${CURRENT_USER}:${CURRENT_USER}" "${HOME_DIR}"
+    echo -e "${GREEN}Permisos de directorio cambiados al usuario: ${CURRENT_USER}${NC}"
+  fi
+}
+
+# --- Función de Verificación de Sintaxis ---
+function check_syntax() {
+  # Verificar sintaxis del script usando bash -n
+  echo "Verificando sintaxis del script..."
+  if bash -n "$0"; then
+    echo "Sintaxis correcta"
+    return 0
+  else
+    echo "Error de sintaxis en el script"
+    return 1
+  fi
+}
+
+# --- Función de Verificación de Instalación ---
+function checkMTProtoInstalled() {
+  # Verificar si el contenedor MTProto existe y está ejecutándose
+  if docker_container_exists "${MTPROXY_CONTAINER_NAME}"; then
+    echo "MTProto container '${MTPROXY_CONTAINER_NAME}' exists"
+    return 0
+  else
+    echo "MTProto container '${MTPROXY_CONTAINER_NAME}' not found"
+    return 1
+  fi
+}
+
+function set_hostname() {
+  # These are URLs that return the client's apparent IP address.
+  # We have more than one to try in case one starts failing
+  # (e.g. https://github.com/Jigsaw-Code/outline-server/issues/776  ).
+  local -ar urls=(
+    'https://icanhazip.com/'
+    'https://ipinfo.io/ip'
+    'https://domains.google.com/checkip'
+  )
+  echo "Attempting to determine external IP address..."
+  if ! command_exists curl; then
+    echo -e "${RED}[ERROR] curl is required but not found. Please install curl.${NC}" >&2
+    return 1
+  fi
+  for url in "${urls[@]}"; do
+    echo "Trying URL: ${url}"
+    if MTPROXY_HOSTNAME="$(curl --silent --ipv4 "${url}" 2>/dev/null)"; then
+      echo "Successfully obtained IP: ${MTPROXY_HOSTNAME}"
+      return 0
+    else
+      echo "Failed to fetch from ${url}"
+    fi
+  done
+  echo -e "${RED}[ERROR] Failed to determine the server's IP address. Try using --hostname <server IP>.${NC}" >&2
+  return 1
+}
+
+# --- Función Principal de Instalación ---
+install_mtproto() {
+  local MACHINE_TYPE
+  MACHINE_TYPE="$(uname -m)"
+  if [[ "${MACHINE_TYPE}" != "x86_64" && "${MACHINE_TYPE}" != "aarch64" && "${MACHINE_TYPE}" != "arm64" ]]; then
+    log_error "Unsupported machine type: ${MACHINE_TYPE}. Please run this script on a x86_64, aarch64, or arm64 machine"
+    exit 1
+  fi
+
+  # Make sure we don't leak readable files to other users.
+  umask 0007
+
+  echo "Starting MTProto installation process"
+  run_step "Verifying that Docker is installed" verify_docker_installed
+  run_step "Verifying that Docker daemon is running" verify_docker_running
+
+  log_for_sentry "Creating MTProto directory"
+  echo "Creating MTProto directory: ${MTPROXY_DIR}"
+  mkdir -p "${MTPROXY_DIR}"
+  chmod u+s,ug+rwx,o-rwx "${MTPROXY_DIR}"
+
+  # Cambiar propietario al usuario actual no root
+  CURRENT_USER=$(get_current_user)
+  if [ -n "${CURRENT_USER}" ]; then
+    chown -R "${CURRENT_USER}:${CURRENT_USER}" "${MTPROXY_DIR}"
+    echo -e "${GREEN}Permisos de directorio MTProto cambiados al usuario: ${CURRENT_USER}${NC}"
+  fi
+
+  # Asignar puerto después de parse_flags
+  MTPROXY_PORT="${FLAGS_PORT}"
+  if (( MTPROXY_PORT == 0 )); then
+    MTPROXY_PORT=$(get_random_port)
+    echo "Generated random port: ${MTPROXY_PORT}"
+  else
+    echo "Using provided port: ${MTPROXY_PORT}"
+  fi
+  readonly MTPROXY_PORT
+
+  MTPROXY_HOSTNAME="${FLAGS_HOSTNAME}"
+  if [[ -z "${MTPROXY_HOSTNAME}" ]]; then
+    run_step "Setting MTPROXY_HOSTNAME to external IP" set_hostname
+  else
+    echo "Using provided hostname: ${MTPROXY_HOSTNAME}"
+  fi
+  readonly MTPROXY_HOSTNAME
+
+  # Make a directory for persistent state
+  run_step "Creating config directories" create_config_dirs
+  run_step "Creating persistent state dir" create_persisted_state_dir
+  run_step "Generating secret key" generate_secret_key
+  run_step "Writing config" write_config
+  echo "write_config completed, proceeding to start MTProto"
+
+  # TODO(dborkan): if the script fails after docker run, it will continue to fail
+  # as the names mtproto-proxy and watchtower will already be in use.  Consider
+  # deleting the container in the case of failure (e.g. using a trap, or
+  # deleting existing containers on each run).
+  run_step "Starting MTProto" start_mtproto
+  echo "start_mtproto completed, proceeding to start Watchtower"
+
+  # TODO(fortuna): Don't wait for MTProto to run this.
+  run_step "Starting Watchtower" start_watchtower
+  echo "start_watchtower completed, proceeding to generate env files"
+
+  # Generar archivos .env al finalizar
+  generate_env_files
+  echo "Env files generated, installation completed successfully"
+  echo "MTProto installation process finished"
+
+  # Mensaje final
+  echo -e "\n${GREEN}CONGRATULATIONS! Your MTProto proxy is up and running.${NC}"
+  echo -e "\n${GREEN}To connect to your proxy, use this link:${NC}"
+  echo -e "${GREEN}tg://proxy?server=${MTPROXY_HOSTNAME}&port=${MTPROXY_PORT}&secret=${MTPROXY_SECRET}${NC}"
+  echo -e "\n${ORANGE}Remember to open the proxy port ${MTPROXY_PORT} on your firewall.${NC}"
+  echo -e "${ORANGE}Client configurations will be stored in: ${HOME_DIR}${NC}"
+}
+
+
 
 function checkFirewallAndSuggest() {
     local port=$1
@@ -505,211 +522,249 @@ function checkFirewallAndSuggest() {
     fi
 }
 
+# --- Función de Generación de .env ---
 function generate_env_files() {
-    # Archivo de configuración principal de MTProxy para uSipipo
-    ENV_FILE_MTPROXY=".env.mtproxy.generated"
+     echo "Starting generate_env_files() function"
+     # Archivo de configuración principal de MTProto
+     ENV_FILE_MTPROXY=".env.mtproto.generated"
 
-    echo "# --- uSipipo MTProto Server Configuration ---" > "${ENV_FILE_MTPROXY}"
-    echo "MTPROXY_HOST=\"${IP}\"" >> "${ENV_FILE_MTPROXY}"
-    echo "MTPROXY_PORT=\"${PORT}\"" >> "${ENV_FILE_MTPROXY}"
-    echo "MTPROXY_SECRET=\"${SECRET}\"" >> "${ENV_FILE_MTPROXY}"
-    echo "MTPROXY_DIR=\"${MTPROXY_DIR}\"" >> "${ENV_FILE_MTPROXY}"
+     echo "Creating ${ENV_FILE_MTPROXY}"
+     echo "# --- uSipipo MTProto Server Configuration ---" > "${ENV_FILE_MTPROXY}"
+     echo "MTPROXY_HOST=\"${MTPROXY_HOSTNAME}\"" >> "${ENV_FILE_MTPROXY}"
+     echo "MTPROXY_PORT=\"${MTPROXY_PORT}\"" >> "${ENV_FILE_MTPROXY}"
+     echo "MTPROXY_SECRET=\"${MTPROXY_SECRET}\"" >> "${ENV_FILE_MTPROXY}"
+     echo "MTPROXY_DIR=\"${MTPROXY_DIR}\"" >> "${ENV_FILE_MTPROXY}"
+     echo "MTPROXY_CONTAINER_NAME=\"${MTPROXY_CONTAINER_NAME}\"" >> "${ENV_FILE_MTPROXY}"
+     echo "MTPROXY_IMAGE=\"${MTPROXY_IMAGE}\"" >> "${ENV_FILE_MTPROXY}"
+     echo "MTPROXY_STATE_DIR=\"${MTPROXY_STATE_DIR}\"" >> "${ENV_FILE_MTPROXY}"
 
-    # Agregar configuración DNS si Pi-hole está disponible
-    if detect_pihole; then
-        echo "MTPROXY_DNS=\"${PIHOLE_IP}\"" >> "${ENV_FILE_MTPROXY}"
-        echo "# DNS: Using Pi-hole (${PIHOLE_IP}) for DNS resolution" >> "${ENV_FILE_MTPROXY}"
-    else
-        echo "# DNS: Using default DNS configuration" >> "${ENV_FILE_MTPROXY}"
-    fi
+     echo "# DNS: Using default DNS configuration" >> "${ENV_FILE_MTPROXY}"
 
-    # No se genera TAG aquí, se haría manualmente o mediante otro proceso
-    # echo "MTPROXY_TAG=\"\" # Add your tag here if registered with @MTProxybot" >> "${ENV_FILE_MTPROXY}"
-    echo "" >> "${ENV_FILE_MTPROXY}"
+     # No se genera TAG aquí, se haría manualmente o mediante otro proceso
+     # echo "MTPROXY_TAG=\"\" # Add your tag here if registered with @MTProxybot" >> "${ENV_FILE_MTPROXY}"
+     echo "" >> "${ENV_FILE_MTPROXY}"
 
-    echo -e "\n${GREEN}--- VARIABLES MTPROXY PARA TU .env DE USIPIPO ---${NC}"
-    echo -e "${ORANGE}Archivo de configuración generado:${NC} ${ENV_FILE_MTPROXY}"
-    echo -e "${GREEN}----------------------------------------------------------${NC}"
-    echo -e "\n${GREEN}Contenido de ${ENV_FILE_MTPROXY}:${NC}"
-    cat "${ENV_FILE_MTPROXY}"
-    echo -e "\n${GREEN}----------------------------------------------------------${NC}"
-    echo -e "¡Copia estas variables a tu archivo .env de uSipipo!"
+     echo -e "\n${GREEN}--- VARIABLES MTPROXY PARA TU .env DE USIPIPO ---${NC}"
+     echo -e "${ORANGE}Archivo de configuración generado:${NC} ${ENV_FILE_MTPROXY}"
+     echo -e "${GREEN}----------------------------------------------------------${NC}"
+     echo -e "\n${GREEN}Contenido de ${ENV_FILE_MTPROXY}:${NC}"
+     cat "${ENV_FILE_MTPROXY}"
+     echo -e "\n${GREEN}----------------------------------------------------------${NC}"
+     echo -e "${GREEN}¡Copia estas variables a tu archivo .env de uSipipo!${NC}"
+     echo -e "${ORANGE}IMPORTANTE: Guarda las rutas de certificados de forma segura.${NC}"
+
+     # Verificar que las variables críticas estén definidas
+     if [[ -z "${MTPROXY_HOSTNAME}" || -z "${MTPROXY_SECRET}" || -z "${MTPROXY_PORT}" ]]; then
+        echo -e "${RED}ERROR: Algunas variables críticas no se generaron correctamente${NC}"
+        return 1
+     fi
+     echo "generate_env_files() completed successfully"
 }
 
-function uninstallMTProxy() {
-    local FORCE_REMOVE="${1:-false}"
+# --- Función de Desinstalación Completa ---
+function uninstallMTProto() {
+  echo -e "${RED}WARNING: This will completely remove MTProto proxy and ALL its data!${NC}"
+  echo -e "${RED}This action cannot be undone. Make sure to backup your data first.${NC}"
+  echo -n "Are you sure you want to continue? [y/N] "
+  read -r response
+  response=$(echo "${response}" | tr '[:upper:]' '[:lower:]')
+  if [[ "${response}" != "y" && "${response}" != "yes" ]]; then
+    echo "Uninstallation cancelled."
+    exit 0
+  fi
 
-    if [[ "${FORCE_REMOVE}" != "true" ]]; then
-        echo -e "\n${RED}WARNING: This will uninstall MTProxy and remove all configuration files!${NC}"
-        read -rp "Do you really want to remove MTProxy? [y/n]: " -e REMOVE
+  # Detener y remover contenedor Docker
+  if docker_container_exists "${MTPROXY_CONTAINER_NAME}"; then
+    run_step "Stopping MTProto container" docker stop "${MTPROXY_CONTAINER_NAME}"
+    run_step "Removing MTProto container" docker rm -f "${MTPROXY_CONTAINER_NAME}"
+  fi
 
-        if [[ $REMOVE != 'y' ]]; then
-            echo -e "${ORANGE}Uninstall cancelled${NC}"
-            return 1
-        fi
-    fi
+  # Remover imagen Docker si existe
+  if docker images | grep -q "telegrammessenger/proxy"; then
+    run_step "Removing MTProto Docker image" docker rmi "$(docker images | grep "telegrammessenger/proxy" | awk '{print $3}')"
+  fi
 
-    echo "Stopping and disabling MTProxy service..."
-    systemctl stop mtproto-proxy 2>/dev/null || echo -e "${ORANGE}Service was not running.${NC}"
-    systemctl disable mtproto-proxy 2>/dev/null || echo -e "${ORANGE}Service was not enabled.${NC}"
+  # Remover contenedor watchtower si existe
+  if docker_container_exists "watchtower"; then
+    remove_watchtower_container
+  fi
 
-    echo "Removing service file and installation directory..."
-    rm -f "${MTPROXY_SERVICE_FILE}"
-    rm -rf "${MTPROXY_DIR}"
+  # Remover directorios y archivos
+  run_step "Removing MTProto installation directory" rm -rf "${MTPROXY_DIR}"
+  run_step "Removing MTProto config directories" rm -rf "${HOME_DIR}"
 
-    echo "Reloading systemd daemon..."
-    systemctl daemon-reload
+  # Remover archivos .env generados
+  rm -f ".env.mtproto.generated"
 
-    # Remove generated .env file
-    rm -f ".env.mtproxy.generated"
+  # Limpiar archivos temporales
+  rm -f "${FULL_LOG}" "${LAST_ERROR}"
 
-    # Remove config file if it exists
-    rm -f "${MTPROXY_CONFIG_FILE}"
-
-    echo -e "${GREEN}MTProxy has been completely removed!${NC}"
-    return 0
+  echo -e "\n${GREEN}MTProto proxy has been completely uninstalled and cleaned.${NC}"
 }
 
-function showMenu() {
-    echo "Welcome to MTProto installer for uSipipo!"
-    echo ""
-    echo "What do you want to do?"
-    echo "   1) Install MTProxy"
-    echo "   2) Uninstall MTProxy"
-    echo "   3) Show current configuration"
-    echo "   4) Exit"
+# --- Funciones de Ayuda y Parseo ---
+function display_usage() {
+  cat <<EOF
+Usage: $0 [options]
 
-    until [[ ${MENU_OPTION} =~ ^[1-4]$ ]]; do
-        read -rp "Select an option [1-4]: " MENU_OPTION
-    done
+Options:
+  --install      Install MTProto proxy (default action if not installed)
+  --uninstall    Completely remove MTProto proxy and all its data
+  --reinstall    Remove existing MTProto installation and reinstall
+  --hostname     The hostname to be used for the proxy
+  --port         The port number for the proxy
+  --help         Display this help message
 
-    case "${MENU_OPTION}" in
-        1)
-            initialCheck
-            installDependencies
-            installMTProxy
-            ;;
-        2)
-            uninstallMTProxy
-            ;;
-        3)
-            if [ -f "${MTPROXY_CONFIG_FILE}" ]; then
-                source "${MTPROXY_CONFIG_FILE}"
-                echo -e "${GREEN}Current MTProxy Configuration:${NC}"
-                echo -e "IP: ${IP}"
-                echo -e "Port: ${PORT}"
-                echo -e "Secret: ${SECRET}"
-                echo -e "Directory: ${MTPROXY_DIR}"
-                echo -e "Service File: ${MTPROXY_SERVICE_FILE}"
-                echo -e "\nConnection Link:"
-                echo -e "tg://proxy?server=${IP}&port=${PORT}&secret=${SECRET}"
+Environment variables:
+  MTPROXY_DIR        MTProto installation directory (default: /opt/mtproto-proxy)
+  MTPROXY_IMAGE      Docker image to use (default: telegrammessenger/proxy:latest)
+EOF
+}
 
-                echo -e "\n${GREEN}Service Status:${NC}"
-                if systemctl is-active --quiet mtproto-proxy; then
-                    echo -e "${GREEN}Service is running${NC}"
-                    # Show listening port
-                    ss -tlnp | grep :${PORT} && echo -e "${GREEN}Port ${PORT} is listening${NC}" || echo -e "${ORANGE}Warning: Port ${PORT} not found in listening sockets${NC}"
-                else
-                    echo -e "${RED}Service is not running${NC}"
-                    echo -e "${ORANGE}Last logs:${NC}"
-                    journalctl -u mtproto-proxy --no-pager -n 5 -q 2>/dev/null || echo -e "${RED}Could not retrieve logs${NC}"
-                fi
-
-                echo -e "\n${GREEN}File Status:${NC}"
-                echo -e "Binary: $([ -f "${MTPROXY_DIR}/objs/bin/mtproto-proxy" ] && echo 'Present' || echo 'Missing')"
-                echo -e "Secret: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-secret" ] && echo 'Present' || echo 'Missing')"
-                echo -e "Config: $([ -f "${MTPROXY_DIR}/objs/bin/proxy-multi.conf" ] && echo 'Present' || echo 'Missing')"
-            else
-                echo -e "${RED}MTProxy is not installed or configuration file not found.${NC}"
-            fi
-            ;;
-        4)
-            exit 0
-            ;;
+function escape_json_string() {
+  local input=$1
+  for ((i = 0; i < ${#input}; i++)); do
+    local char="${input:i:1}"
+    local escaped="${char}"
+    case "${char}" in
+      $'"' ) escaped="\\\"";;
+      $'\\') escaped="\\\\";;
+      *)
+        if [[ "${char}" < $'\x20' ]]; then
+          case "${char}" in
+            $'\b') escaped="\\b";;
+            $'\f') escaped="\\f";;
+            $'\n') escaped="\\n";;
+            $'\r') escaped="\\r";;
+            $'\t') escaped="\\t";;
+            *) escaped=$(printf "\u%04X" "'${char}")
+          esac
+        fi;;
     esac
+    echo -n "${escaped}"
+  done
 }
 
-# --- Funciones de Argumentos ---
-function showHelp() {
-    echo "Usage: $0 [OPTIONS]"
-    echo ""
-    echo "Options:"
-    echo "  --install          Install MTProxy (default if not installed)"
-    echo "  --uninstall        Uninstall MTProxy completely"
-    echo "  --reinstall        Reinstall MTProxy (uninstall then install)"
-    echo "  --help             Show this help message"
-    echo ""
-    echo "If no options are provided, an interactive menu will be shown."
+function parse_flags() {
+  local params
+  params="$(getopt --longoptions hostname:,port:,install,uninstall,reinstall,help -n "$0" -- "$0" "$@")"
+  eval set -- "${params}"
+
+  while (( $# > 0 )); do
+    local flag="$1"
+    shift
+    case "${flag}" in
+      --hostname)
+        FLAGS_HOSTNAME="$1"
+        shift
+        ;;
+      --port)
+        FLAGS_PORT=$1
+        shift
+        if ! is_valid_port "${FLAGS_PORT}"; then
+          log_error "Invalid value for ${flag}: ${FLAGS_PORT}" >&2
+          exit 1
+        fi
+        ;;
+      --install|--uninstall|--reinstall|--help)
+        # These are handled in main()
+        ;;
+      --)
+        break
+        ;;
+      *) # This should not happen
+        log_error "Unsupported flag ${flag}" >&2
+        display_usage >&2
+        exit 1
+        ;;
+    esac
+  done
+  return 0
 }
 
-function parseArgs() {
-    ACTION=""
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --install)
-                ACTION="install"
-                shift
-                ;;
-            --uninstall)
-                ACTION="uninstall"
-                shift
-                ;;
-            --reinstall)
-                ACTION="reinstall"
-                shift
-                ;;
-            --help)
-                showHelp
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}Unknown option: $1${NC}"
-                showHelp
-                exit 1
-                ;;
-        esac
-    done
-}
+# --- Función Principal ---
+function main() {
+  # Verificar sintaxis antes de proceder
+  if ! check_syntax; then
+    exit 1
+  fi
 
-# --- Punto de entrada ---
-parseArgs "$@"
+  # Set trap which publishes error tag only if there is an error.
+  function finish {
+    local -ir EXIT_CODE=$?
+    if (( EXIT_CODE != 0 )); then
+      if [[ -s "${LAST_ERROR}" ]]; then
+        log_error "\nLast error: $(< "${LAST_ERROR}")" >&2
+      fi
+      log_error "\nSorry! Something went wrong. If you can't figure this out, please copy and paste all this output into the Outline Manager screen, and send it to us, to see if we can help you." >&2
+      log_error "Full log: ${FULL_LOG}" >&2
+    else
+      rm "${FULL_LOG}"
+    fi
+    rm "${LAST_ERROR}"
+  }
+  trap finish EXIT
 
-case "${ACTION}" in
+  # Parse arguments
+  ACTION="auto"  # auto: install if not installed, error if installed
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --install)
+        ACTION="install"
+        shift
+        ;;
+      --uninstall)
+        ACTION="uninstall"
+        shift
+        ;;
+      --reinstall)
+        ACTION="reinstall"
+        shift
+        ;;
+      --help)
+        display_usage
+        exit 0
+        ;;
+      *)
+        # Pass remaining arguments to parse_flags for hostname, port, etc.
+        break
+        ;;
+    esac
+  done
+
+  parse_flags "$@"
+
+  case "${ACTION}" in
     "install")
-        if [ -f "${MTPROXY_CONFIG_FILE}" ]; then
-            echo -e "${ORANGE}MTProxy is already installed. Use --reinstall to reinstall.${NC}"
-            exit 0
-        fi
-        initialCheck
-        installDependencies
-        installMTProxy
-        ;;
+      if checkMTProtoInstalled; then
+        log_error "MTProto is already installed. Use --reinstall if you want to reinstall."
+        exit 1
+      fi
+      install_mtproto
+      ;;
     "uninstall")
-        if [ ! -f "${MTPROXY_CONFIG_FILE}" ]; then
-            echo -e "${ORANGE}MTProxy is not installed.${NC}"
-            exit 0
-        fi
-        uninstallMTProxy
-        ;;
+      if ! checkMTProtoInstalled; then
+        log_error "MTProto is not installed."
+        exit 1
+      fi
+      uninstallMTProto
+      ;;
     "reinstall")
-        if [ -f "${MTPROXY_CONFIG_FILE}" ]; then
-            echo "Uninstalling existing MTProxy installation..."
-            uninstallMTProxy true
-        fi
-        echo "Starting fresh installation..."
-        initialCheck
-        installDependencies
-        installMTProxy
-        ;;
-    "")
-        # No arguments provided, show interactive menu
-        if [ -f "${MTPROXY_CONFIG_FILE}" ]; then
-            showMenu
-        else
-            # If not installed, start installation
-            initialCheck
-            installDependencies
-            installMTProxy
-        fi
-        ;;
-esac
+      if checkMTProtoInstalled; then
+        echo -e "${ORANGE}MTProto is currently installed. Proceeding with removal first...${NC}"
+        uninstallMTProto
+      fi
+      install_mtproto
+      ;;
+    "auto")
+      if checkMTProtoInstalled; then
+        log_error "MTProto is already installed. Use --reinstall to reinstall or --uninstall to remove."
+        exit 1
+      else
+        install_mtproto
+      fi
+      ;;
+  esac
+}
+
+main "$@"
