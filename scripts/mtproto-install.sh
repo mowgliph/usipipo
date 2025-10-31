@@ -189,7 +189,8 @@ function extract_secret_from_logs() {
 
     while [ $attempts -lt $max_attempts ]; do
         # Look for the secret in logs (MTProto proxy logs it on startup)
-        MTPROXY_SECRET=$(docker logs "${MTPROXY_CONTAINER_NAME}" 2>&1 | grep -oE 'secret: [a-f0-9]+' | head -1 | cut -d' ' -f2)
+        # MTProto secrets are 32 hexadecimal characters
+        MTPROXY_SECRET=$(docker logs "${MTPROXY_CONTAINER_NAME}" 2>&1 | grep -i secret | grep -oE '[a-f0-9]{32}' | head -1)
 
         if [[ -n "${MTPROXY_SECRET}" ]]; then
             log_success "Secret extracted: ${MTPROXY_SECRET}"
