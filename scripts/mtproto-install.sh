@@ -13,6 +13,7 @@ MTPROXY_IMAGE="telegrammessenger/proxy:latest"
 MTPROXY_HOST_DEFAULT=""  # Will be detected
 MTPROXY_PORT_DEFAULT=""
 MTPROXY_DATA_DIR="${MTPROXY_DIR_DEFAULT}/data"
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
 
 # --- Colores para salida ---
 GREEN='\033[0;32m'
@@ -25,6 +26,7 @@ MTPROXY_HOST=""
 MTPROXY_PORT=""
 MTPROXY_SECRET=""
 MTPROXY_DIR=""
+LOG_FILE="$(pwd)/mtproto-install.log"
 
 # --- Funciones de Validación ---
 function isRoot() {
@@ -49,14 +51,17 @@ function command_exists() {
 # --- Funciones de Logging ---
 function log_error() {
     echo -e "${RED}[ERROR] $1${NC}" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] $1" >> "${LOG_FILE}"
 }
 
 function log_success() {
     echo -e "${GREEN}[SUCCESS] $1${NC}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [SUCCESS] $1" >> "${LOG_FILE}"
 }
 
 function log_info() {
     echo -e "${ORANGE}[INFO] $1${NC}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $1" >> "${LOG_FILE}"
 }
 
 # --- Funciones de Docker ---
@@ -153,7 +158,7 @@ function start_mtproto_container() {
         --name "${MTPROXY_CONTAINER_NAME}" \
         --restart always \
         -p "${MTPROXY_PORT}:443" \
-        -v "${MTPROXY_DATA_DIR}:/data" \
+        -v "${MTPROXY_DIR_DEFAULT}/data:/data" \
         "${MTPROXY_IMAGE}"
 
     if [ $? -eq 0 ]; then
@@ -206,7 +211,7 @@ function extract_secret_from_logs() {
 }
 
 function generate_env_file() {
-    local env_file=".env.mtproto.generated"
+    local env_file="${SCRIPT_DIR}/.env.mtproto.generated"
 
     log_info "Generating environment file: ${env_file}"
 
@@ -228,6 +233,33 @@ EOF
     echo -e "\n${GREEN}--- MTProto Configuration ---${NC}"
     cat "${env_file}"
     echo -e "\n${ORANGE}Copy these variables to your .env file for uSipipo${NC}"
+}
+
+# --- Funciones de Configuración MTProto ---
+function load_mtproto_config() {
+    local env_file="${SCRIPT_DIR}/.env.mtproto.generated"
+    if [ -f "${env_file}" ]; then
+        source "${env_file}"
+        return 0
+    fi
+    return 1
+}
+
+function get_mtproto_config() {
+    if docker_container_exists "${MTPROXY_CONTAINER_NAME}"; then
+        if docker ps | grep -q "${MTPROXY_CONTAINER_NAME}"; then
+            # Extract port from container
+            MTPROXY_PORT=$(docker port "${MTPROXY_CONTAINER_NAME}" 443/tcp | cut -d: -f2)
+            # Extract secret from logs
+            MTPROXY_SECRET=$(docker logs "${MTPROXY_CONTAINER_NAME}" 2>&1 | grep -i secret | grep -oE '[a-f0-9]{32}' | head -1)
+            # Load host from env file if available
+            if ! load_mtproto_config; then
+                MTPROXY_HOST="Unknown (check .env.mtproto.generated)"
+            fi
+            return 0
+        fi
+    fi
+    return 1
 }
 
 # --- Funciones de Gestión de Servicio ---
@@ -269,8 +301,15 @@ function status_service() {
         if docker ps | grep -q "${MTPROXY_CONTAINER_NAME}"; then
             echo -e "${GREEN}MTProto service is RUNNING${NC}"
             echo "Container: ${MTPROXY_CONTAINER_NAME}"
-            echo "Port: ${MTPROXY_PORT}"
-            echo "Host: ${MTPROXY_HOST}"
+
+            # Get configuration from running container
+            if get_mtproto_config; then
+                echo "Host: ${MTPROXY_HOST}"
+                echo "Port: ${MTPROXY_PORT}"
+                echo "Secret: ${MTPROXY_SECRET}"
+            else
+                echo "Configuration: Unable to retrieve from container"
+            fi
             return 0
         else
             echo -e "${ORANGE}MTProto service is STOPPED${NC}"
@@ -298,8 +337,8 @@ function uninstall_service() {
     fi
 
     # Remove generated env file
-    if [ -f ".env.mtproto.generated" ]; then
-        rm -f ".env.mtproto.generated"
+    if [ -f "${SCRIPT_DIR}/.env.mtproto.generated" ]; then
+        rm -f "${SCRIPT_DIR}/.env.mtproto.generated"
     fi
 
     log_success "MTProto service uninstalled"
