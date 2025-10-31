@@ -203,42 +203,6 @@ POST /api/v1/proxy/mtproto
 }
 ```
 
-### 🔍 Gestión de Proxies Shadowmere
-
-#### Listar Proxies Shadowmere
-```
-GET /api/v1/proxy/shadowmere
-```
-
-**Parámetros de Query:**
-- `proxy_type`: Filtrar por tipo (SOCKS5, HTTP, HTTPS)
-- `country`: Filtrar por país
-- `is_working`: Filtrar por estado (true/false)
-- `max_response_time`: Tiempo máximo de respuesta en ms
-
-**Response:**
-```json
-{
-  "proxies": [
-    {
-      "id": 123,
-      "proxy_address": "192.168.1.1:8080",
-      "proxy_type": "HTTP",
-      "country": "US",
-      "is_working": true,
-      "response_time": 150.5,
-      "last_checked": "2025-10-22T15:00:00Z",
-      "detection_date": "2025-10-20T10:00:00Z"
-    }
-  ],
-  "total": 5000
-}
-```
-
-#### Verificar Proxy
-```
-POST /api/v1/proxy/shadowmere/{proxy_id}/check
-```
 
 ### 💰 Gestión de Pagos
 

@@ -223,35 +223,6 @@ class MTProtoProxy(Base):
         Index("ix_mtproto_proxies_user_status", "user_id", "status"),
     )
 
-class ShadowmereProxy(Base):
-    """
-    Gestiona proxies detectados por Shadowmere.
-    Almacena información sobre proxies SOCKS5, SOCKS4, HTTP y HTTPS detectados.
-    """
-    __tablename__ = "shadowmere_proxies"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    proxy_address: Mapped[str] = mapped_column(String(45), unique=True, nullable=False)  # IP:puerto
-    proxy_type: Mapped[str] = mapped_column(String(16), nullable=False)  # SOCKS5, SOCKS4, HTTP, HTTPS
-    country: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    is_working: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    last_checked: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
-    response_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # en ms
-    detection_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
-    detection_source: Mapped[str] = mapped_column(String(32), default="shadowmere", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), onupdate=func.utc_timestamp(), nullable=False)
-
-    __table_args__ = (
-        Index("ix_shadowmere_proxies_proxy_address", "proxy_address"),
-        Index("ix_shadowmere_proxies_is_working", "is_working"),
-        Index("ix_shadowmere_proxies_last_checked", "last_checked"),
-    )
-
-    def __repr__(self) -> str:
-        return f"<ShadowmereProxy(id={self.id}, proxy_address={self.proxy_address}, proxy_type={self.proxy_type}, is_working={self.is_working})>"
-
-
 class TunnelDomain(Base):
     """
     Gestiona dominios para túneles VPN.
