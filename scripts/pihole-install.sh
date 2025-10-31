@@ -558,6 +558,235 @@ function reinstallPihole() {
   installPiholeFull
 }
 
+# --- Función de Status ---
+function showPiholeStatus() {
+  echo -e "\n${GREEN}==============================================${NC}"
+  echo -e "${GREEN}    PI-HOLE STATUS - uSipipo Integration     ${NC}"
+  echo -e "${GREEN}==============================================${NC}\n"
+  
+  local container_running=false
+  local web_interface_ok=false
+  local dns_service_ok=false
+  local api_accessible=false
+  
+  # Check 1: Docker Container Status
+  echo -e "${ORANGE}🔍 Checking Docker Container Status...${NC}"
+  if checkPiholeInstalled; then
+    local container_status
+    container_status=$(docker inspect "${PIHOLE_CONTAINER_NAME}" --format='{{.State.Status}}' 2>/dev/null || echo "unknown")
+    
+    if [[ "$container_status" == "running" ]]; then
+      container_running=true
+      echo -e "   ${GREEN}✅ Container Status:${NC} RUNNING"
+      
+      # Get additional container info
+      local uptime
+      uptime=$(docker inspect "${PIHOLE_CONTAINER_NAME}" --format='{{.State.StartedAt}}' 2>/dev/null || echo "unknown")
+      if [[ "$uptime" != "unknown" ]]; then
+        # Convert to human readable uptime
+        local start_time
+        start_time=$(date -d "$uptime" '+%s' 2>/dev/null || echo "0")
+        local current_time
+        current_time=$(date '+%s')
+        local diff_seconds
+        diff_seconds=$((current_time - start_time))
+        local uptime_hours
+        uptime_hours=$((diff_seconds / 3600))
+        echo -e "   ${GREEN}⏰ Uptime:${NC} ${uptime_hours}h"
+      fi
+      
+      # Get container ports
+      local ports
+      ports=$(docker port "${PIHOLE_CONTAINER_NAME}" 2>/dev/null || echo "none")
+      if [[ "$ports" != "none" ]]; then
+        echo -e "   ${GREEN}🔌 Ports:${NC}"
+        while IFS= read -r port_line; do
+          echo -e "      ${GREEN}${port_line}${NC}"
+        done <<< "$ports"
+      fi
+      
+      # Get resource usage
+      local cpu_usage
+      cpu_usage=$(docker stats "${PIHOLE_CONTAINER_NAME}" --no-stream --format "{{.CPUPerc}}" 2>/dev/null || echo "N/A")
+      local mem_usage
+      mem_usage=$(docker stats "${PIHOLE_CONTAINER_NAME}" --no-stream --format "{{.MemUsage}}" 2>/dev/null || echo "N/A")
+      echo -e "   ${GREEN}📊 CPU Usage:${NC} ${cpu_usage}"
+      echo -e "   ${GREEN}💾 Memory Usage:${NC} ${mem_usage}"
+      
+    else
+      echo -e "   ${RED}❌ Container Status:${NC} $container_status"
+    fi
+  else
+    echo -e "   ${RED}❌ Container Status:${NC} NOT INSTALLED"
+  fi
+  
+  echo
+  
+  # Check 2: Web Interface Status
+  if $container_running; then
+    echo -e "${ORANGE}🌐 Checking Web Interface Status...${NC}"
+    
+    # Try to get the actual port from container
+    local web_port
+    web_port=$(docker port "${PIHOLE_CONTAINER_NAME}" 80/tcp 2>/dev/null | cut -d':' -f2 || echo "")
+    if [[ -z "$web_port" ]]; then
+      web_port="8080"  # fallback
+    fi
+    
+    # Check web interface accessibility
+    local web_response
+    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:${web_port}/admin/" >/tmp/pihole_web_status 2>/dev/null; then
+      local http_code
+      http_code=$(cat /tmp/pihole_web_status)
+      if [[ "$http_code" == "200" ]]; then
+        web_interface_ok=true
+        echo -e "   ${GREEN}✅ Web Interface:${NC} ACCESSIBLE (HTTP $http_code)"
+        echo -e "   ${GREEN}🔗 URL:${NC} http://${PIHOLE_HOST}:${web_port}/admin/"
+      else
+        echo -e "   ${ORANGE}⚠️  Web Interface:${NC} HTTP $http_code"
+      fi
+    else
+      echo -e "   ${RED}❌ Web Interface:${NC} NOT ACCESSIBLE"
+    fi
+    rm -f /tmp/pihole_web_status
+    
+    # Check DNS Service
+    echo -e "\n${ORANGE}🔍 Checking DNS Service Status...${NC}"
+    
+    local dns_port
+    dns_port=$(docker port "${PIHOLE_CONTAINER_NAME}" 53/tcp 2>/dev/null | cut -d':' -f2 || echo "53")
+    
+    # Check if DNS port is listening
+    if command -v ss >/dev/null 2>&1; then
+      if ss -tln | grep -q ":${dns_port} "; then
+        dns_service_ok=true
+        echo -e "   ${GREEN}✅ DNS Service:${NC} LISTENING on port ${dns_port}"
+      else
+        echo -e "   ${RED}❌ DNS Service:${NC} NOT LISTENING on port ${dns_port}"
+      fi
+    elif command -v netstat >/dev/null 2>&1; then
+      if netstat -tln | grep -q ":${dns_port} "; then
+        dns_service_ok=true
+        echo -e "   ${GREEN}✅ DNS Service:${NC} LISTENING on port ${dns_port}"
+      else
+        echo -e "   ${RED}❌ DNS Service:${NC} NOT LISTENING on port ${dns_port}"
+      fi
+    else
+      echo -e "   ${ORANGE}⚠️  DNS Service:${NC} Cannot verify (no ss/netstat available)"
+    fi
+    
+    # Check Pi-hole API
+    echo -e "\n${ORANGE}🔌 Checking Pi-hole API Status...${NC}"
+    
+    local api_response
+    if curl -s "http://localhost:${web_port}/admin/api.php" >/dev/null 2>&1; then
+      api_accessible=true
+      echo -e "   ${GREEN}✅ Pi-hole API:${NC} ACCESSIBLE"
+      
+      # Get some API statistics if available
+      local api_stats
+      api_stats=$(curl -s "http://localhost:${web_port}/admin/api.php?summary" 2>/dev/null || echo "")
+      if [[ -n "$api_stats" ]]; then
+        echo -e "   ${GREEN}📊 API Data Available:${NC} Yes"
+        # Extract some basic stats (non-sensitive)
+        local domains_blocked
+        domains_blocked=$(echo "$api_stats" | grep -o '"domains_being_blocked":[0-9]*' | cut -d':' -f2 || echo "N/A")
+        if [[ "$domains_blocked" != "N/A" ]]; then
+          echo -e "   ${GREEN}🚫 Domains Blocked:${NC} $domains_blocked"
+        fi
+      fi
+    else
+      echo -e "   ${RED}❌ Pi-hole API:${NC} NOT ACCESSIBLE"
+    fi
+  fi
+  
+  echo
+  
+  # Check 3: Network Configuration
+  echo -e "${ORANGE}🌐 Checking Network Configuration...${NC}"
+  
+  # Check Pi-hole network
+  if docker network ls --format '{{.Name}}' | grep -q "^${PIHOLE_NETWORK_NAME}$"; then
+    echo -e "   ${GREEN}✅ Docker Network:${NC} ${PIHOLE_NETWORK_NAME} (EXISTS)"
+  else
+    echo -e "   ${RED}❌ Docker Network:${NC} ${PIHOLE_NETWORK_NAME} (MISSING)"
+  fi
+  
+  # Check volumes
+  if docker volume ls --format '{{.Name}}' | grep -q "^${PIHOLE_VOLUME_NAME}$"; then
+    echo -e "   ${GREEN}✅ Data Volume:${NC} ${PIHOLE_VOLUME_NAME} (EXISTS)"
+  else
+    echo -e "   ${RED}❌ Data Volume:${NC} ${PIHOLE_VOLUME_NAME} (MISSING)"
+  fi
+  
+  if docker volume ls --format '{{.Name}}' | grep -q "^${PIHOLE_DNSMASQ_VOLUME_NAME}$"; then
+    echo -e "   ${GREEN}✅ DNSMASQ Volume:${NC} ${PIHOLE_DNSMASQ_VOLUME_NAME} (EXISTS)"
+  else
+    echo -e "   ${RED}❌ DNSMASQ Volume:${NC} ${PIHOLE_DNSMASQ_VOLUME_NAME} (MISSING)"
+  fi
+  
+  echo
+  
+  # Check 4: Configuration Files
+  echo -e "${ORANGE}📁 Checking Configuration Files...${NC}"
+  
+  if [[ -f ".env.pihole.generated" ]]; then
+    echo -e "   ${GREEN}✅ Generated Config:${NC} .env.pihole.generated (EXISTS)"
+  else
+    echo -e "   ${ORANGE}⚠️  Generated Config:${NC} .env.pihole.generated (NOT FOUND)"
+  fi
+  
+  # Check for custom .env variables
+  if grep -q "PIHOLE" .env 2>/dev/null; then
+    echo -e "   ${GREEN}✅ Environment Variables:${NC} PIHOLE config found in .env"
+  else
+    echo -e "   ${ORANGE}⚠️  Environment Variables:${NC} No PIHOLE config in .env"
+  fi
+  
+  echo
+  
+  # Overall Status Summary
+  echo -e "${GREEN}==============================================${NC}"
+  echo -e "${GREEN}           STATUS SUMMARY                     ${NC}"
+  echo -e "${GREEN}==============================================${NC}"
+  
+  if $container_running && $web_interface_ok && $dns_service_ok && $api_accessible; then
+    echo -e "${GREEN}🎉 OVERALL STATUS: HEALTHY & OPERATIONAL${NC}"
+    echo -e "${GREEN}✅ All systems are running correctly${NC}"
+  elif $container_running; then
+    echo -e "${ORANGE}⚠️  OVERALL STATUS: PARTIALLY OPERATIONAL${NC}"
+    echo -e "${ORANGE}Container is running but some services need attention${NC}"
+  else
+    echo -e "${RED}❌ OVERALL STATUS: NOT OPERATIONAL${NC}"
+    echo -e "${RED}Pi-hole is not running properly${NC}"
+  fi
+  
+  echo -e "\n${GREEN}📝 Additional Information:${NC}"
+  echo -e "   🐳 Docker Image: ${PIHOLE_IMAGE}"
+  echo -e "   🏠 Host: ${PIHOLE_HOST}"
+  echo -e "   🔌 Web Port: ${web_port:-N/A}"
+  echo -e "   🌐 DNS Port: ${dns_port:-N/A}"
+  echo -e "   🕐 Check Time: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+  
+  # Performance tips
+  if $container_running; then
+    echo -e "\n${ORANGE}💡 Performance Tips:${NC}"
+    local mem_usage_num
+    mem_usage_num=$(echo "$mem_usage" | grep -o '[0-9.]*' | head -1 || echo "0")
+    if [[ $(echo "$mem_usage_num > 100" | bc -l 2>/dev/null || echo "0") == "1" ]]; then
+      echo -e "   ${ORANGE}⚠️  Memory usage seems high (>100MB)${NC}"
+    fi
+    
+    local cpu_usage_num
+    cpu_usage_num=$(echo "$cpu_usage" | sed 's/%//' 2>/dev/null || echo "0")
+    if [[ $cpu_usage_num -gt 80 ]]; then
+      echo -e "   ${ORANGE}⚠️  CPU usage is high (>80%)${NC}"
+    fi
+  fi
+  
+  echo
+}
+
 # --- Función de Ayuda ---
 function display_usage() {
   cat <<EOF
@@ -566,6 +795,7 @@ Usage: $0 [options]
 Pi-hole Docker Installer for uSipipo - Fully integrated DNS server setup
 
 Options:
+   --status       Show detailed Pi-hole status and health check
    --install      Install Pi-hole (default action if no Pi-hole is installed)
    --uninstall    Completely remove Pi-hole Docker installation and all data
    --reinstall    Remove existing Pi-hole installation and reinstall
@@ -615,6 +845,10 @@ function main() {
   ACTION="auto"  # auto: install if not installed, error if installed
   while [[ $# -gt 0 ]]; do
     case $1 in
+      --status)
+        ACTION="status"
+        shift
+        ;;
       --install)
         ACTION="install"
         shift
@@ -642,6 +876,9 @@ function main() {
   initialCheck
 
   case "${ACTION}" in
+    "status")
+      showPiholeStatus
+      ;;
     "install")
       if checkPiholeInstalled; then
         log_error "Pi-hole is already installed. Use --reinstall to reinstall or --uninstall to remove."
