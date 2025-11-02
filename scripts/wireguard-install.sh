@@ -139,12 +139,6 @@ function getHomeDirForClient() {
 	echo "$HOME_DIR"
 }
 
-function initialCheck() {
-	isRoot
-	checkOS
-	checkVirt
-}
-
 # --- Función de Creación de Directorios ---
 function create_config_dirs() {
 	mkdir -p "VPNs_Configs/wireguard/"
@@ -347,8 +341,8 @@ PostDown = ip6tables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE" >
 	# Enable routing on the server
 	echo "net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
-
-	if [[ ${OS} == 'alpine' ]]; then
+	
+	if [[ ${OS} == 'alpine' ]]; then:
 		sysctl -p /etc/sysctl.d/wg.conf
 		rc-update add sysctl
 		ln -s /etc/init.d/wg-quick "/etc/init.d/wg-quick.${SERVER_WG_NIC}"
@@ -939,4 +933,3 @@ if [[ -e ${WG_CONFIG_DIR}/params ]]; then
 	manageMenu
 else
 	installWireGuard
-fi

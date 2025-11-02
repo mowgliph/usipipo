@@ -29,11 +29,6 @@ OUTLINE_CONTAINER_NAME="outline"                     # Nombre del contenedor Doc
 OUTLINE_IMAGE_DEFAULT="quay.io/outline/shadowbox:stable"  # Imagen Docker por defecto
 HOME_DIR="${HOME_DIR:-$HOME_DIR_DEFAULT}"            # Directorio para configuraciones de cliente
 
-# Rangos de IPs para gestión de usuarios (informativo para Outline)
-TRIAL_IP_START=2  # Primera IP usable para usuarios trial
-TRIAL_IP_END=26   # Última IP para trial (25 IPs disponibles)
-PAID_IP_START=27  # Primera IP para usuarios pagos
-PAID_IP_END=254   # Última IP usable (límite común de subred /24)
 
 # --- Colores para salida de terminal ---
 GREEN='\033[0;32m'   # Verde para mensajes de éxito
@@ -476,32 +471,6 @@ function wait_outline() {
   echo "Outline API is now responding"
 }
 
-# function create_first_user() {
-#   echo "Starting create_first_user() function"
-#   local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
-#   echo "Creating first access key via POST to: ${LOCAL_API_URL}/access-keys"
-
-#   # Capturar la respuesta JSON de la API
-#   local response
-#   response=$(curl --silent --insecure --request POST "${LOCAL_API_URL}/access-keys" 2>/dev/null)
-
-#   # Verificar si curl tuvo éxito y la respuesta contiene JSON válido
-#   if [[ $? -eq 0 ]] && [[ -n "$response" ]] && echo "$response" | jq . >/dev/null 2>&1; then
-#     # Verificar si la respuesta contiene los campos esperados de una clave de acceso exitosa
-#     if echo "$response" | jq -e '.id and .accessUrl' >/dev/null 2>&1; then
-#       echo "First access key created successfully"
-#       echo "Response: $response"
-#       return 0
-#     else
-#       echo "API returned success but invalid response format: $response"
-#       return 1
-#     fi
-#   else
-#     echo "Failed to create first access key. Response: $response"
-#     return 1
-#     fi
-# }
-
 # --- Función de Creación de Directorios ---
 function create_config_dirs() {
   mkdir -p "${HOME_DIR}"
@@ -627,9 +596,6 @@ function generate_env_files() {
      echo "Starting generate_env_files() function"
      # Archivo de configuración principal de Outline
      ENV_FILE_OUTLINE=".env.outline.generated"
-     # Archivo de IPs para la base de datos
-     ENV_FILE_IPS=".env.ips.generated"
-
      echo "Creating ${ENV_FILE_OUTLINE}"
      echo "# --- uSipipo Outline Server Configuration ---" > "${ENV_FILE_OUTLINE}"
      OUTLINE_API_URL="https://${OUTLINE_HOSTNAME}:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
@@ -653,29 +619,13 @@ function generate_env_files() {
      echo "# DNS: Using default DNS configuration" >> "${ENV_FILE_OUTLINE}"
      echo "" >> "${ENV_FILE_OUTLINE}"
 
-     echo "# --- uSipipo IP Management for Outline (Placeholder) ---" > "${ENV_FILE_IPS}"
-     # En Outline, las IPs no se gestionan directamente como en WireGuard.
-     # La configuración de cada clave de acceso no incluye una IP fija asignada por el script.
-     # Sin embargo, podemos definir rangos para el sistema uSipipo si se usan clientes personalizados o firewalls.
-     # Para este script, generamos solo una variable base.
-     echo "# Este servidor Outline no asigna IPs fijas por clave de acceso como WireGuard." >> "${ENV_FILE_IPS}"
-     echo "# Las IPs de los clientes se gestionan dinámicamente por el túnel VPN." >> "${ENV_FILE_IPS}"
-     echo "# Para fines de uSipipo, puedes definir rangos de IPs internas o reglas de firewall aquí." >> "${ENV_FILE_IPS}"
-     echo "# OUTLINE_INTERNAL_SUBNET=\"10.0.86.0/24\" # Ejemplo de subnet interna (no asignada por este script)" >> "${ENV_FILE_IPS}"
-     echo "" >> "${ENV_FILE_IPS}"
-     echo "# IP Type Definitions for uSipipo DB (Copy to your Python code for Outline)" >> "${ENV_FILE_IPS}"
-     echo "# outline_trial_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
-     echo "# outline_paid_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
 
      echo -e "\n${GREEN}--- VARIABLES OUTLINE PARA TU .env DE USIPIPO ---${NC}"
      echo -e "${ORANGE}Archivo de configuración generado:${NC} ${ENV_FILE_OUTLINE}"
-     echo -e "${ORANGE}Archivo de IPs generadas (informativo):${NC} ${ENV_FILE_IPS}"
      echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} ${HOME_DIR}"
      echo -e "${GREEN}----------------------------------------------------------${NC}"
      echo -e "\n${GREEN}Contenido de ${ENV_FILE_OUTLINE}:${NC}"
      cat "${ENV_FILE_OUTLINE}"
-     echo -e "\n${GREEN}Contenido de ${ENV_FILE_IPS}:${NC}"
-     cat "${ENV_FILE_IPS}"
      echo -e "\n${GREEN}----------------------------------------------------------${NC}"
      echo -e "${GREEN}¡Copia estas variables a tu archivo .env de uSipipo!${NC}"
      echo -e "${ORANGE}IMPORTANTE: Guarda las rutas de certificados de forma segura.${NC}"

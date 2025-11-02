@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from database import models
 from services import wireguard as wireguard_service, outline as outline_service
-from database.crud import logs as crud_logs, vpn as crud_vpn, tunnel_domains as crud_tunnel_domains
+from database.crud import logs as crud_logs, vpn as crud_vpn
 from utils.helpers import log_error_and_notify
 
 logger = logging.getLogger(__name__)

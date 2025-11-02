@@ -167,33 +167,11 @@ async def create_peer(
     # Usar WG_DNS del entorno o 1.1.1.1 como valor por defecto
     dns = dns or os.getenv("WG_DNS", "1.1.1.1")
 
-    # 1.5. Procesar dominios para bypass (dual tunnel)
+    # Set bypass_domains to empty or handle differently
+    actual_bypass_domains = bypass_domains or []
     allowed_ips = "0.0.0.0/0, ::/0"  # Default full tunnel
     bypass_ips = []
-    if bypass_domains:
-        try:
-            import socket
-            for domain in bypass_domains:
-                try:
-                    # Resolver dominio a IPs (IPv4 e IPv6)
-                    ipv4 = socket.getaddrinfo(domain, None, socket.AF_INET)
-                    ipv6 = socket.getaddrinfo(domain, None, socket.AF_INET6)
-                    for addr_info in ipv4 + ipv6:
-                        ip = addr_info[4][0]
-                        if ':' in ip:  # IPv6
-                            bypass_ips.append(f"{ip}/128")
-                        else:  # IPv4
-                            bypass_ips.append(f"{ip}/32")
-                except socket.gaierror as e:
-                    logger.warning("Could not resolve domain %s: %s", domain, e)
-                    continue
-            if bypass_ips:
-                # Excluir IPs de bypass del túnel completo
-                allowed_ips = f"0.0.0.0/0, ::/0, {', '.join('!' + ip for ip in bypass_ips)}"
-        except Exception as e:
-            logger.exception("Error processing bypass domains", extra={"user_id": user_id})
-            # Continuar con full tunnel si hay error
-    
+
     config_data = (
         f"[Interface]\n"
         f"PrivateKey = {private_key}\n"
@@ -219,7 +197,7 @@ async def create_peer(
         "address": address,
         "dns": dns,
         "conf_path": conf_path,
-        "bypass_domains": bypass_domains or [],
+        "bypass_domains": actual_bypass_domains,
         "bypass_ips": bypass_ips,
         "allowed_ips": allowed_ips,
     }
@@ -305,3 +283,56 @@ async def generate_qr(config_data: str) -> bytes:
     input_bytes = config_data.encode("utf-8") if isinstance(config_data, str) else config_data
     out = await _run_cmd_capture(["qrencode", "-t", "PNG", "-o", "-"], input_data=input_bytes)
     return out
+
+
+async def cleanup_expired_configs(session: AsyncSession, commit: bool = False) -> int:
+    """
+    Limpia configuraciones WireGuard vencidas: marca como 'expired' y remueve del servidor.
+    Retorna el número de configuraciones limpiadas.
+    """
+    try:
+        expired_configs = await crud_vpn.get_expired_wireguard_configs(session)
+        cleaned_count = 0
+
+        for config in expired_configs:
+            try:
+                # Remover del servidor WireGuard
+                public_key = (config.extra_data or {}).get("public_key")
+                if public_key:
+                    await _wg_remove_peer(public_key)
+
+                # Marcar como expired en DB
+                await crud_vpn.update_vpn_status(session, config.id, "expired", commit=False)
+
+                # Eliminar archivo de configuración si existe
+                conf_path = (config.extra_data or {}).get("conf_path")
+                if conf_path and os.path.exists(conf_path):
+                    try:
+                        os.remove(conf_path)
+                        logger.info("Removed expired config file", extra={"vpn_id": config.id, "path": conf_path})
+                    except Exception as e:
+                        logger.warning("Could not remove config file", extra={"vpn_id": config.id, "path": conf_path, "error": str(e)})
+
+                cleaned_count += 1
+                logger.info("Cleaned expired WireGuard config", extra={"vpn_id": config.id, "user_id": config.user_id})
+
+            except Exception as e:
+                logger.exception("Error cleaning expired config", extra={"vpn_id": config.id, "user_id": config.user_id})
+                # Continue with next config instead of failing the whole operation
+
+        if commit and cleaned_count > 0:
+            try:
+                await session.commit()
+                logger.info("Committed cleanup of expired WireGuard configs", extra={"cleaned_count": cleaned_count})
+            except Exception as e:
+                await session.rollback()
+                logger.exception("Error committing cleanup", extra={"cleaned_count": cleaned_count})
+                raise
+
+        return cleaned_count
+
+    except Exception as e:
+        logger.exception("Error in cleanup_expired_configs")
+        raise
+
+

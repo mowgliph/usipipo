@@ -33,7 +33,7 @@ VPN_STATUSES = ("active", "revoked", "expired", "pending")
 PAYMENT_STATUSES = ("pending", "completed", "failed", "refunded")
 IP_TYPES = ("wireguard_trial", "outline_trial", "wireguard_paid", "outline_paid") # Añadido para IPManager
 PROXY_STATUSES = ("active", "revoked", "expired")
-TUNNEL_DOMAIN_STATUSES = ("active", "inactive", "expired")
+DUAL_TUNNEL_STATUSES = ("active", "inactive", "default")
 
 
 class User(Base):
@@ -62,7 +62,7 @@ class User(Base):
     logs: Mapped[List["AuditLog"]] = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     assigned_ips: Mapped[List["IPManager"]] = relationship("IPManager", back_populates="user", cascade="all, delete-orphan", foreign_keys="[IPManager.assigned_to_user_id]") # Relación con IPManager
     mtproto_proxies: Mapped[List["MTProtoProxy"]] = relationship("MTProtoProxy", back_populates="user", cascade="all, delete-orphan")
-    tunnel_domains: Mapped[List["TunnelDomain"]] = relationship("TunnelDomain", back_populates="user", cascade="all, delete-orphan")
+    dual_tunnel_configs: Mapped[List["DualTunnelConfig"]] = relationship("DualTunnelConfig", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_users_qvapay_user_id", "qvapay_user_id"),
@@ -111,7 +111,6 @@ class VPNConfig(Base):
     is_trial: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="vpnconfigs")
-    tunnel_domains: Mapped[List["TunnelDomain"]] = relationship("TunnelDomain", back_populates="vpn_config", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint(f"vpn_type IN {VPN_TYPES}", name="ck_vpnconfigs_vpn_type"),
@@ -223,34 +222,36 @@ class MTProtoProxy(Base):
         Index("ix_mtproto_proxies_user_status", "user_id", "status"),
     )
 
-class TunnelDomain(Base):
+class DualTunnelConfig(Base):
     """
-    Gestiona dominios para túneles VPN.
-    Permite asignar dominios personalizados a configuraciones VPN.
+    Gestiona configuraciones de dual tunnel para VPNs.
+    Permite configurar dominios específicos que no pasarán por el túnel VPN.
     """
-    __tablename__ = "tunnel_domains"
+    __tablename__ = "dual_tunnel_configs"
 
     id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=gen_uuid_str)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     vpn_config_id: Mapped[Optional[str]] = mapped_column(ForeignKey("vpn_configs.id", ondelete="CASCADE"), nullable=True, index=True)
-    domain_name: Mapped[str] = mapped_column(String(253), unique=True, nullable=False)  # Máximo para FQDN
+    tunnel_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="dual")  # dual, full, selective
+    bypass_domains: Mapped[Optional[List[str]]] = mapped_column(MYSQL_JSON, nullable=True)  # Lista de dominios para bypass
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # Si es la configuración por defecto
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
-    assigned_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), onupdate=func.utc_timestamp(), nullable=False)
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    last_verified: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    verification_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     extra_data: Mapped[Optional[Dict]] = mapped_column(MYSQL_JSON, nullable=True)
 
-    user: Mapped["User"] = relationship("User", back_populates="tunnel_domains")
-    vpn_config: Mapped[Optional["VPNConfig"]] = relationship("VPNConfig", back_populates="tunnel_domains")
+    user: Mapped["User"] = relationship("User", back_populates="dual_tunnel_configs", foreign_keys=[user_id])
+    vpn_config: Mapped[Optional["VPNConfig"]] = relationship("VPNConfig", foreign_keys=[vpn_config_id])
 
     __table_args__ = (
-        CheckConstraint(f"status IN {TUNNEL_DOMAIN_STATUSES}", name="ck_tunnel_domains_status"),
-        Index("ix_tunnel_domains_user_id", "user_id"),
-        Index("ix_tunnel_domains_status", "status"),
-        Index("ix_tunnel_domains_expires_at", "expires_at"),
-        Index("ix_tunnel_domains_is_verified", "is_verified"),
+        CheckConstraint(f"status IN {DUAL_TUNNEL_STATUSES}", name="ck_dual_tunnel_configs_status"),
+        CheckConstraint(f"tunnel_mode IN ('dual', 'full', 'selective')", name="ck_dual_tunnel_configs_tunnel_mode"),
+        Index("ix_dual_tunnel_configs_user_id", "user_id"),
+        Index("ix_dual_tunnel_configs_vpn_config_id", "vpn_config_id"),
+        Index("ix_dual_tunnel_configs_is_default", "is_default"),
+        Index("ix_dual_tunnel_configs_status", "status"),
+        UniqueConstraint("user_id", "is_default", name="uq_dual_tunnel_user_default"),
     )
 
 
@@ -264,7 +265,7 @@ __all__ = [
     "UserRole",
     "Payment",
     "MTProtoProxy",
-    "TunnelDomain",
+    "DualTunnelConfig",
 ]
 
 

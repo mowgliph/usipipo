@@ -267,6 +267,25 @@ async def get_expired_trials(session: AsyncSession) -> List[models.VPNConfig]:
         raise
 
 
+async def get_expired_wireguard_configs(session: AsyncSession) -> List[models.VPNConfig]:
+    """
+    Devuelve todas las configuraciones WireGuard vencidas y aún activas.
+    Útil para limpieza automática.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        stmt = select(models.VPNConfig).where(
+            models.VPNConfig.vpn_type == "wireguard",
+            models.VPNConfig.status == "active",
+            models.VPNConfig.expires_at < now,
+        )
+        res = await session.execute(stmt)
+        return res.scalars().all()
+    except SQLAlchemyError:
+        logger.exception("Error listando WireGuard configs vencidas", extra={"user_id": None})
+        raise
+
+
 # =========================
 # Métricas / helpers simples
 # =========================
