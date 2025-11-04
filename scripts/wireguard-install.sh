@@ -18,10 +18,6 @@ WG_PORT_DEFAULT="" # Se generará aleatoriamente
 CLIENT_DNS_1_DEFAULT="1.1.1.1"
 CLIENT_DNS_2_DEFAULT="1.0.0.1"
 ALLOWED_IPS_DEFAULT="0.0.0.0/0,::/0"
-TRIAL_IP_START=2  # Primera IP usable
-TRIAL_IP_END=26   # Última IP para trial (25 IPs: 2 a 26)
-PAID_IP_START=27  # Primera IP para usuarios pagos
-PAID_IP_END=254   # Última IP usable (254 es el límite común)
 
 # --- Funciones de Validación ---
 function isRoot() {
@@ -342,7 +338,7 @@ PostDown = ip6tables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE" >
 	echo "net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	
-	if [[ ${OS} == 'alpine' ]]; then:
+	if [[ ${OS} == 'alpine' ]]; then
 		sysctl -p /etc/sysctl.d/wg.conf
 		rc-update add sysctl
 		ln -s /etc/init.d/wg-quick "/etc/init.d/wg-quick.${SERVER_WG_NIC}"
@@ -355,10 +351,9 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 		systemctl enable "wg-quick@${SERVER_WG_NIC}"
 	fi
 
-	# --- Generación de IPs para la base de datos ---
-	# Crear un archivo con las IPs disponibles para el sistema uSipipo
+	# --- Generación de configuración para uSipipo ---
+	# Crear un archivo con la configuración WireGuard para el sistema uSipipo
 	ENV_FILE_WG=".env.wireguard.generated"
-	ENV_FILE_IPS=".env.ips.generated"
 
 	echo "# --- uSipipo WireGuard Server Configuration ---" > "${ENV_FILE_WG}"
 	echo "WG_INTERFACE=\"${SERVER_WG_NIC}\"" >> "${ENV_FILE_WG}"
@@ -379,19 +374,6 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	fi
 	echo "" >> "${ENV_FILE_WG}"
 
-	echo "# --- uSipipo IP Management for WireGuard ---" > "${ENV_FILE_IPS}"
-	for i in $(seq ${TRIAL_IP_START} ${TRIAL_IP_END}); do
-		ip_addr="${WG_SUBNET_BASE}.${i}"
-		echo "WG_TRIAL_IP_${i}=\"${ip_addr}\" # Trial IP ${i}" >> "${ENV_FILE_IPS}"
-	done
-	for i in $(seq ${PAID_IP_START} ${PAID_IP_END}); do
-		ip_addr="${WG_SUBNET_BASE}.${i}"
-		echo "WG_PAID_IP_${i}=\"${ip_addr}\" # Paid IP ${i}" >> "${ENV_FILE_IPS}"
-	done
-	echo "" >> "${ENV_FILE_IPS}"
-	echo "# IP Type Definitions for uSipipo DB (Copy to your Python code)" >> "${ENV_FILE_IPS}"
-	echo "# wg_trial_ips = [\"${WG_SUBNET_BASE}.${TRIAL_IP_START}\" .. \"${WG_SUBNET_BASE}.${TRIAL_IP_END}\"]" >> "${ENV_FILE_IPS}"
-	echo "# wg_paid_ips = [\"${WG_SUBNET_BASE}.${PAID_IP_START}\" .. \"${WG_SUBNET_BASE}.${PAID_IP_END}\"]" >> "${ENV_FILE_IPS}"
 
 	newClient
 	echo -e "${GREEN}If you want to add more clients, you simply need to run this script another time!${NC}"
@@ -427,17 +409,14 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	fi
 
 	# ==============================================
-	# Mostrar variables WireGuard y IPs para uSipipo
+	# Mostrar variables WireGuard para uSipipo
 	# ==============================================
 	echo -e "\n${GREEN}--- VARIABLES WIREGUARD PARA TU .env DE USIPIPO ---${NC}"
 	echo -e "${ORANGE}Archivo de configuración principal:${NC} ${ENV_FILE_WG}"
-	echo -e "${ORANGE}Archivo de IPs generadas:${NC} ${ENV_FILE_IPS}"
 	echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} VPNs_Configs/wireguard/"
 	echo -e "${GREEN}----------------------------------------------------------${NC}"
 	echo -e "\n${GREEN}Contenido de ${ENV_FILE_WG}:${NC}"
 	cat "${ENV_FILE_WG}"
-	echo -e "\n${GREEN}Contenido de ${ENV_FILE_IPS}:${NC}"
-	cat "${ENV_FILE_IPS}"
 	echo -e "\n${GREEN}----------------------------------------------------------${NC}"
 	echo -e "¡Copia estas variables a tu archivo .env de uSipipo!
 	"
@@ -471,10 +450,10 @@ function newClient() {
 		fi
 	done
 
-	# --- Lógica de Asignación de IP Mejorada ---
-	# Buscar la primera IP disponible en el rango de pagos (PAID_IP_START a PAID_IP_END)
+	# --- Asignación de IP para el cliente ---
+	# Buscar la primera IP disponible en la subred
 	CLIENT_WG_IPV4=""
-	for DOT_IP in $(seq ${PAID_IP_START} ${PAID_IP_END}); do
+	for DOT_IP in $(seq 2 254); do
 		IP_CHECK="${WG_SUBNET_BASE}.${DOT_IP}"
 		IP_EXISTS=$(grep -c "${IP_CHECK}/32" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf")
 		if [[ ${IP_EXISTS} == '0' ]]; then
@@ -484,7 +463,7 @@ function newClient() {
 	done
 
 	if [[ -z "${CLIENT_WG_IPV4}" ]]; then
-		echo -e "${RED}No hay IPs disponibles en el rango de pago.${NC}"
+		echo -e "${RED}No hay IPs disponibles en la subred.${NC}"
 		exit 1
 	fi
 
@@ -759,12 +738,6 @@ function show_wg_status() {
 		echo "  Generar con: ./wireguard-install.sh (reinstalación)"
 	fi
 	
-	if [[ -f ".env.ips.generated" ]]; then
-		echo -e "${GREEN}✓ Archivo .env.ips.generated encontrado${NC}"
-		echo "  Este archivo contiene las IPs asignadas para trial y pagos"
-	else
-		echo -e "${ORANGE}• Archivo .env.ips.generated no encontrado${NC}"
-	fi
 	echo ""
 	
 	# 6. Verificar configuración de firewall
@@ -933,3 +906,4 @@ if [[ -e ${WG_CONFIG_DIR}/params ]]; then
 	manageMenu
 else
 	installWireGuard
+fi

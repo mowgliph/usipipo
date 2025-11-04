@@ -90,7 +90,6 @@ async def create_access(
     session: AsyncSession,
     user_id: str,
     duration_months: int = DEFAULT_DURATION_MONTHS,
-    bypass_domains: Optional[List[str]] = None,
     commit: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -108,13 +107,9 @@ async def create_access(
     config_name = f"outline_{user_id}_{int(datetime.utcnow().timestamp())}"
 
     extra = dict(api_resp)  # store full response for auditing: id, method, password, port, etc.
-    
-    # Set bypass_domains to empty or handle differently
-    actual_bypass_domains = bypass_domains or []
 
     # Almacenar información de dual tunnel en la configuración
     extra.update({
-        "bypass_domains": actual_bypass_domains,
         "creation_time": datetime.utcnow().isoformat(),
     })
 
