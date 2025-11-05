@@ -18,10 +18,6 @@ WG_PORT_DEFAULT="" # Se generará aleatoriamente
 CLIENT_DNS_1_DEFAULT="1.1.1.1"
 CLIENT_DNS_2_DEFAULT="1.0.0.1"
 ALLOWED_IPS_DEFAULT="0.0.0.0/0,::/0"
-TRIAL_IP_START=2  # Primera IP usable
-TRIAL_IP_END=26   # Última IP para trial (25 IPs: 2 a 26)
-PAID_IP_START=27  # Primera IP para usuarios pagos
-PAID_IP_END=254   # Última IP usable (254 es el límite común)
 
 # --- Funciones de Validación ---
 function isRoot() {
@@ -137,12 +133,6 @@ function getHomeDirForClient() {
 	HOME_DIR="VPNs_Configs/wireguard/"
 
 	echo "$HOME_DIR"
-}
-
-function initialCheck() {
-	isRoot
-	checkOS
-	checkVirt
 }
 
 # --- Función de Creación de Directorios ---
@@ -347,7 +337,7 @@ PostDown = ip6tables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE" >
 	# Enable routing on the server
 	echo "net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
-
+	
 	if [[ ${OS} == 'alpine' ]]; then
 		sysctl -p /etc/sysctl.d/wg.conf
 		rc-update add sysctl
@@ -361,10 +351,9 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 		systemctl enable "wg-quick@${SERVER_WG_NIC}"
 	fi
 
-	# --- Generación de IPs para la base de datos ---
-	# Crear un archivo con las IPs disponibles para el sistema uSipipo
+	# --- Generación de configuración para uSipipo ---
+	# Crear un archivo con la configuración WireGuard para el sistema uSipipo
 	ENV_FILE_WG=".env.wireguard.generated"
-	ENV_FILE_IPS=".env.ips.generated"
 
 	echo "# --- uSipipo WireGuard Server Configuration ---" > "${ENV_FILE_WG}"
 	echo "WG_INTERFACE=\"${SERVER_WG_NIC}\"" >> "${ENV_FILE_WG}"
@@ -385,19 +374,6 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	fi
 	echo "" >> "${ENV_FILE_WG}"
 
-	echo "# --- uSipipo IP Management for WireGuard ---" > "${ENV_FILE_IPS}"
-	for i in $(seq ${TRIAL_IP_START} ${TRIAL_IP_END}); do
-		ip_addr="${WG_SUBNET_BASE}.${i}"
-		echo "WG_TRIAL_IP_${i}=\"${ip_addr}\" # Trial IP ${i}" >> "${ENV_FILE_IPS}"
-	done
-	for i in $(seq ${PAID_IP_START} ${PAID_IP_END}); do
-		ip_addr="${WG_SUBNET_BASE}.${i}"
-		echo "WG_PAID_IP_${i}=\"${ip_addr}\" # Paid IP ${i}" >> "${ENV_FILE_IPS}"
-	done
-	echo "" >> "${ENV_FILE_IPS}"
-	echo "# IP Type Definitions for uSipipo DB (Copy to your Python code)" >> "${ENV_FILE_IPS}"
-	echo "# wg_trial_ips = [\"${WG_SUBNET_BASE}.${TRIAL_IP_START}\" .. \"${WG_SUBNET_BASE}.${TRIAL_IP_END}\"]" >> "${ENV_FILE_IPS}"
-	echo "# wg_paid_ips = [\"${WG_SUBNET_BASE}.${PAID_IP_START}\" .. \"${WG_SUBNET_BASE}.${PAID_IP_END}\"]" >> "${ENV_FILE_IPS}"
 
 	newClient
 	echo -e "${GREEN}If you want to add more clients, you simply need to run this script another time!${NC}"
@@ -433,17 +409,14 @@ net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/wg.conf
 	fi
 
 	# ==============================================
-	# Mostrar variables WireGuard y IPs para uSipipo
+	# Mostrar variables WireGuard para uSipipo
 	# ==============================================
 	echo -e "\n${GREEN}--- VARIABLES WIREGUARD PARA TU .env DE USIPIPO ---${NC}"
 	echo -e "${ORANGE}Archivo de configuración principal:${NC} ${ENV_FILE_WG}"
-	echo -e "${ORANGE}Archivo de IPs generadas:${NC} ${ENV_FILE_IPS}"
 	echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} VPNs_Configs/wireguard/"
 	echo -e "${GREEN}----------------------------------------------------------${NC}"
 	echo -e "\n${GREEN}Contenido de ${ENV_FILE_WG}:${NC}"
 	cat "${ENV_FILE_WG}"
-	echo -e "\n${GREEN}Contenido de ${ENV_FILE_IPS}:${NC}"
-	cat "${ENV_FILE_IPS}"
 	echo -e "\n${GREEN}----------------------------------------------------------${NC}"
 	echo -e "¡Copia estas variables a tu archivo .env de uSipipo!
 	"
@@ -477,10 +450,10 @@ function newClient() {
 		fi
 	done
 
-	# --- Lógica de Asignación de IP Mejorada ---
-	# Buscar la primera IP disponible en el rango de pagos (PAID_IP_START a PAID_IP_END)
+	# --- Asignación de IP para el cliente ---
+	# Buscar la primera IP disponible en la subred
 	CLIENT_WG_IPV4=""
-	for DOT_IP in $(seq ${PAID_IP_START} ${PAID_IP_END}); do
+	for DOT_IP in $(seq 2 254); do
 		IP_CHECK="${WG_SUBNET_BASE}.${DOT_IP}"
 		IP_EXISTS=$(grep -c "${IP_CHECK}/32" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf")
 		if [[ ${IP_EXISTS} == '0' ]]; then
@@ -490,7 +463,7 @@ function newClient() {
 	done
 
 	if [[ -z "${CLIENT_WG_IPV4}" ]]; then
-		echo -e "${RED}No hay IPs disponibles en el rango de pago.${NC}"
+		echo -e "${RED}No hay IPs disponibles en la subred.${NC}"
 		exit 1
 	fi
 
@@ -669,6 +642,194 @@ function uninstallWg() {
 	fi
 }
 
+function show_wg_status() {
+	echo -e "\n${GREEN}=== WIREGUARD SERVER STATUS ===${NC}"
+	echo "Fecha y hora: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+	echo ""
+	
+	# 1. Verificar estado del servicio WireGuard
+	echo -e "${ORANGE}1. SERVICIO WIREGUARD${NC}"
+	if [[ -f "${WG_CONFIG_DIR}/params" ]]; then
+		source "${WG_CONFIG_DIR}/params"
+		echo -e "${GREEN}✓ Archivos de configuración encontrados${NC}"
+		echo "  Directorio: ${WG_CONFIG_DIR}"
+		echo "  Interfaz: ${SERVER_WG_NIC:-'No configurada'}"
+		echo "  Puerto: ${SERVER_PORT:-'No configurado'}"
+		echo "  Subnet IPv4: ${SERVER_WG_IPV4:-'No configurada'}"
+		echo "  Subnet IPv6: ${SERVER_WG_IPV6:-'No configurada'}"
+		echo "  DNS: ${CLIENT_DNS_1:-'No configurado'}, ${CLIENT_DNS_2:-'No configurado'}"
+		echo "  Allowed IPs: ${ALLOWED_IPS:-'No configurado'}"
+	else
+		echo -e "${RED}✗ Archivos de configuración de WireGuard no encontrados${NC}"
+		echo "  WireGuard no está instalado correctamente"
+		return 1
+	fi
+	echo ""
+	
+	# 2. Verificar estado del servicio systemd
+	echo -e "${ORANGE}2. ESTADO DEL SERVICIO${NC}"
+	if [[ ${OS} == 'alpine' ]]; then
+		if rc-service --quiet "wg-quick.${SERVER_WG_NIC}" status; then
+			echo -e "${GREEN}✓ Servicio wg-quick.${SERVER_WG_NIC} está ejecutándose${NC}"
+		else
+			echo -e "${RED}✗ Servicio wg-quick.${SERVER_WG_NIC} no está ejecutándose${NC}"
+		fi
+	else
+		if systemctl is-active --quiet "wg-quick@${SERVER_WG_NIC}"; then
+			echo -e "${GREEN}✓ Servicio systemd 'wg-quick@${SERVER_WG_NIC}' está ejecutándose${NC}"
+			systemctl status "wg-quick@${SERVER_WG_NIC}" --no-pager | head -5
+		else
+			echo -e "${RED}✗ Servicio systemd 'wg-quick@${SERVER_WG_NIC}' no está ejecutándose${NC}"
+		fi
+	fi
+	echo ""
+	
+	# 3. Verificar interfaz de red
+	echo -e "${ORANGE}3. INTERFAZ DE RED${NC}"
+	if ip link show "${SERVER_WG_NIC}" >/dev/null 2>&1; then
+		echo -e "${GREEN}✓ Interfaz ${SERVER_WG_NIC} existe${NC}"
+		ip addr show "${SERVER_WG_NIC}" | grep -E "(inet|wg)" | head -4
+	else
+		echo -e "${RED}✗ Interfaz ${SERVER_WG_NIC} no encontrada${NC}"
+	fi
+	echo ""
+	
+	# 4. Verificar estadísticas de conexión
+	echo -e "${ORANGE}4. ESTADÍSTICAS DE CONEXIÓN${NC}"
+	if command_exists wg && [[ -n "${SERVER_WG_NIC}" ]]; then
+		echo "Estado de peers conectados:"
+		wg show "${SERVER_WG_NIC}" 2>/dev/null | grep -E "(peer|endpoint|allowed ips|last handshake)" || echo "  No hay peers conectados"
+		
+		# Conteo de clientes configurados
+		if [[ -f "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf" ]]; then
+			client_count=$(grep -c "^### Client" "${WG_CONFIG_DIR}/${SERVER_WG_NIC}.conf" 2>/dev/null || echo "0")
+			echo "  Total de clientes configurados: ${client_count}"
+		fi
+	else
+		echo "Herramienta 'wg' no disponible o interfaz no configurada"
+	fi
+	echo ""
+	
+	# 5. Verificar archivos de configuración generados
+	echo -e "${ORANGE}5. ARCHIVOS GENERADOS${NC}"
+	if [[ -f ".env.wireguard.generated" ]]; then
+		echo -e "${GREEN}✓ Archivo .env.wireguard.generated encontrado${NC}"
+		source .env.wireguard.generated 2>/dev/null || true
+		
+		if [[ -n "${WG_SERVER_PUB_KEY:-}" ]]; then
+			echo -e "${GREEN}  ✓ Clave pública del servidor: ${WG_SERVER_PUB_KEY:0:16}...${NC}"
+		else
+			echo -e "${ORANGE}  • Clave pública del servidor: No disponible${NC}"
+		fi
+		
+		if [[ -n "${WG_PORT:-}" ]]; then
+			echo -e "${GREEN}  ✓ Puerto del servidor: ${WG_PORT}${NC}"
+		else
+			echo -e "${ORANGE}  • Puerto del servidor: No disponible${NC}"
+		fi
+		
+		if [[ -n "${WG_SERVER_IP:-}" ]]; then
+			echo -e "${GREEN}  ✓ IP pública del servidor: ${WG_SERVER_IP}${NC}"
+		else
+			echo -e "${ORANGE}  • IP pública del servidor: No disponible${NC}"
+		fi
+	else
+		echo -e "${ORANGE}• Archivo .env.wireguard.generated no encontrado${NC}"
+		echo "  Generar con: ./wireguard-install.sh (reinstalación)"
+	fi
+	
+	echo ""
+	
+	# 6. Verificar configuración de firewall
+	echo -e "${ORANGE}6. CONFIGURACIÓN DE FIREWALL${NC}"
+	if [[ -n "${SERVER_PORT:-}" ]]; then
+		if iptables -L INPUT | grep -q "${SERVER_PORT}/udp"; then
+			echo -e "${GREEN}✓ Regla de firewall para puerto ${SERVER_PORT}/udp encontrada${NC}"
+		else
+			echo -e "${ORANGE}• Regla de firewall para puerto ${SERVER_PORT}/udp no encontrada${NC}"
+			echo "  Puede que el firewall no esté configurado o use firewalld"
+		fi
+	fi
+	
+	if command_exists firewall-cmd && pgrep firewalld; then
+		echo -e "${GREEN}✓ firewalld está ejecutándose${NC}"
+		if firewall-cmd --list-ports | grep -q "${SERVER_PORT}/udp"; then
+			echo -e "${GREEN}✓ Puerto ${SERVER_PORT}/udp permitido en firewalld${NC}"
+		else
+			echo -e "${ORANGE}• Puerto ${SERVER_PORT}/udp no permitido en firewalld${NC}"
+		fi
+	else
+		echo -e "${ORANGE}• firewalld no está ejecutándose${NC}"
+	fi
+	echo ""
+	
+	# 7. Verificar configuración de sistema
+	echo -e "${ORANGE}7. CONFIGURACIÓN DEL SISTEMA${NC}"
+	if [[ -f "/etc/sysctl.d/wg.conf" ]]; then
+		echo -e "${GREEN}✓ Configuración sysctl para WireGuard encontrada${NC}"
+		if grep -q "net.ipv4.ip_forward = 1" /etc/sysctl.d/wg.conf; then
+			echo -e "${GREEN}  ✓ IPv4 forwarding habilitado${NC}"
+		else
+			echo -e "${ORANGE}  • IPv4 forwarding no configurado${NC}"
+		fi
+		if grep -q "net.ipv6.conf.all.forwarding = 1" /etc/sysctl.d/wg.conf; then
+			echo -e "${GREEN}  ✓ IPv6 forwarding habilitado${NC}"
+		else
+			echo -e "${ORANGE}  • IPv6 forwarding no configurado${NC}"
+		fi
+	else
+		echo -e "${ORANGE}• Archivo de configuración sysctl para WireGuard no encontrado${NC}"
+	fi
+	echo ""
+	
+	# 8. Información del sistema
+	echo -e "${ORANGE}8. INFORMACIÓN DEL SISTEMA${NC}"
+	echo "  Sistema operativo: $(uname -s)"
+	echo "  Arquitectura: $(uname -m)"
+	echo "  Memoria disponible: $(free -h 2>/dev/null | awk 'NR==2{printf "%.1fGB total, %.1fGB disponible", $2/1024/1024/1024, $7/1024/1024/1024}' || echo 'No disponible')"
+	echo "  Espacio en disco: $(df -h /etc/wireguard 2>/dev/null | awk 'NR==2{printf "%.1fGB total, %.1fGB libre", $2/1024/1024/1024, $4/1024/1024/1024}' || echo 'No disponible')"
+	echo ""
+	
+	# 9. Directorio de configuraciones de cliente
+	echo -e "${ORANGE}9. CONFIGURACIONES DE CLIENTE${NC}"
+	if [[ -d "VPNs_Configs/wireguard/" ]]; then
+		echo -e "${GREEN}✓ Directorio de configuraciones de cliente existe${NC}"
+		client_configs=$(find "VPNs_Configs/wireguard/" -name "*.conf" 2>/dev/null | wc -l)
+		echo "  Archivos de configuración de cliente: ${client_configs}"
+		
+		if [[ ${client_configs} -gt 0 ]]; then
+			echo "  Últimos archivos creados:"
+			find "VPNs_Configs/wireguard/" -name "*.conf" -printf "    %T+ %f\n" 2>/dev/null | sort -r | head -3 || true
+		fi
+	else
+		echo -e "${ORANGE}• Directorio de configuraciones de cliente no encontrado${NC}"
+	fi
+	echo ""
+	
+	# 10. Resumen final
+	echo -e "${GREEN}=== RESUMEN DEL ESTADO ===${NC}"
+	if [[ -f "${WG_CONFIG_DIR}/params" ]] && [[ ${OS} == 'alpine' ]] && rc-service --quiet "wg-quick.${SERVER_WG_NIC}" status 2>/dev/null; then
+		echo -e "${GREEN}✓ WIREGUARD SERVER: OPERATIVO${NC}"
+		echo "  El servidor WireGuard está ejecutándose correctamente."
+		echo "  Endpoint público: ${SERVER_PUB_IP:-'No disponible'}:${SERVER_PORT:-'No disponible'}"
+	elif [[ -f "${WG_CONFIG_DIR}/params" ]] && [[ ${OS} != 'alpine' ]] && systemctl is-active --quiet "wg-quick@${SERVER_WG_NIC}" 2>/dev/null; then
+		echo -e "${GREEN}✓ WIREGUARD SERVER: OPERATIVO${NC}"
+		echo "  El servidor WireGuard está ejecutándose correctamente."
+		echo "  Endpoint público: ${SERVER_PUB_IP:-'No disponible'}:${SERVER_PORT:-'No disponible'}"
+	else
+		echo -e "${RED}✗ WIREGUARD SERVER: NO OPERATIVO${NC}"
+		echo "  El servidor WireGuard no está ejecutándose correctamente."
+		echo "  Ejecutar: ./wireguard-install.sh"
+	fi
+	
+	echo -e "\n${ORANGE}Para agregar un nuevo cliente:${NC}"
+	echo "  ./wireguard-install.sh y seleccionar 'Add a new user'"
+	
+	echo -e "\n${ORANGE}Para obtener estadísticas en tiempo real:${NC}"
+	echo "  sudo wg show"
+	echo ""
+}
+
 function manageMenu() {
 	echo "Welcome to WireGuard-install for uSipipo!"
 	echo "The git repository is available at: https://github.com/angristan/wireguard-install"
@@ -679,10 +840,11 @@ function manageMenu() {
 	echo "   1) Add a new user"
 	echo "   2) List all users"
 	echo "   3) Revoke existing user"
-	echo "   4) Uninstall WireGuard"
-	echo "   5) Exit"
-	until [[ ${MENU_OPTION} =~ ^[1-5]$ ]]; do
-		read -rp "Select an option [1-5]: " MENU_OPTION
+	echo "   4) Show server status"
+	echo "   5) Uninstall WireGuard"
+	echo "   6) Exit"
+	until [[ ${MENU_OPTION} =~ ^[1-6]$ ]]; do
+		read -rp "Select an option [1-6]: " MENU_OPTION
 	done
 	case "${MENU_OPTION}" in
 	1)
@@ -695,13 +857,45 @@ function manageMenu() {
 		revokeClient
 		;;
 	4)
-		uninstallWg
+		show_wg_status
+		read -rp "Presiona Enter para continuar..."
+		manageMenu
 		;;
 	5)
+		uninstallWg
+		;;
+	6)
 		exit 0
 		;;
 	esac
 }
+
+# Check for command line arguments
+while [[ $# -gt 0 ]]; do
+	case $1 in
+		--status)
+			show_wg_status
+			exit 0
+			;;
+		--help)
+			echo "WireGuard installer for uSipipo"
+			echo "Usage: $0 [options]"
+			echo ""
+			echo "Options:"
+			echo "  --status     Show detailed status of WireGuard server"
+			echo "  --help       Display this help message"
+			echo ""
+			echo "If no options are provided, the interactive installer will start."
+			exit 0
+			;;
+		*)
+			echo "Unknown option: $1"
+			echo "Use --help for usage information."
+			exit 1
+			;;
+	esac
+	shift
+done
 
 # Check for root, virt, OS...
 initialCheck

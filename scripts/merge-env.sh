@@ -13,15 +13,13 @@ BACKUP_SUFFIX=".backup.$(date +%Y%m%d_%H%M%S)"
 ENV_PATTERN=".env.*.generated"
 
 # Priority order for variable conflicts (highest to lowest)
-# mariadb, pihole, wireguard, outline, mtproto, shadowmere, dns-config
+# mariadb, pihole, wireguard, outline, mtproto
 declare -a PRIORITY_ORDER=(
     ".env.mariadb.generated"
     ".env.pihole.generated"
     ".env.wireguard.generated"
     ".env.outline.generated"
     ".env.mtproto.generated"
-    ".env.shadowmere.generated"
-    ".env.dns-config.generated"
 )
 
 # --- Variables globales ---
@@ -388,8 +386,6 @@ Priority order for variable conflicts (highest to lowest):
   3. .env.wireguard.generated
   4. .env.outline.generated
   5. .env.mtproto.generated
-  6. .env.shadowmere.generated
-  7. .env.dns-config.generated
 
 Options:
   --help      Display this help message

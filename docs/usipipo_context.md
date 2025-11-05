@@ -32,7 +32,7 @@ Tu misión es ayudarme a crear código limpio, escalable y mantenible siguiendo 
 ## 📋 **CONTEXTO ACTUAL DEL PROYECTO**
 
 ### **🎯 Objetivo del Proyecto:**
-Construir un bot de Telegram robusto y modular para gestionar servicios de VPN (WireGuard, Outline), proxies MTProto, y sistema de detección de proxies Shadowmere, con funcionalidades de soporte, trial limitado, gestión automática de IPs, y múltiples métodos de pago.
+Construir un bot de Telegram robusto y modular para gestionar servicios de VPN (WireGuard, Outline), proxies MTProto, con funcionalidades de soporte, trial limitado, gestión automática de IPs, y múltiples métodos de pago.
 
 ### **🏗️ Arquitectura Implementada:**
 Seguimos estrictamente el patrón **models - crud - services - handlers** promoviendo separación de responsabilidades y mantenibilidad.
@@ -59,11 +59,6 @@ Seguimos estrictamente el patrón **models - crud - services - handlers** promov
    - Estados de ciclo de vida (active/expired/revoked)
    - Configuración de host, puerto y secret
 
-4. **Shadowmere Proxy Detection**
-   - Sistema de detección automática de proxies
-   - Soporte para SOCKS5, SOCKS4, HTTP, HTTPS
-   - Base de datos de proxies con geolocalización
-   - Monitoreo de estado y tiempo de respuesta
 
 5. **Sistema de Roles y Permisos**
    - Roles jerárquicos (user/admin/superadmin)
@@ -91,14 +86,13 @@ Seguimos estrictamente el patrón **models - crud - services - handlers** promov
 - **IPManager**: Gestión automática de direcciones IP
 - **Payment**: Sistema de pagos con múltiples métodos
 - **MTProtoProxy**: Proxies MTProto para Telegram
-- **ShadowmereProxy**: Base de datos de proxies detectados
 - **AuditLog**: Logs de auditoría completos
 - **Role/UserRole**: Sistema de permisos
 
 ###### **Services Layer**
 - **VPN Services**: WireGuard, Outline, gestión de configuraciones
 - **Payment Services**: Integración QvaPay, webhooks, validaciones
-- **Proxy Services**: MTProto, Shadowmere, gestión de estados
+- **Proxy Services**: MTProto, gestión de estados
 - **User Services**: Registro, perfiles, roles
 - **Audit Services**: Logging, notificaciones, alertas
 
@@ -141,4 +135,4 @@ Seguimos estrictamente el patrón **models - crud - services - handlers** promov
    - Logs detallados para debugging
 
 6. **Info adicional**
-aclararte para mejjor entenimiento todo usipipo funcionara en el mismo VPS desde la instalacion de los servidores de vpn wireguard, outline, los proxys , pi-hole, shadowmere para la busqueda de proxys disponibles . y todo esto sera procedado por usipipo y mostrado en telegram a traves de este bot 
+aclararte para mejjor entenimiento todo usipipo funcionara en el mismo VPS desde la instalacion de los servidores de vpn wireguard, outline, los proxys , pi-hole . y todo esto sera procedado por usipipo y mostrado en telegram a traves de este bot

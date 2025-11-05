@@ -19,7 +19,6 @@ from bot.handlers.ms import ms_handler
 from bot.handlers.proxy import proxy_command
 from bot.handlers.mtproto import mtproto_command
 from bot.handlers.qvapay import qvapay_conversation
-from bot.handlers.shadowmere import shadowmere_handler, proxys_handler
 from bot.handlers.tunnel import register_tunnel_handlers
 
 
@@ -51,11 +50,6 @@ def register_handlers(app: Application):
     # Proxy MTProto
     # --------------------------
     app.add_handler(CommandHandler("proxy", proxy_command))
-    # --------------------------
-    # Shadowmere Proxies
-    # --------------------------
-    app.add_handler(CommandHandler("shadowmere", shadowmere_handler))
-    app.add_handler(CommandHandler("proxys", proxys_handler))
     app.add_handler(CommandHandler("mtproto", mtproto_command))
 
     # --------------------------

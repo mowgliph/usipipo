@@ -204,8 +204,6 @@ async def revoke_vpn(session: AsyncSession, vpn_id: str, reason: str, *, commit:
         # Si la VPN tiene una IP asociada (a través de IPManager), se revoca
         # Buscamos la IP asociada a esta VPN (por ejemplo, a través del extra_data o una relación directa si se añade)
         # Por ahora, asumimos que se revocan IPs asociadas basadas en el user_id y vpn_type
-        # Esto requiere una función en ip_manager.py para revocar IPs por user_id y tipo
-        # await crud.ip_manager.revoke_ips_by_user_and_type(session, vpn.user_id, vpn.vpn_type, reason, commit=False)
 
         vpn.status = "revoked"
         extra = dict(vpn.extra_data or {})
@@ -267,6 +265,25 @@ async def get_expired_trials(session: AsyncSession) -> List[models.VPNConfig]:
         raise
 
 
+async def get_expired_wireguard_configs(session: AsyncSession) -> List[models.VPNConfig]:
+    """
+    Devuelve todas las configuraciones WireGuard vencidas y aún activas.
+    Útil para limpieza automática.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        stmt = select(models.VPNConfig).where(
+            models.VPNConfig.vpn_type == "wireguard",
+            models.VPNConfig.status == "active",
+            models.VPNConfig.expires_at < now,
+        )
+        res = await session.execute(stmt)
+        return res.scalars().all()
+    except SQLAlchemyError:
+        logger.exception("Error listando WireGuard configs vencidas", extra={"user_id": None})
+        raise
+
+
 # =========================
 # Métricas / helpers simples
 # =========================
@@ -314,33 +331,3 @@ async def last_vpn_config_by_user(session: AsyncSession, user_id: str) -> Option
         raise
 
 
-# --- Nuevas funciones para integración con IPManager ---
-async def get_vpn_configs_with_assigned_ips(session: AsyncSession, user_id: str) -> List[Dict[str, Any]]:
-    """
-    Obtiene las configuraciones VPN de un usuario junto con las IPs asignadas a ellas.
-    Esta función es más compleja y puede requerir joins si se relaciona directamente VPNConfig con IPManager.
-    Por ahora, asume que las IPs se asignan basadas en el tipo de VPN y el usuario.
-    """
-    try:
-        vpn_configs = await get_vpn_configs_for_user(session, user_id)
-        ip_configs = await session.execute(
-            select(models.IPManager).where(models.IPManager.assigned_to_user_id == user_id)
-        )
-        assigned_ips = ip_configs.scalars().all()
-
-        # Mapear IPs por tipo para asociarlas rápidamente
-        ip_map = {ip.ip_type: ip for ip in assigned_ips if not ip.is_revoked}
-
-        result = []
-        for vpn in vpn_configs:
-            ip_info = ip_map.get(f"{vpn.vpn_type}_paid") or ip_map.get(f"{vpn.vpn_type}_trial") # Ajustar según lógica de negocio
-            result.append({
-                "vpn_config": vpn,
-                "assigned_ip": ip_info.ip_address if ip_info else None,
-                "ip_details": ip_info if ip_info else None
-            })
-
-        return result
-    except SQLAlchemyError:
-        logger.exception("Error obteniendo VPNs con IPs asignadas", extra={"user_id": user_id})
-        raise

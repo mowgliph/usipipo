@@ -90,7 +90,6 @@ async def create_access(
     session: AsyncSession,
     user_id: str,
     duration_months: int = DEFAULT_DURATION_MONTHS,
-    bypass_domains: Optional[List[str]] = None,
     commit: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -108,11 +107,11 @@ async def create_access(
     config_name = f"outline_{user_id}_{int(datetime.utcnow().timestamp())}"
 
     extra = dict(api_resp)  # store full response for auditing: id, method, password, port, etc.
-    if bypass_domains:
-        extra["bypass_domains"] = bypass_domains
-        # Note: Outline routing configuration would need server-side API support
-        # For now, we store the domains for potential future client-side routing
-        logger.info("Outline bypass domains stored (server-side routing not yet implemented)", extra={"user_id": user_id, "bypass_domains": bypass_domains})
+
+    # Almacenar información de dual tunnel en la configuración
+    extra.update({
+        "creation_time": datetime.utcnow().isoformat(),
+    })
 
     # Create DB record without committing; caller controls the transaction
     vpn_obj = await crud_vpn.create_vpn_config(
@@ -156,3 +155,5 @@ async def list_user_accesses(session: AsyncSession, user_id: str) -> List[models
     """
     all_configs = await crud_vpn.get_vpn_configs_for_user(session, user_id)
     return [v for v in all_configs if v.vpn_type == "outline"]
+
+

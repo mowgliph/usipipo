@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from database import models
 from services import wireguard as wireguard_service, outline as outline_service
-from database.crud import logs as crud_logs, vpn as crud_vpn, tunnel_domains as crud_tunnel_domains
+from database.crud import logs as crud_logs, vpn as crud_vpn
 from utils.helpers import log_error_and_notify
 
 logger = logging.getLogger(__name__)
@@ -28,23 +28,21 @@ async def activate_vpn_for_user(
     user_id: str,
     vpn_type: Literal["wireguard", "outline"],
     months: int,
-    bypass_domains: Optional[List[str]] = None,
 ) -> Optional[models.VPNConfig]:
     """
     Crea o renueva una VPN según el tipo especificado.
     - user_id: UUID str
     - vpn_type: 'wireguard' | 'outline'
     - months: duración
-    - bypass_domains: Lista opcional de dominios para bypass (dual tunnel)
     Retorna VPNConfig creado o None si falla.
     Nota: El commit de la transacción debe manejarse en el handler.
     """
     try:
         if vpn_type == "wireguard":
-            result = await wireguard_service.create_peer(session, user_id=user_id, duration_months=months, bypass_domains=bypass_domains, commit=False)
+            result = await wireguard_service.create_peer(session, user_id=user_id, duration_months=months, commit=False)
             vpn_obj = result.get("vpn")
         elif vpn_type == "outline":
-            result = await outline_service.create_access(session, user_id=user_id, duration_months=months, bypass_domains=bypass_domains)
+            result = await outline_service.create_access(session, user_id=user_id, duration_months=months)
             vpn_obj = result.get("vpn") or result.get("vpn_obj")
         else:
             raise ValueError(f"Tipo VPN no soportado: {vpn_type}")
@@ -57,7 +55,7 @@ async def activate_vpn_for_user(
                 session=session,
                 user_id=user_id,
                 action="vpn_activation_failed",
-                payload={"vpn_type": vpn_type, "months": months, "bypass_domains": bypass_domains, "reason": "No se creó VPN"},
+                payload={"vpn_type": vpn_type, "months": months, "reason": "No se creó VPN"},
                 commit=False,
             )
         return vpn_obj
@@ -67,7 +65,7 @@ async def activate_vpn_for_user(
             session=session,
             user_id=user_id,
             action="vpn_activation_error",
-            payload={"vpn_type": vpn_type, "months": months, "bypass_domains": bypass_domains, "error": "Tipo VPN no soportado"},
+            payload={"vpn_type": vpn_type, "months": months, "error": "Tipo VPN no soportado"},
             commit=False,
         )
         raise
@@ -77,7 +75,7 @@ async def activate_vpn_for_user(
             session=session,
             user_id=user_id,
             action="vpn_activation_error",
-            payload={"vpn_type": vpn_type, "months": months, "bypass_domains": bypass_domains, "error": "Error de base de datos"},
+            payload={"vpn_type": vpn_type, "months": months, "error": "Error de base de datos"},
             commit=False,
         )
         raise
@@ -87,7 +85,7 @@ async def activate_vpn_for_user(
             session=session,
             user_id=user_id,
             action="vpn_activation_error",
-            payload={"vpn_type": vpn_type, "months": months, "bypass_domains": bypass_domains, "error": str(e)},
+            payload={"vpn_type": vpn_type, "months": months, "error": str(e)},
             commit=False,
         )
         raise

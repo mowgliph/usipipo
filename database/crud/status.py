@@ -173,44 +173,6 @@ async def count_successful_payments(session: AsyncSession) -> int:
         raise
 
 
-async def count_ips(session: AsyncSession) -> int:
-    """Cuenta total de IPs en el manager."""
-    try:
-        stmt = select(func.count()).select_from(models.IPManager)
-        res = await session.execute(stmt)
-        count = res.scalar_one()
-        return int(count or 0)
-    except SQLAlchemyError:
-        logger.exception("Error contando IPs", extra={"user_id": None})
-        raise
-
-
-async def count_available_ips(session: AsyncSession) -> int:
-    """Cuenta IPs disponibles (is_available=True y is_revoked=False)."""
-    try:
-        stmt = select(func.count()).select_from(models.IPManager).where(
-            and_(models.IPManager.is_available.is_(True), models.IPManager.is_revoked.is_(False))
-        )
-        res = await session.execute(stmt)
-        count = res.scalar_one()
-        return int(count or 0)
-    except SQLAlchemyError:
-        logger.exception("Error contando IPs disponibles", extra={"user_id": None})
-        raise
-
-
-async def count_assigned_ips(session: AsyncSession) -> int:
-    """Cuenta IPs asignadas (assigned_to_user_id IS NOT NULL y no revocadas)."""
-    try:
-        stmt = select(func.count()).select_from(models.IPManager).where(
-            and_(models.IPManager.assigned_to_user_id.isnot(None), models.IPManager.is_revoked.is_(False))
-        )
-        res = await session.execute(stmt)
-        count = res.scalar_one()
-        return int(count or 0)
-    except SQLAlchemyError:
-        logger.exception("Error contando IPs asignadas", extra={"user_id": None})
-        raise
 
 
 async def get_system_status(session: AsyncSession) -> Dict[str, Any]:
@@ -236,10 +198,6 @@ async def get_system_status(session: AsyncSession) -> Dict[str, Any]:
         payments_pending = await count_pending_payments(session)
         payments_successful = await count_successful_payments(session)
 
-        ips_total = await count_ips(session)
-        ips_available = await count_available_ips(session)
-        ips_assigned = await count_assigned_ips(session)
-
         status = {
             "users": {
                 "total": users_total,
@@ -258,11 +216,6 @@ async def get_system_status(session: AsyncSession) -> Dict[str, Any]:
                 "total": payments_total,
                 "pending": payments_pending,
                 "successful": payments_successful,
-            },
-            "ips": {
-                "total": ips_total,
-                "available": ips_available,
-                "assigned": ips_assigned,
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }

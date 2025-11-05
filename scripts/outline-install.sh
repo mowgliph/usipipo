@@ -29,11 +29,6 @@ OUTLINE_CONTAINER_NAME="outline"                     # Nombre del contenedor Doc
 OUTLINE_IMAGE_DEFAULT="quay.io/outline/shadowbox:stable"  # Imagen Docker por defecto
 HOME_DIR="${HOME_DIR:-$HOME_DIR_DEFAULT}"            # Directorio para configuraciones de cliente
 
-# Rangos de IPs para gestión de usuarios (informativo para Outline)
-TRIAL_IP_START=2  # Primera IP usable para usuarios trial
-TRIAL_IP_END=26   # Última IP para trial (25 IPs disponibles)
-PAID_IP_START=27  # Primera IP para usuarios pagos
-PAID_IP_END=254   # Última IP usable (límite común de subred /24)
 
 # --- Colores para salida de terminal ---
 GREEN='\033[0;32m'   # Verde para mensajes de éxito
@@ -476,32 +471,6 @@ function wait_outline() {
   echo "Outline API is now responding"
 }
 
-# function create_first_user() {
-#   echo "Starting create_first_user() function"
-#   local LOCAL_API_URL="https://localhost:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
-#   echo "Creating first access key via POST to: ${LOCAL_API_URL}/access-keys"
-
-#   # Capturar la respuesta JSON de la API
-#   local response
-#   response=$(curl --silent --insecure --request POST "${LOCAL_API_URL}/access-keys" 2>/dev/null)
-
-#   # Verificar si curl tuvo éxito y la respuesta contiene JSON válido
-#   if [[ $? -eq 0 ]] && [[ -n "$response" ]] && echo "$response" | jq . >/dev/null 2>&1; then
-#     # Verificar si la respuesta contiene los campos esperados de una clave de acceso exitosa
-#     if echo "$response" | jq -e '.id and .accessUrl' >/dev/null 2>&1; then
-#       echo "First access key created successfully"
-#       echo "Response: $response"
-#       return 0
-#     else
-#       echo "API returned success but invalid response format: $response"
-#       return 1
-#     fi
-#   else
-#     echo "Failed to create first access key. Response: $response"
-#     return 1
-#     fi
-# }
-
 # --- Función de Creación de Directorios ---
 function create_config_dirs() {
   mkdir -p "${HOME_DIR}"
@@ -627,9 +596,6 @@ function generate_env_files() {
      echo "Starting generate_env_files() function"
      # Archivo de configuración principal de Outline
      ENV_FILE_OUTLINE=".env.outline.generated"
-     # Archivo de IPs para la base de datos
-     ENV_FILE_IPS=".env.ips.generated"
-
      echo "Creating ${ENV_FILE_OUTLINE}"
      echo "# --- uSipipo Outline Server Configuration ---" > "${ENV_FILE_OUTLINE}"
      OUTLINE_API_URL="https://${OUTLINE_HOSTNAME}:${OUTLINE_API_PORT}/${SB_API_PREFIX}"
@@ -653,29 +619,13 @@ function generate_env_files() {
      echo "# DNS: Using default DNS configuration" >> "${ENV_FILE_OUTLINE}"
      echo "" >> "${ENV_FILE_OUTLINE}"
 
-     echo "# --- uSipipo IP Management for Outline (Placeholder) ---" > "${ENV_FILE_IPS}"
-     # En Outline, las IPs no se gestionan directamente como en WireGuard.
-     # La configuración de cada clave de acceso no incluye una IP fija asignada por el script.
-     # Sin embargo, podemos definir rangos para el sistema uSipipo si se usan clientes personalizados o firewalls.
-     # Para este script, generamos solo una variable base.
-     echo "# Este servidor Outline no asigna IPs fijas por clave de acceso como WireGuard." >> "${ENV_FILE_IPS}"
-     echo "# Las IPs de los clientes se gestionan dinámicamente por el túnel VPN." >> "${ENV_FILE_IPS}"
-     echo "# Para fines de uSipipo, puedes definir rangos de IPs internas o reglas de firewall aquí." >> "${ENV_FILE_IPS}"
-     echo "# OUTLINE_INTERNAL_SUBNET=\"10.0.86.0/24\" # Ejemplo de subnet interna (no asignada por este script)" >> "${ENV_FILE_IPS}"
-     echo "" >> "${ENV_FILE_IPS}"
-     echo "# IP Type Definitions for uSipipo DB (Copy to your Python code for Outline)" >> "${ENV_FILE_IPS}"
-     echo "# outline_trial_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
-     echo "# outline_paid_ips = [] # Outline no asigna IPs fijas, este rango es informativo o para reglas." >> "${ENV_FILE_IPS}"
 
      echo -e "\n${GREEN}--- VARIABLES OUTLINE PARA TU .env DE USIPIPO ---${NC}"
      echo -e "${ORANGE}Archivo de configuración generado:${NC} ${ENV_FILE_OUTLINE}"
-     echo -e "${ORANGE}Archivo de IPs generadas (informativo):${NC} ${ENV_FILE_IPS}"
      echo -e "${ORANGE}Directorio de configuraciones de cliente:${NC} ${HOME_DIR}"
      echo -e "${GREEN}----------------------------------------------------------${NC}"
      echo -e "\n${GREEN}Contenido de ${ENV_FILE_OUTLINE}:${NC}"
      cat "${ENV_FILE_OUTLINE}"
-     echo -e "\n${GREEN}Contenido de ${ENV_FILE_IPS}:${NC}"
-     cat "${ENV_FILE_IPS}"
      echo -e "\n${GREEN}----------------------------------------------------------${NC}"
      echo -e "${GREEN}¡Copia estas variables a tu archivo .env de uSipipo!${NC}"
      echo -e "${ORANGE}IMPORTANTE: Guarda las rutas de certificados de forma segura.${NC}"
@@ -689,6 +639,198 @@ function generate_env_files() {
 }
 
 # --- Funciones de Ayuda y Parseo ---
+function show_outline_status() {
+  echo -e "\n${GREEN}=== OUTLINE SERVER STATUS ===${NC}"
+  echo "Fecha y hora: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+  echo ""
+  
+  # 1. Verificar Docker
+  echo -e "${ORANGE}1. ESTADO DE DOCKER${NC}"
+  if command_exists docker; then
+    echo -e "${GREEN}✓ Docker está instalado${NC}"
+    if docker info >/dev/null 2>&1; then
+      echo -e "${GREEN}✓ Docker daemon está ejecutándose${NC}"
+      docker_version=$(docker --version 2>/dev/null || echo "Versión desconocida")
+      echo "  Versión: ${docker_version}"
+    else
+      echo -e "${RED}✗ Docker daemon no está ejecutándose${NC}"
+    fi
+  else
+    echo -e "${RED}✗ Docker no está instalado${NC}"
+    return 1
+  fi
+  echo ""
+  
+  # 2. Verificar contenedor Outline
+  echo -e "${ORANGE}2. CONTENEDOR OUTLINE${NC}"
+  if docker_container_exists "${OUTLINE_CONTAINER_NAME}"; then
+    echo -e "${GREEN}✓ Contenedor '${OUTLINE_CONTAINER_NAME}' existe${NC}"
+    
+    # Estado del contenedor
+    container_status=$(docker inspect --format='{{.State.Status}}' "${OUTLINE_CONTAINER_NAME}" 2>/dev/null)
+    echo "  Estado: ${container_status}"
+    
+    if [[ "${container_status}" == "running" ]]; then
+      echo -e "${GREEN}  ✓ El contenedor está ejecutándose correctamente${NC}"
+      
+      # Información adicional del contenedor
+      uptime=$(docker inspect --format='{{.State.StartedAt}}' "${OUTLINE_CONTAINER_NAME}" 2>/dev/null)
+      if [[ -n "${uptime}" ]]; then
+        echo "  Iniciado: ${uptime}"
+      fi
+      
+      # Puertos expuestos
+      ports=$(docker port "${OUTLINE_CONTAINER_NAME}" 2>/dev/null | grep -v '443/tcp' || echo "")
+      if [[ -n "${ports}" ]]; then
+        echo "  Puertos expuestos:"
+        echo "${ports}" | while read -r line; do
+          echo "    ${line}"
+        done
+      fi
+    else
+      echo -e "${RED}  ✗ El contenedor no está ejecutándose (Estado: ${container_status})${NC}"
+    fi
+  else
+    echo -e "${RED}✗ Contenedor '${OUTLINE_CONTAINER_NAME}' no encontrado${NC}"
+    echo "  Outline server no está instalado"
+    return 1
+  fi
+  echo ""
+  
+  # 3. Verificar archivos de configuración
+  echo -e "${ORANGE}3. ARCHIVOS DE CONFIGURACIÓN${NC}"
+  if [[ -d "${OUTLINE_STATE_DIR:-/opt/outline/persisted-state}" ]]; then
+    echo -e "${GREEN}✓ Directorio de estado existe: ${OUTLINE_STATE_DIR}${NC}"
+    
+    # Verificar archivos importantes
+    local config_file="${OUTLINE_STATE_DIR}/outline_server_config.json"
+    local cert_file="${OUTLINE_STATE_DIR}/outline-selfsigned.crt"
+    local key_file="${OUTLINE_STATE_DIR}/outline-selfsigned.key"
+    local start_script="${OUTLINE_STATE_DIR}/start_container.sh"
+    
+    if [[ -f "${config_file}" ]]; then
+      echo -e "${GREEN}  ✓ Archivo de configuración: ${config_file}${NC}"
+    else
+      echo -e "${RED}  ✗ Archivo de configuración: ${config_file}${NC}"
+    fi
+    
+    if [[ -f "${cert_file}" ]]; then
+      echo -e "${GREEN}  ✓ Certificado TLS: ${cert_file}${NC}"
+    else
+      echo -e "${RED}  ✗ Certificado TLS: ${cert_file}${NC}"
+    fi
+    
+    if [[ -f "${key_file}" ]]; then
+      echo -e "${GREEN}  ✓ Clave privada TLS: ${key_file}${NC}"
+    else
+      echo -e "${RED}  ✗ Clave privada TLS: ${key_file}${NC}"
+    fi
+    
+    if [[ -f "${start_script}" ]]; then
+      echo -e "${GREEN}  ✓ Script de inicio: ${start_script}${NC}"
+    else
+      echo -e "${ORANGE}  • Script de inicio: ${start_script}${NC}"
+    fi
+  else
+    echo -e "${RED}✗ Directorio de estado no encontrado${NC}"
+  fi
+  echo ""
+  
+  # 4. Verificar variables de entorno generadas
+  echo -e "${ORANGE}4. VARIABLES DE ENTORNO${NC}"
+  if [[ -f ".env.outline.generated" ]]; then
+    echo -e "${GREEN}✓ Archivo .env.outline.generated encontrado${NC}"
+    source .env.outline.generated 2>/dev/null || true
+    
+    if [[ -n "${OUTLINE_API_URL:-}" ]]; then
+      echo -e "${GREEN}  ✓ API URL: ${OUTLINE_API_URL}${NC}"
+    else
+      echo -e "${ORANGE}  • API URL: No configurada${NC}"
+    fi
+    
+    if [[ -n "${OUTLINE_CERT_SHA256:-}" ]]; then
+      echo -e "${GREEN}  ✓ Cert SHA256: ${OUTLINE_CERT_SHA256:0:16}...${NC}"
+    else
+      echo -e "${ORANGE}  • Cert SHA256: No configurado${NC}"
+    fi
+    
+    if [[ -n "${OUTLINE_API_PORT:-}" ]]; then
+      echo -e "${GREEN}  ✓ Puerto API: ${OUTLINE_API_PORT}${NC}"
+    else
+      echo -e "${ORANGE}  • Puerto API: No configurado${NC}"
+    fi
+    
+    if [[ -n "${OUTLINE_HOSTNAME:-}" ]]; then
+      echo -e "${GREEN}  ✓ Hostname: ${OUTLINE_HOSTNAME}${NC}"
+    else
+      echo -e "${ORANGE}  • Hostname: No configurado${NC}"
+    fi
+  else
+    echo -e "${ORANGE}• Archivo .env.outline.generated no encontrado${NC}"
+    echo "  Generar con: ./outline-install.sh --reinstall"
+  fi
+  echo ""
+  
+  # 5. Verificar conectividad de la API
+  echo -e "${ORANGE}5. CONECTIVIDAD DE LA API${NC}"
+  if [[ -f ".env.outline.generated" ]]; then
+    source .env.outline.generated 2>/dev/null || true
+    
+    if [[ -n "${OUTLINE_API_URL:-}" && -n "${OUTLINE_CERT_SHA256:-}" ]]; then
+      echo "Probando conectividad a la API..."
+      
+      # Intentar conectar a la API (sin verificación SSL ya que es localhost)
+      if curl -s -k --max-time 5 "${OUTLINE_API_URL}/access-keys" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ API de Outline respondiendo correctamente${NC}"
+        
+        # Obtener información adicional de la API
+        api_response=$(curl -s -k --max-time 5 "${OUTLINE_API_URL}/access-keys" 2>/dev/null || echo "")
+        if [[ -n "${api_response}" ]]; then
+          echo "  Respuesta de la API recibida exitosamente"
+        fi
+      else
+        echo -e "${RED}✗ API de Outline no responde${NC}"
+        echo "  Posibles causas:"
+        echo "  - El contenedor no está completamente iniciado"
+        echo "  - Problemas de red o firewall"
+        echo "  - Configuración incorrecta"
+      fi
+    else
+      echo -e "${ORANGE}• Variables de API no configuradas, omitiendo prueba de conectividad${NC}"
+    fi
+  else
+    echo -e "${ORANGE}• No se puede probar conectividad sin archivo .env generado${NC}"
+  fi
+  echo ""
+  
+  # 6. Información del sistema
+  echo -e "${ORANGE}6. INFORMACIÓN DEL SISTEMA${NC}"
+  echo "  Sistema operativo: $(uname -s)"
+  echo "  Arquitectura: $(uname -m)"
+  echo "  Memoria disponible: $(free -h 2>/dev/null | awk 'NR==2{printf "%.1fGB total, %.1fGB disponible", $2/1024/1024/1024, $7/1024/1024/1024}' || echo 'No disponible')"
+  echo "  Espacio en disco: $(df -h /opt 2>/dev/null | awk 'NR==2{printf "%.1fGB total, %.1fGB libre", $2/1024/1024/1024, $4/1024/1024/1024}' || echo 'No disponible')"
+  echo ""
+  
+  # 7. Resumen final
+  echo -e "${GREEN}=== RESUMEN DEL ESTADO ===${NC}"
+  if docker_container_exists "${OUTLINE_CONTAINER_NAME}" && [[ "$(docker inspect --format='{{.State.Status}}' "${OUTLINE_CONTAINER_NAME}" 2>/dev/null)" == "running" ]]; then
+    echo -e "${GREEN}✓ OUTLINE SERVER: OPERATIVO${NC}"
+    echo "  El servidor Outline está ejecutándose correctamente."
+    echo "  Para conectar el Outline Manager, use:"
+    echo "  apiUrl: ${OUTLINE_API_URL:-'No disponible'}"
+    echo "  certSha256: ${OUTLINE_CERT_SHA256:-'No disponible'}"
+  else
+    echo -e "${RED}✗ OUTLINE SERVER: NO OPERATIVO${NC}"
+    echo "  El servidor Outline no está ejecutándose correctamente."
+    echo "  Ejecutar: ./outline-install.sh --reinstall"
+  fi
+  
+  echo -e "\n${ORANGE}Para obtener información detallada de la API:${NC}"
+  echo "  curl -k '${OUTLINE_API_URL:-'https://localhost:Puerto/API_PREFIX'}/access-keys'"
+  
+  echo ""
+}
+
 function display_usage() {
   cat <<EOF
 Usage: $0 [options]
@@ -697,6 +839,7 @@ Options:
   --install      Install Outline server (default action if no Outline is installed)
   --uninstall    Completely remove Outline server and all its data
   --reinstall    Remove existing Outline installation and reinstall
+  --status       Show detailed status of Outline server
   --hostname     The hostname to be used to access the management API and access keys
   --api-port     The port number for the management API
   --keys-port    The port number for the access keys
@@ -734,7 +877,7 @@ function escape_json_string() {
 
 function parse_flags() {
   local params
-  params="$(getopt --longoptions hostname:,api-port:,keys-port:,install,uninstall,reinstall,help -n "$0" -- "$0" "$@")"
+  params="$(getopt --longoptions hostname:,api-port:,keys-port:,install,uninstall,reinstall,status,help -n "$0" -- "$0" "$@")"
   eval set -- "${params}"
 
   while (( $# > 0 )); do
@@ -761,7 +904,7 @@ function parse_flags() {
           exit 1
         fi
         ;;
-      --install|--uninstall|--reinstall|--help)
+      --install|--uninstall|--reinstall|--status|--help)
         # These are handled in main()
         ;;
       --)
@@ -925,6 +1068,10 @@ function main() {
       --reinstall)
         ACTION="reinstall"
         shift
+        ;;
+      --status)
+        show_outline_status
+        exit 0
         ;;
       --help)
         display_usage

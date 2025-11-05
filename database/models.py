@@ -31,9 +31,7 @@ def gen_uuid_str() -> str:
 VPN_TYPES = ("outline", "wireguard", "none")
 VPN_STATUSES = ("active", "revoked", "expired", "pending")
 PAYMENT_STATUSES = ("pending", "completed", "failed", "refunded")
-IP_TYPES = ("wireguard_trial", "outline_trial", "wireguard_paid", "outline_paid") # Añadido para IPManager
 PROXY_STATUSES = ("active", "revoked", "expired")
-TUNNEL_DOMAIN_STATUSES = ("active", "inactive", "expired")
 
 
 class User(Base):
@@ -60,9 +58,7 @@ class User(Base):
     roles: Mapped[List["UserRole"]] = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", foreign_keys="[UserRole.user_id]")
     payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="user", cascade="all, delete-orphan")
     logs: Mapped[List["AuditLog"]] = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
-    assigned_ips: Mapped[List["IPManager"]] = relationship("IPManager", back_populates="user", cascade="all, delete-orphan", foreign_keys="[IPManager.assigned_to_user_id]") # Relación con IPManager
     mtproto_proxies: Mapped[List["MTProtoProxy"]] = relationship("MTProtoProxy", back_populates="user", cascade="all, delete-orphan")
-    tunnel_domains: Mapped[List["TunnelDomain"]] = relationship("TunnelDomain", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_users_qvapay_user_id", "qvapay_user_id"),
@@ -111,7 +107,6 @@ class VPNConfig(Base):
     is_trial: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="vpnconfigs")
-    tunnel_domains: Mapped[List["TunnelDomain"]] = relationship("TunnelDomain", back_populates="vpn_config", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint(f"vpn_type IN {VPN_TYPES}", name="ck_vpnconfigs_vpn_type"),
@@ -119,28 +114,6 @@ class VPNConfig(Base):
     )
 
 
-class IPManager(Base):
-    """
-    Gestiona IPs disponibles/ocupadas para VPNs (trial y pago)
-    """
-    __tablename__ = "ip_manager"
-
-    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=gen_uuid_str)
-    ip_address: Mapped[str] = mapped_column(String(45), unique=True, nullable=False)  # IPv4 o IPv6
-    ip_type: Mapped[str] = mapped_column(String(20), nullable=False)  # wireguard_trial, outline_trial, etc.
-    assigned_to_user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    extra_data: Mapped[Optional[Dict]] = mapped_column(MYSQL_JSON, nullable=True)
-
-    user: Mapped[Optional["User"]] = relationship("User", back_populates="assigned_ips")
-
-    __table_args__ = (
-        CheckConstraint(f"ip_type IN {IP_TYPES}", name="ck_ip_manager_ip_type"),
-        Index("ix_ip_manager_type_available", "ip_type", "is_available"),
-    )
 
 
 class Role(Base):
@@ -223,64 +196,6 @@ class MTProtoProxy(Base):
         Index("ix_mtproto_proxies_user_status", "user_id", "status"),
     )
 
-class ShadowmereProxy(Base):
-    """
-    Gestiona proxies detectados por Shadowmere.
-    Almacena información sobre proxies SOCKS5, SOCKS4, HTTP y HTTPS detectados.
-    """
-    __tablename__ = "shadowmere_proxies"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    proxy_address: Mapped[str] = mapped_column(String(45), unique=True, nullable=False)  # IP:puerto
-    proxy_type: Mapped[str] = mapped_column(String(16), nullable=False)  # SOCKS5, SOCKS4, HTTP, HTTPS
-    country: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    is_working: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    last_checked: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
-    response_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # en ms
-    detection_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
-    detection_source: Mapped[str] = mapped_column(String(32), default="shadowmere", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), onupdate=func.utc_timestamp(), nullable=False)
-
-    __table_args__ = (
-        Index("ix_shadowmere_proxies_proxy_address", "proxy_address"),
-        Index("ix_shadowmere_proxies_is_working", "is_working"),
-        Index("ix_shadowmere_proxies_last_checked", "last_checked"),
-    )
-
-    def __repr__(self) -> str:
-        return f"<ShadowmereProxy(id={self.id}, proxy_address={self.proxy_address}, proxy_type={self.proxy_type}, is_working={self.is_working})>"
-
-
-class TunnelDomain(Base):
-    """
-    Gestiona dominios para túneles VPN.
-    Permite asignar dominios personalizados a configuraciones VPN.
-    """
-    __tablename__ = "tunnel_domains"
-
-    id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=gen_uuid_str)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    vpn_config_id: Mapped[Optional[str]] = mapped_column(ForeignKey("vpn_configs.id", ondelete="CASCADE"), nullable=True, index=True)
-    domain_name: Mapped[str] = mapped_column(String(253), unique=True, nullable=False)  # Máximo para FQDN
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
-    assigned_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.utc_timestamp(), nullable=False)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    last_verified: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    verification_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    extra_data: Mapped[Optional[Dict]] = mapped_column(MYSQL_JSON, nullable=True)
-
-    user: Mapped["User"] = relationship("User", back_populates="tunnel_domains")
-    vpn_config: Mapped[Optional["VPNConfig"]] = relationship("VPNConfig", back_populates="tunnel_domains")
-
-    __table_args__ = (
-        CheckConstraint(f"status IN {TUNNEL_DOMAIN_STATUSES}", name="ck_tunnel_domains_status"),
-        Index("ix_tunnel_domains_user_id", "user_id"),
-        Index("ix_tunnel_domains_status", "status"),
-        Index("ix_tunnel_domains_expires_at", "expires_at"),
-        Index("ix_tunnel_domains_is_verified", "is_verified"),
-    )
 
 
 __all__ = [
@@ -288,12 +203,10 @@ __all__ = [
     "UserSetting",
     "AuditLog",
     "VPNConfig",
-    "IPManager", # Añadido a __all__
     "Role",
     "UserRole",
     "Payment",
     "MTProtoProxy",
-    "TunnelDomain",
 ]
 
 

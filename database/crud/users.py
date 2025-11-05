@@ -280,36 +280,3 @@ async def get_active_users(
         logger.exception("Error obteniendo usuarios activos", extra={"user_id": None})
         raise
 
-
-# --- Nuevas funciones para integración con IPManager ---
-async def get_assigned_ips_for_user(session: AsyncSession, user_id: str) -> List[models.IPManager]:
-    """
-    Obtiene todas las IPs asignadas actualmente a un usuario (no revocadas).
-    """
-    try:
-        stmt = select(models.IPManager).where(
-            models.IPManager.assigned_to_user_id == user_id,
-            models.IPManager.is_revoked.is_(False) # Opcional: solo IPs no revocadas
-        )
-        result = await session.execute(stmt)
-        return result.scalars().all()
-    except SQLAlchemyError:
-        logger.exception("Error obteniendo IPs asignadas al usuario", extra={"user_id": user_id})
-        raise
-
-
-async def count_assigned_ips_for_user(session: AsyncSession, user_id: str) -> int:
-    """
-    Cuenta el número de IPs asignadas actualmente a un usuario (no revocadas).
-    Útil para verificar límites.
-    """
-    try:
-        stmt = select(func.count()).select_from(models.IPManager).where(
-            models.IPManager.assigned_to_user_id == user_id,
-            models.IPManager.is_revoked.is_(False)
-        )
-        result = await session.execute(stmt)
-        return int(result.scalar_one() or 0)
-    except SQLAlchemyError:
-        logger.exception("Error contando IPs asignadas al usuario", extra={"user_id": user_id})
-        raise
