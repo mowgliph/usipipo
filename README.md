@@ -1,77 +1,72 @@
 # 🐙 uSipipo
 
-**uSipipo** es una herramienta desarrollada en **Python puro** que funciona como un **bot de Telegram** para gestionar configuraciones de VPN (WireGuard y Outline) y proxies MTProto directamente desde el mismo VPS donde se aloja el bot.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-Este proyecto está diseñado para facilitar la creación de claves de acceso, incluyendo **pruebas gratuitas de 7 días**, y ofrecer configuraciones de VPN de pago mediante **Estrellas de Telegram** y **QvaPay** (criptomonedas).
+**uSipipo** is a pure Python tool that operates as a **Telegram bot** for managing VPN configurations (WireGuard and Outline) and MTProto proxies directly from the same VPS where the bot is hosted.
 
----
+This project is designed to facilitate the creation of access keys, including **7-day free trials**, and offer paid VPN configurations through **Telegram Stars** and **QvaPay** (cryptocurrencies).
 
-## 🏗️ Arquitectura del Proyecto
+## 🏗️ Project Architecture
 
-uSipipo sigue una arquitectura modular y escalable basada en el patrón **models-crud-services-handlers**:
+uSipipo follows a modular and scalable architecture based on the **models-crud-services-handlers** pattern:
 
-- **models**: Definición de modelos SQLAlchemy con tipado estático
-- **crud**: Operaciones de base de datos (consultas, inserciones, actualizaciones)
-- **services**: Lógica de negocio y integración con APIs externas
-- **handlers**: Controladores de comandos y callbacks de Telegram
+- **models**: SQLAlchemy model definitions with static typing
+- **crud**: Database operations (queries, insertions, updates)
+- **services**: Business logic and external API integrations
+- **handlers**: Telegram command and callback controllers
 
----
+## 🔓 Key Features
 
-## 🔓 Características principales
+- ✅ Automatic generation of **WireGuard** and **Outline** configurations
+- 🎁 **7-day free trials**
+- 💸 Payment system with **Telegram Stars**
+- 💳 Payment system with **QvaPay** (cryptocurrencies)
+- 🔄 Management of **MTProto proxies** for Telegram
+- 🤖 Everything managed from a **Telegram bot**
+- 🛠️ Modular, maintainable, and extensible code
+- 📊 Centralized auditing and logging system
+- 🔐 Role and permission management
+- 📦 **Open Source** repository maintained by [mowgliph](https://github.com/mowgliph)
 
-- ✅ Generación automática de configuraciones **WireGuard** y **Outline**
-- 🎁 Pruebas gratuitas de **7 días**
-- 💸 Sistema de pagos con **Estrellas de Telegram**
-- 💳 Sistema de pagos con **QvaPay** (criptomonedas)
-- 🔄 Gestión de **proxies MTProto** para Telegram
-- 🤖 Todo gestionado desde un **bot de Telegram**
-- 🛠️ Código modular, mantenible y extensible
-- 📊 Sistema de auditoría y logs centralizados
-- 🔐 Gestión de roles y permisos
-- 📦 Repositorio **Open Source** mantenido por [mowgliph](https://github.com/mowgliph)
+## 🛠️ Technologies
 
----
+- **Python 3.11+**
+- **python-telegram-bot** for Telegram integration
+- **SQLAlchemy** for ORM
+- **MariaDB** for database
+- **WireGuard** and **Outline** for VPN
+- **MTProto** for proxies
+- **QvaPay** and **Telegram Stars** for payments
 
-## 🔒 Seguridad y Mejores Prácticas
+## 📦 Installation
 
-- **Logs Centralizados**: Todos los eventos se registran con contexto de usuario
-- **Validación de Datos**: Constraints a nivel de base de datos y aplicación
-- **Gestión de Permisos**: Sistema de roles para acceso granular
-- **Auditoría**: Registro completo de todas las operaciones
-- **Rate Limiting**: Protección contra abuso en handlers
-- **Secrets Management**: Variables sensibles en archivos .env
+See [docs/INSTALL.md](docs/INSTALL.md) for detailed installation instructions.
 
----
+## 🤝 Contributing
 
-## 🤝 Contribuir
+1. Fork the project
+2. Create a feature branch (`git checkout -b feature/new-feature`)
+3. Commit your changes (`git commit -am 'Add new feature'`)
+4. Push to the branch (`git push origin feature/new-feature`)
+5. Open a Pull Request
 
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -am 'Agrega nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Abre un Pull Request
+### Development Guidelines
 
-### Guías de Desarrollo
-- Seguir PEP 8 para estilo de código
-- Usar type hints en todas las funciones
-- Escribir tests para nuevas funcionalidades
-- Actualizar documentación
+- Follow PEP 8 for code style
+- Use type hints in all functions
+- Write tests for new features
+- Update documentation
 
----
+## 📄 License
 
-## 📄 Licencia
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for more details.
 
-Este proyecto está bajo la Licencia MIT. Ver [LICENSE](LICENSE) para más detalles.
-
----
-
-## 📞 Soporte
+## 📞 Support
 
 - **Issues**: [GitHub Issues](https://github.com/mowgliph/usipipo/issues)
-- **Discusiones**: [GitHub Discussions](https://github.com/mowgliph/usipipo/discussions)
-- **Email**: mowgliph@github.com
+- **Discussions**: [GitHub Discussions](https://github.com/mowgliph/usipipo/discussions)
 
 ---
 
-**¡Gracias por usar uSipipo!** 🐙
-
+**Thank you for using uSipipo!** 🐙
