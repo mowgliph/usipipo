@@ -22,6 +22,7 @@ DEFAULT_PIHOLE_PORT_MAX=9000
 # Nuevas constantes para compatibilidad con Pi-hole v6
 DEFAULT_TIMEZONE="UTC"
 DEFAULT_UPSTREAM_DNS="8.8.8.8;8.8.4.4"
+PIHOLE_SERVICE_FILE="/etc/systemd/system/pihole.service"
 
 # --- Variables globales ---
 PIHOLE_HOST="${PIHOLE_HOST:-${DEFAULT_PIHOLE_HOST}}"
@@ -450,6 +451,58 @@ function validateInstallation() {
   echo "OK"
 }
 
+function createPiholeService() {
+  log_start_step "Creating systemd service for Pi-hole"
+
+  # Create systemd service file
+  cat > "${PIHOLE_SERVICE_FILE}" <<EOF
+[Unit]
+Description=Pi-hole Docker Container
+After=docker.service network.target
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+ExecStartPre=-/usr/bin/docker stop ${PIHOLE_CONTAINER_NAME}
+ExecStartPre=-/usr/bin/docker rm ${PIHOLE_CONTAINER_NAME}
+ExecStart=/usr/bin/docker run --name ${PIHOLE_CONTAINER_NAME} \\
+    --network ${PIHOLE_NETWORK_NAME} \\
+    -p ${PIHOLE_PORT}:80/tcp \\
+    -p ${PIHOLE_DNS_PORT}:53/tcp \\
+    -p ${PIHOLE_DNS_PORT}:53/udp \\
+    -e TZ=${PIHOLE_TIMEZONE} \\
+    -e FTLCONF_webserver_api_password=${PIHOLE_PASSWORD} \\
+    -e FTLCONF_dns_upstreams=${PIHOLE_UPSTREAM_DNS} \\
+    -e FTLCONF_dns_listeningMode=all \\
+    -e FTLCONF_dns_dnssec=true \\
+    -e FTLCONF_dns_conditional_forwarding=false \\
+    -e PIHOLE_UID=0 \\
+    -e PIHOLE_GID=0 \\
+    --cap-add NET_ADMIN \\
+    --cap-add SYS_TIME \\
+    --cap-add SYS_NICE \\
+    -v ${PIHOLE_VOLUME_NAME}:/etc/pihole \\
+    -v ${PIHOLE_DNSMASQ_VOLUME_NAME}:/etc/dnsmasq.d \\
+    --restart unless-stopped \\
+    ${PIHOLE_IMAGE}
+ExecStop=/usr/bin/docker stop ${PIHOLE_CONTAINER_NAME}
+ExecStopPost=/usr/bin/docker rm ${PIHOLE_CONTAINER_NAME}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  # Reload systemd daemon
+  run_step "Reloading systemd daemon" systemctl daemon-reload
+
+  # Enable the service
+  run_step "Enabling Pi-hole service" systemctl enable pihole
+
+  echo "OK"
+}
+
 # --- Funciones de Generación de .env ---
 function generate_env_files() {
   # Archivo de configuración principal de Pi-hole para uSipipo
@@ -499,6 +552,7 @@ function installPiholeFull() {
   run_step "Installing Pi-hole container" installPihole
   run_step "Configuring Pi-hole" configurePihole
   run_step "Validating installation" validateInstallation
+  run_step "Creating systemd service" createPiholeService
 
   # Generar archivos .env al finalizar
   generate_env_files
@@ -525,6 +579,20 @@ function uninstallPihole() {
   if checkPiholeInstalled; then
     run_step "Stopping Pi-hole container" docker stop "${PIHOLE_CONTAINER_NAME}" || true
     run_step "Removing Pi-hole container" docker rm "${PIHOLE_CONTAINER_NAME}" || true
+  fi
+
+  # Stop and disable systemd service
+  if systemctl is-active --quiet pihole 2>/dev/null; then
+    run_step "Stopping Pi-hole service" systemctl stop pihole || true
+  fi
+  if systemctl is-enabled --quiet pihole 2>/dev/null; then
+    run_step "Disabling Pi-hole service" systemctl disable pihole || true
+  fi
+
+  # Remove systemd service file
+  if [[ -f "${PIHOLE_SERVICE_FILE}" ]]; then
+    run_step "Removing systemd service file" rm -f "${PIHOLE_SERVICE_FILE}"
+    run_step "Reloading systemd daemon" systemctl daemon-reload
   fi
 
   # Remove Pi-hole volumes
