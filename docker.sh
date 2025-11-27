@@ -190,7 +190,7 @@ start_services() {
         echo -e "${YELLOW}⚠️ No se encontró el archivo .env. Creando uno copiando de example.env...${NC}"
         cp "$PROJECT_DIR/bot/example.env" "$ENV_FILE"
         # Generate initial service variables
-        SERVER_IP=$(curl -s ifconfig.me)
+        SERVER_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
         PIHOLE_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
         # Append service variables
         echo "" >> "$ENV_FILE"
@@ -288,9 +288,6 @@ EOF
     echo -e "🌍 Outline Server:"
     echo -e "   📡 API URL: http://${SERVER_IPV4}:${OUTLINE_API_PORT}"
     echo -e ""
-    echo -e "${YELLOW}💡 Para generar credenciales para el bot de Telegram, ejecute:${NC}"
-    echo -e "   cd $PROJECT_DIR"
-    echo -e "   ./init-services.sh"
     
     # Asegurar permisos correctos en los archivos generados
     chown $(stat -c "%U:%G" "$BOT_DIR") "$ENV_FILE" 2>/dev/null || true
