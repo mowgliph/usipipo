@@ -27,6 +27,10 @@ DOCKER_COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 ENV_FILE="$BOT_DIR/.env"
 CREDENTIALS_FILE="$BOT_DIR/credentials.env"
 
+# Global variables for service configuration
+SERVER_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+PIHOLE_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
+
 # Función para ejecutar comandos con sudo manteniendo el entorno
 run_sudo() {
     if [ "$(id -u)" = "0" ]; then
@@ -189,9 +193,6 @@ start_services() {
     if [ ! -f "$ENV_FILE" ]; then
         echo -e "${YELLOW}⚠️ No se encontró el archivo .env. Creando uno copiando de example.env...${NC}"
         cp "$PROJECT_DIR/bot/example.env" "$ENV_FILE"
-        # Generate initial service variables
-        SERVER_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-        PIHOLE_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
         # Append service variables
         echo "" >> "$ENV_FILE"
         echo "# Service configuration" >> "$ENV_FILE"
@@ -201,10 +202,6 @@ start_services() {
     fi
 
     # Generate random ports and update .env
-    SERVER_IP=$(grep SERVER_IP "$ENV_FILE" | cut -d= -f2)
-    if [ -z "$SERVER_IP" ]; then
-        SERVER_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-    fi
     PIHOLE_WEB_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     WIREGUARD_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     OUTLINE_API_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
@@ -277,9 +274,7 @@ EOF
     fi
     
     # Obtener información útil
-    SERVER_IP=$(grep SERVER_IP "$ENV_FILE" | cut -d= -f2)
-    PIHOLE_PASS=$(grep PIHOLE_WEBPASS "$ENV_FILE" | cut -d= -f2)
-    SERVER_IPV4=$(grep SERVER_IPV4 "$ENV_FILE" | cut -d= -f2)
+    SERVER_IPV4=$SERVER_IP
     PIHOLE_WEB_PORT=$(grep PIHOLE_WEB_PORT "$ENV_FILE" | cut -d= -f2)
     WIREGUARD_PORT=$(grep WIREGUARD_PORT "$ENV_FILE" | cut -d= -f2)
     OUTLINE_API_PORT=$(grep OUTLINE_API_PORT "$ENV_FILE" | cut -d= -f2)
