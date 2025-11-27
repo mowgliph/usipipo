@@ -22,9 +22,10 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_DIR="$SCRIPT_DIR"  # Asumimos que el proyecto está donde está el script
 
 # Rutas corregidas
+BOT_DIR="$PROJECT_DIR/bot"
 DOCKER_COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
-ENV_FILE="$PROJECT_DIR/.env"
-CREDENTIALS_FILE="$PROJECT_DIR/credentials.env"
+ENV_FILE="$BOT_DIR/.env"
+CREDENTIALS_FILE="$BOT_DIR/credentials.env"
 
 # Función para ejecutar comandos con sudo manteniendo el entorno
 run_sudo() {
@@ -178,23 +179,63 @@ start_services() {
             return
         fi
     fi
-    
+
+    # Ensure bot directory exists
+    if [ ! -d "$BOT_DIR" ]; then
+        mkdir -p "$BOT_DIR"
+    fi
+
     # Crear archivo .env si no existe
     if [ ! -f "$ENV_FILE" ]; then
-        echo -e "${YELLOW}⚠️ No se encontró el archivo .env. Creando uno con valores por defecto...${NC}"
+        echo -e "${YELLOW}⚠️ No se encontró el archivo .env. Creando uno copiando de example.env...${NC}"
+        cp "$PROJECT_DIR/bot/example.env" "$ENV_FILE"
+        # Generate initial service variables
         SERVER_IP=$(curl -s ifconfig.me)
         PIHOLE_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
-        
-        cat > "$ENV_FILE" <<EOF
-# Configuración generada automáticamente para uSipipo VPN
-PIHOLE_WEBPASS=${PIHOLE_PASS}
-SERVER_IP=${SERVER_IP}
-EOF
-        echo -e "${GREEN}✅ Archivo .env creado con configuración inicial${NC}"
-        # Asegurar permisos correctos
-        chown $(stat -c "%U:%G" "$PROJECT_DIR") "$ENV_FILE" 2>/dev/null || true
+        # Append service variables
+        echo "" >> "$ENV_FILE"
+        echo "# Service configuration" >> "$ENV_FILE"
+        echo "PIHOLE_WEBPASS=${PIHOLE_PASS}" >> "$ENV_FILE"
+        echo "SERVER_IP=${SERVER_IP}" >> "$ENV_FILE"
+        echo -e "${GREEN}✅ Archivo .env creado copiando de example.env y añadiendo variables de servicio${NC}"
     fi
-    
+
+    # Generate random ports and update .env
+    SERVER_IP=$(grep SERVER_IP "$ENV_FILE" | cut -d= -f2)
+    PIHOLE_WEB_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
+    WIREGUARD_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
+    OUTLINE_API_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
+    SERVER_IPV6=$(curl -6 -s ifconfig.me 2>/dev/null || echo "")
+
+    # Update .env with new variables
+    sed -i "/^SERVER_IPV4=/d" "$ENV_FILE"
+    echo "SERVER_IPV4=${SERVER_IP}" >> "$ENV_FILE"
+    sed -i "/^PIHOLE_WEB_PORT=/d" "$ENV_FILE"
+    echo "PIHOLE_WEB_PORT=${PIHOLE_WEB_PORT}" >> "$ENV_FILE"
+    sed -i "/^WIREGUARD_PORT=/d" "$ENV_FILE"
+    echo "WIREGUARD_PORT=${WIREGUARD_PORT}" >> "$ENV_FILE"
+    sed -i "/^OUTLINE_API_PORT=/d" "$ENV_FILE"
+    echo "OUTLINE_API_PORT=${OUTLINE_API_PORT}" >> "$ENV_FILE"
+    sed -i "/^SERVERPORT=/d" "$ENV_FILE"
+    echo "SERVERPORT=${WIREGUARD_PORT}" >> "$ENV_FILE"
+    if [ -n "$SERVER_IPV6" ]; then
+      sed -i "/^SERVER_IPV6=/d" "$ENV_FILE"
+      echo "SERVER_IPV6=${SERVER_IPV6}" >> "$ENV_FILE"
+    fi
+
+    # Create credentials.env with service information
+    cat > "$CREDENTIALS_FILE" <<EOF
+SERVER_IP=${SERVER_IP}
+PIHOLE_WEBPASS=${PIHOLE_PASS}
+SERVER_IPV4=${SERVER_IP}
+PIHOLE_WEB_PORT=${PIHOLE_WEB_PORT}
+WIREGUARD_PORT=${WIREGUARD_PORT}
+OUTLINE_API_PORT=${OUTLINE_API_PORT}
+EOF
+    if [ -n "$SERVER_IPV6" ]; then
+        echo "SERVER_IPV6=${SERVER_IPV6}" >> "$CREDENTIALS_FILE"
+    fi
+
     # Levantar servicios con docker-compose
     cd "$PROJECT_DIR"
     echo -e "${BLUE}🐳 Iniciando servicios con Docker Compose...${NC}"
@@ -231,26 +272,29 @@ EOF
     # Obtener información útil
     SERVER_IP=$(grep SERVER_IP "$ENV_FILE" | cut -d= -f2)
     PIHOLE_PASS=$(grep PIHOLE_WEBPASS "$ENV_FILE" | cut -d= -f2)
+    SERVER_IPV4=$(grep SERVER_IPV4 "$ENV_FILE" | cut -d= -f2)
+    PIHOLE_WEB_PORT=$(grep PIHOLE_WEB_PORT "$ENV_FILE" | cut -d= -f2)
+    WIREGUARD_PORT=$(grep WIREGUARD_PORT "$ENV_FILE" | cut -d= -f2)
+    OUTLINE_API_PORT=$(grep OUTLINE_API_PORT "$ENV_FILE" | cut -d= -f2)
     
     echo -e "\n${GREEN}🎉 SERVICIOS INICIADOS EXITOSAMENTE${NC}"
     echo -e "${BLUE}======================================${NC}"
-    echo -e "🌐 Pi-hole Web Interface: http://${SERVER_IP}/admin"
+    echo -e "🌐 Pi-hole Web Interface: http://${SERVER_IPV4}:${PIHOLE_WEB_PORT}/admin"
     echo -e "   🔑 Contraseña: ${PIHOLE_PASS}"
     echo -e ""
     echo -e "🔧 WireGuard:"
-    echo -e "   📡 Endpoint: ${SERVER_IP}:51820"
+    echo -e "   📡 Endpoint: ${SERVER_IPV4}:${WIREGUARD_PORT}"
     echo -e ""
     echo -e "🌍 Outline Server:"
-    echo -e "   📡 API URL: http://${SERVER_IP}:8080"
+    echo -e "   📡 API URL: http://${SERVER_IPV4}:${OUTLINE_API_PORT}"
     echo -e ""
     echo -e "${YELLOW}💡 Para generar credenciales para el bot de Telegram, ejecute:${NC}"
     echo -e "   cd $PROJECT_DIR"
     echo -e "   ./init-services.sh"
     
     # Asegurar permisos correctos en los archivos generados
-    if [ -f "$CREDENTIALS_FILE" ]; then
-        chown $(stat -c "%U:%G" "$PROJECT_DIR") "$CREDENTIALS_FILE" 2>/dev/null || true
-    fi
+    chown $(stat -c "%U:%G" "$BOT_DIR") "$ENV_FILE" 2>/dev/null || true
+    chown $(stat -c "%U:%G" "$BOT_DIR") "$CREDENTIALS_FILE" 2>/dev/null || true
     
     read -p "Presione Enter para continuar..."
     show_menu
