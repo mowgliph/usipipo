@@ -25,7 +25,6 @@ PROJECT_DIR="$SCRIPT_DIR"  # Asumimos que el proyecto está donde está el scrip
 BOT_DIR="$PROJECT_DIR/bot"
 DOCKER_COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 ENV_FILE="$BOT_DIR/.env"
-CREDENTIALS_FILE="$BOT_DIR/credentials.env"
 
 # Global variables for service configuration
 SERVER_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
@@ -227,19 +226,6 @@ start_services() {
       echo "SERVER_IPV6=${SERVER_IPV6}" >> "$ENV_FILE"
     fi
 
-    # Create credentials.env with service information
-    cat > "$CREDENTIALS_FILE" <<EOF
-SERVER_IP=${SERVER_IP}
-PIHOLE_WEBPASS=${PIHOLE_PASS}
-SERVER_IPV4=${SERVER_IP}
-PIHOLE_WEB_PORT=${PIHOLE_WEB_PORT}
-WIREGUARD_PORT=${WIREGUARD_PORT}
-OUTLINE_API_PORT=${OUTLINE_API_PORT}
-EOF
-    if [ -n "$SERVER_IPV6" ]; then
-        echo "SERVER_IPV6=${SERVER_IPV6}" >> "$CREDENTIALS_FILE"
-    fi
-
     # Levantar servicios con docker-compose
     cd "$PROJECT_DIR"
     echo -e "${BLUE}🐳 Iniciando servicios con Docker Compose...${NC}"
@@ -278,7 +264,21 @@ EOF
     PIHOLE_WEB_PORT=$(grep PIHOLE_WEB_PORT "$ENV_FILE" | cut -d= -f2)
     WIREGUARD_PORT=$(grep WIREGUARD_PORT "$ENV_FILE" | cut -d= -f2)
     OUTLINE_API_PORT=$(grep OUTLINE_API_PORT "$ENV_FILE" | cut -d= -f2)
-    
+
+    # Extract WireGuard public key
+    if groups | grep &>/dev/null '\bdocker\b'; then
+        WIREGUARD_PUBLIC_KEY=$(docker exec wireguard wg show wg0 public-key 2>/dev/null || echo "")
+    else
+        WIREGUARD_PUBLIC_KEY=$(run_sudo docker exec wireguard wg show wg0 public-key 2>/dev/null || echo "")
+    fi
+
+    # Append new variables to .env
+    echo "PIHOLE_DNS=${SERVER_IP}" >> "$ENV_FILE"
+    echo "WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}" >> "$ENV_FILE"
+    echo "WIREGUARD_ENDPOINT=${SERVER_IP}:${WIREGUARD_PORT}" >> "$ENV_FILE"
+    echo "WIREGUARD_PATH=/config" >> "$ENV_FILE"
+    echo "OUTLINE_API_URL=http://${SERVER_IP}:${OUTLINE_API_PORT}" >> "$ENV_FILE"
+
     echo -e "\n${GREEN}🎉 SERVICIOS INICIADOS EXITOSAMENTE${NC}"
     echo -e "${BLUE}======================================${NC}"
     echo -e "🌐 Pi-hole Web Interface: http://${SERVER_IPV4}:${PIHOLE_WEB_PORT}/admin"
@@ -290,10 +290,17 @@ EOF
     echo -e "🌍 Outline Server:"
     echo -e "   📡 API URL: http://${SERVER_IPV4}:${OUTLINE_API_PORT}"
     echo -e ""
-    
+
+    echo -e "🔧 Variables de configuración añadidas al .env:"
+    echo -e "   📡 PIHOLE_DNS: ${SERVER_IP}"
+    echo -e "   🔑 WIREGUARD_PUBLIC_KEY: ${WIREGUARD_PUBLIC_KEY}"
+    echo -e "   📡 WIREGUARD_ENDPOINT: ${SERVER_IP}:${WIREGUARD_PORT}"
+    echo -e "   📁 WIREGUARD_PATH: /config"
+    echo -e "   🌍 OUTLINE_API_URL: http://${SERVER_IP}:${OUTLINE_API_PORT}"
+    echo -e ""
+
     # Asegurar permisos correctos en los archivos generados
     chown $(stat -c "%U:%G" "$BOT_DIR") "$ENV_FILE" 2>/dev/null || true
-    chown $(stat -c "%U:%G" "$BOT_DIR") "$CREDENTIALS_FILE" 2>/dev/null || true
     
     read -p "Presione Enter para continuar..."
     show_menu

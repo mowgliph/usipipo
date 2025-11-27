@@ -1,23 +1,26 @@
 require('dotenv').config();
 const fs = require('fs');
+
 const { Telegraf, Markup } = require('telegraf');
 const WireGuardService = require('./services/wireguard');
 const OutlineService = require('./services/outline');
 
-// Cargar credenciales generadas por Docker
-const credentialsPath = process.env.CREDENTIALS_PATH || '../credentials/credentials.env';
-if (fs.existsSync(credentialsPath)) {
-  const credentials = fs.readFileSync(credentialsPath, 'utf8');
-  credentials.split('\n').forEach(line => {
-    if (line && !line.startsWith('#')) {
-      const [key, value] = line.split('=');
-      process.env[key.trim()] = value.trim();
-    }
-  });
-  console.log('✅ Credenciales de servicios VPN cargadas exitosamente');
-} else {
-  console.warn('⚠️  No se encontraron credenciales en:', credentialsPath);
-  console.warn('   Ejecuta init-services.sh primero para generarlas');
+// Check for required environment variables
+const requiredEnvVars = [
+  'TELEGRAM_TOKEN',
+  'AUTHORIZED_USERS',
+  'SERVER_IPV4',
+  'PIHOLE_WEBPASS',
+  'WIREGUARD_PORT',
+  'OUTLINE_API_PORT'
+];
+
+for (const varName of requiredEnvVars) {
+  if (!process.env[varName]) {
+    console.error(`❌ Error: Missing required environment variable: ${varName}`);
+    console.error('Please ensure all required variables are set in your .env file.');
+    process.exit(1);
+  }
 }
 
 // Inicializar bot
