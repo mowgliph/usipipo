@@ -226,6 +226,22 @@ start_services() {
       echo "SERVER_IPV6=${SERVER_IPV6}" >> "$ENV_FILE"
     fi
 
+    # Outline server setup
+    if groups | grep &>/dev/null '\bdocker\b'; then
+        DOCKER_CMD="docker"
+    else
+        DOCKER_CMD="run_sudo docker"
+    fi
+
+    # Check if Outline config exists
+    if ! $DOCKER_CMD run --rm -v outline_data:/data alpine test -f /data/shadowbox_server_config.json; then
+        echo -e "${YELLOW}⚠️ Outline config not found. Creating initial config...${NC}"
+        $DOCKER_CMD run --rm -v outline_data:/data alpine sh -c "echo '{\"hostname\": \"$SERVER_IP\"}' > /data/shadowbox_server_config.json"
+        echo -e "${BLUE}🔧 Running Outline setup...${NC}"
+        $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state quay.io/outline/shadowbox:stable setup
+        echo -e "${GREEN}✅ Outline setup completed${NC}"
+    fi
+
     # Levantar servicios con docker-compose
     cd "$PROJECT_DIR"
     echo -e "${BLUE}🐳 Iniciando servicios con Docker Compose...${NC}"
@@ -274,10 +290,14 @@ start_services() {
 
     # Append new variables to .env
     echo "PIHOLE_DNS=${SERVER_IP}" >> "$ENV_FILE"
+    echo -e "${BLUE}🔑 Retrieving Outline API secret...${NC}"
+    OUTLINE_API_SECRET=$($DOCKER_CMD run --rm -v outline_data:/data python:alpine python3 -c "import json; print(json.load(open('/data/shadowbox_server_config.json'))['managementUdpSecret'])")
+
     echo "WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}" >> "$ENV_FILE"
     echo "WIREGUARD_ENDPOINT=${SERVER_IP}:${WIREGUARD_PORT}" >> "$ENV_FILE"
     echo "WIREGUARD_PATH=/config" >> "$ENV_FILE"
     echo "OUTLINE_API_URL=http://${SERVER_IP}:${OUTLINE_API_PORT}" >> "$ENV_FILE"
+    echo "OUTLINE_API_SECRET=$OUTLINE_API_SECRET" >> "$ENV_FILE"
 
     echo -e "\n${GREEN}🎉 SERVICIOS INICIADOS EXITOSAMENTE${NC}"
     echo -e "${BLUE}======================================${NC}"
@@ -297,6 +317,7 @@ start_services() {
     echo -e "   📡 WIREGUARD_ENDPOINT: ${SERVER_IP}:${WIREGUARD_PORT}"
     echo -e "   📁 WIREGUARD_PATH: /config"
     echo -e "   🌍 OUTLINE_API_URL: http://${SERVER_IP}:${OUTLINE_API_PORT}"
+    echo -e "   🔑 OUTLINE_API_SECRET: $OUTLINE_API_SECRET"
     echo -e ""
 
     # Asegurar permisos correctos en los archivos generados
