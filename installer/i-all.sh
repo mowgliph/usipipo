@@ -66,7 +66,7 @@ install_all() {
     echo "💡 Después del reinicio, configura el bot de Telegram con las credenciales"
 }
 
-# Función para desinstalar TODO
+# Función mejorada para desinstalar TODO
 uninstall_all() {
     echo -e "\n⚠️ ⚠️ ⚠️ ADVERTENCIA: DESINSTALACIÓN COMPLETA ⚠️ ⚠️ ⚠️"
     echo "Esta operación eliminará permanentemente:"
@@ -88,83 +88,149 @@ uninstall_all() {
     echo -e "\n🗑️ Iniciando desinstalación completa de uSipipo VPN"
     echo "============================================="
     
-    # 1. Detener y eliminar servicios de Outline
+    # 1. Eliminar Outline Server primero (evitar conflictos)
     echo "🔧 Paso 1: Eliminando Outline Server"
-    if docker ps -a | grep -q outline-server; then
-        docker stop outline-server 2>/dev/null || true
-        docker rm -f outline-server 2>/dev/null || true
+    if command -v docker &> /dev/null && docker ps -a | grep -q outline-server; then
+        echo "   ⏳ Deteniendo contenedor de Outline..."
+        timeout 30 docker stop outline-server 2>/dev/null || true
+        echo "   ⏳ Eliminando contenedor de Outline..."
+        timeout 30 docker rm -f outline-server 2>/dev/null || true
     fi
     
     # Eliminar volumen de Outline
-    docker volume rm outline_persist 2>/dev/null || true
+    if command -v docker &> /dev/null; then
+        docker volume rm outline_persist 2>/dev/null || true
+    fi
     
-    # Eliminar imágenes de Docker relacionadas
-    docker rmi ghcr.io/jigsaw-works/outline-server 2>/dev/null || true
-    
-    # 2. Detener y eliminar WireGuard
+    # 2. Eliminar WireGuard
     echo "🔧 Paso 2: Eliminando WireGuard"
+    if ip link show wg0 &> /dev/null; then
+        echo "   ⏳ Bajando interfaz WireGuard..."
+        timeout 10 wg-quick down wg0 2>/dev/null || true
+    fi
+    
     if systemctl is-active --quiet wg-quick@wg0 2>/dev/null; then
-        systemctl stop wg-quick@wg0
-        systemctl disable wg-quick@wg0
+        echo "   ⏳ Deteniendo servicio WireGuard..."
+        systemctl stop wg-quick@wg0 2>/dev/null || true
+        systemctl disable wg-quick@wg0 2>/dev/null || true
     fi
     
     # Eliminar interfaz de red
     ip link delete wg0 2>/dev/null || true
     
     # Eliminar paquetes de WireGuard
-    apt-get remove -y wireguard wireguard-tools qrencode 2>/dev/null || true
+    apt-get remove -y --purge wireguard wireguard-tools qrencode 2>/dev/null || true
     apt-get autoremove -y 2>/dev/null || true
     
     # Eliminar archivos de configuración
     rm -rf /etc/wireguard 2>/dev/null || true
     rm -f /etc/systemd/system/wg-quick@wg0.service 2>/dev/null || true
+    rm -f /etc/systemd/system/multi-user.target.wants/wg-quick@wg0.service 2>/dev/null || true
     systemctl daemon-reload 2>/dev/null || true
     
-    # 3. Eliminar Pi-hole
-    echo "🔧 Paso 3: Eliminando Pi-hole"
+    # 3. Eliminar Pi-hole (METODO CORREGIDO)
+    echo "🔧 Paso 3: Eliminando Pi-hole (método mejorado)"
+    
+    # Método 1: Intentar desinstalación oficial con timeout
     if command -v pihole &> /dev/null; then
-        pihole uninstall --confirm 2>/dev/null || true
-    else
-        # Método alternativo si el comando pihole no está disponible
-        systemctl stop pihole-FTL 2>/dev/null || true
-        systemctl disable pihole-FTL 2>/dev/null || true
-        apt-get remove -y pihole-FTL 2>/dev/null || true
-        
-        # Eliminar archivos restantes
-        rm -rf /etc/pihole 2>/dev/null || true
-        rm -rf /var/www/html/admin 2>/dev/null || true
-        rm -f /etc/lighttpd/conf-enabled/20-pihole.conf 2>/dev/null || true
+        echo "   ⏳ Intentando desinstalación oficial de Pi-hole..."
+        echo "y" | timeout 60 pihole uninstall --confirm 2>/dev/null || true
     fi
     
-    # Eliminar paquetes relacionados con Pi-hole
-    apt-get remove -y lighttpd php-common php-fpm php-cgi php-sqlite3 dnsmasq-base 2>/dev/null || true
+    # Método 2: Forzar eliminación manual si el método 1 falla
+    echo "   ⏳ Realizando limpieza manual de Pi-hole..."
+    
+    # Detener servicios relacionados
+    for service in "pihole-FTL" "lighttpd" "dnsmasq"; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            echo "      ⏳ Deteniendo $service..."
+            systemctl stop "$service" 2>/dev/null || true
+            systemctl disable "$service" 2>/dev/null || true
+        fi
+    done
+    
+    # Eliminar paquetes de Pi-hole y dependencias
+    echo "   ⏳ Eliminando paquetes de Pi-hole..."
+    apt-get remove -y --purge pihole-FTL pihole-core pihole-common lighttpd php-* dnsmasq-base dnsutils 2>/dev/null || true
     apt-get autoremove -y 2>/dev/null || true
+    
+    # Eliminar archivos y directorios restantes
+    echo "   ⏳ Eliminando archivos de configuración restantes..."
+    directories=(
+        "/etc/pihole"
+        "/var/www/html/admin"
+        "/etc/.pihole"
+        "/etc/dnsmasq.d"
+        "/etc/lighttpd"
+        "/var/log/pihole"
+        "/var/log/pihole-ftl"
+        "/run/pihole"
+    )
+    
+    for dir in "${directories[@]}"; do
+        if [ -d "$dir" ]; then
+            echo "      ⏳ Eliminando $dir..."
+            rm -rf "$dir" 2>/dev/null || true
+        fi
+    done
+    
+    # Eliminar archivos de configuración específicos
+    files=(
+        "/etc/lighttpd/conf-enabled/20-pihole.conf"
+        "/etc/lighttpd/lighttpd.conf"
+        "/etc/dnsmasq.conf"
+        "/etc/dnsmasq.d/01-pihole.conf"
+        "/etc/resolv.conf"
+    )
+    
+    for file in "${files[@]}"; do
+        if [ -f "$file" ]; then
+            echo "      ⏳ Eliminando $file..."
+            rm -f "$file" 2>/dev/null || true
+        fi
+    done
+    
+    # Restaurar resolv.conf a valores por defecto
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf 2>/dev/null || true
     
     # 4. Eliminar Docker completamente
     echo "🔧 Paso 4: Eliminando Docker"
-    systemctl stop docker 2>/dev/null || true
-    systemctl disable docker 2>/dev/null || true
-    
-    # Eliminar paquetes de Docker
-    apt-get remove -y docker docker-engine docker.io containerd runc docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-model-plugin 2>/dev/null || true
-    apt-get autoremove -y 2>/dev/null || true
-    
-    # Eliminar archivos y directorios de Docker
-    rm -rf /var/lib/docker 2>/dev/null || true
-    rm -rf /etc/docker 2>/dev/null || true
-    rm -f /etc/systemd/system/docker.service 2>/dev/null || true
-    rm -f /etc/systemd/system/docker.socket 2>/dev/null || true
-    systemctl daemon-reload 2>/dev/null || true
+    if command -v docker &> /dev/null; then
+        echo "   ⏳ Deteniendo todos los contenedores Docker..."
+        timeout 30 docker stop $(docker ps -aq 2>/dev/null) 2>/dev/null || true
+        echo "   ⏳ Eliminando todos los contenedores Docker..."
+        timeout 30 docker rm -f $(docker ps -aq 2>/dev/null) 2>/dev/null || true
+        echo "   ⏳ Eliminando todas las imágenes Docker..."
+        timeout 30 docker rmi -f $(docker images -q 2>/dev/null) 2>/dev/null || true
+        
+        # Detener y deshabilitar servicio
+        systemctl stop docker 2>/dev/null || true
+        systemctl disable docker 2>/dev/null || true
+        
+        # Eliminar paquetes de Docker
+        apt-get remove -y --purge docker docker-engine docker.io containerd runc docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-model-plugin 2>/dev/null || true
+        apt-get autoremove -y 2>/dev/null || true
+        
+        # Eliminar archivos y directorios de Docker
+        rm -rf /var/lib/docker 2>/dev/null || true
+        rm -rf /etc/docker 2>/dev/null || true
+        rm -f /etc/systemd/system/docker.service 2>/dev/null || true
+        rm -f /etc/systemd/system/docker.socket 2>/dev/null || true
+        rm -rf /var/run/docker 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+    fi
     
     # 5. Restaurar configuración de red
     echo "🔧 Paso 5: Restaurando configuración de red"
     
     # Restaurar sysctl.conf a valores predeterminados
+    echo "   ⏳ Restaurando configuración de red..."
     sed -i '/net.ipv4.ip_forward/d' /etc/sysctl.conf 2>/dev/null || true
     sed -i '/net.ipv6.conf.all.forwarding/d' /etc/sysctl.conf 2>/dev/null || true
     sysctl -p 2>/dev/null || true
     
     # Eliminar reglas de iptables personalizadas
+    echo "   ⏳ Limpiando reglas de firewall..."
     iptables -F 2>/dev/null || true
     iptables -t nat -F 2>/dev/null || true
     iptables -t mangle -F 2>/dev/null || true
@@ -188,6 +254,7 @@ uninstall_all() {
     # 7. Eliminar usuario y grupos
     echo "🔧 Paso 7: Eliminando usuarios y grupos"
     if id "vpnuser" &>/dev/null; then
+        echo "   ⏳ Eliminando usuario vpnuser..."
         userdel -r vpnuser 2>/dev/null || true
     fi
     
@@ -195,13 +262,28 @@ uninstall_all() {
     echo "🔧 Paso 8: Limpiando archivos del proyecto"
     rm -f /home/vpnuser/credentials.env 2>/dev/null || true
     rm -rf /home/vpnuser/VPNs_Configs 2>/dev/null || true
+    rm -rf /home/vpnuser 2>/dev/null || true
     
-    # 9. Eliminar paquetes base instalados
-    echo "🔧 Paso 9: Eliminando paquetes adicionales"
-    apt-get remove -y qrencode iptables-persistent netfilter-persistent curl wget git ufw dnsutils lsof unzip python3 python3-pip apache2-utils 2>/dev/null || true
-    apt-get autoremove -y 2>/dev/null || true
+    # 9. Instalar paquetes esenciales que podrían haber sido eliminados
+    echo "🔧 Paso 9: Reinstalando paquetes esenciales"
+    apt-get update 2>/dev/null || true
+    apt-get install -y --reinstall openssh-server net-tools iproute2 curl wget 2>/dev/null || true
+    
+    # 10. Limpiar caché de paquetes
+    echo "🔧 Paso 10: Limpiando caché del sistema"
+    apt-get clean 2>/dev/null || true
+    apt-get autoclean 2>/dev/null || true
     
     echo -e "\n✅ DESINSTALACIÓN COMPLETA FINALIZADA"
+    echo "🔍 Verificando que no queden procesos residuales..."
+    
+    # Verificar procesos residuales
+    residual_processes=$(ps aux | grep -E 'pihole|wireguard|wg-quick|docker|outline' | grep -v grep | wc -l)
+    if [ "$residual_processes" -gt 0 ]; then
+        echo "⚠️ Se detectaron $residual_processes procesos residuales. Reinicie el servidor para eliminarlos completamente."
+        ps aux | grep -E 'pihole|wireguard|wg-quick|docker|outline' | grep -v grep
+    fi
+    
     echo "🔄 Se recomienda reiniciar el servidor para limpiar completamente todos los procesos:"
     echo "sudo reboot"
 }
