@@ -1,0 +1,15 @@
+{
+  "name": "usipipo-vpn-bot",
+  "version": "0.1.0",
+  "description": "Bot para gestión de VPNs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "telegraf": "^4.12.3",
+    "wireguard-config-parser": "^2.1.0"
+  }
+}

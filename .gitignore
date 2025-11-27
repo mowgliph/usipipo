@@ -1,0 +1,46 @@
+# Entorno y secretos
+.env
+.env.local
+credentials.env
+*.pem
+*.key
+*.crt
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Docker
+docker-compose.override.yml
+
+# WireGuard
+wg0.conf.bak
+wg0-server.conf
+
+# Compilación
+dist/
+build/
+
+# Editor backups
+*~
+*.swp
+*.swo
+
+# Pi-hole
+/etc/pihole/
+/etc/dnsmasq.d/
+
+# Outline
+outline_persist/
