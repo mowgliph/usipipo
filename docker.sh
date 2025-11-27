@@ -200,10 +200,20 @@ EOF
     echo -e "${BLUE}🐳 Iniciando servicios con Docker Compose...${NC}"
     
     # Determinar cómo ejecutar docker-compose según los permisos
-    if groups | grep &>/dev/null '\bdocker\b'; then
-        docker compose up -d --force-recreate
+    if docker compose version &>/dev/null; then
+        # Usar docker compose (plugin moderno)
+        if groups | grep &>/dev/null '\bdocker\b'; then
+            docker compose up -d --force-recreate
+        else
+            run_sudo docker compose up -d --force-recreate
+        fi
     else
-        run_sudo docker compose up -d --force-recreate
+        # Usar docker-compose (paquete antiguo)
+        if groups | grep &>/dev/null '\bdocker\b'; then
+            docker-compose up -d --force-recreate
+        else
+            run_sudo docker-compose up -d --force-recreate
+        fi
     fi
     
     # Esperar a que los servicios se inicien

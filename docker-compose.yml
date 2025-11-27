@@ -1,19 +1,4 @@
-version: '3.8'
-
-networks:
-  vpn-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.10.10.0/24
-          gateway: 10.10.10.1
-
-volumes:
-  pihole_config:
-  pihole_dns:
-  wireguard_config:
-  outline_data:
-
+# docker-compose.yml para uSipipo VPN - SINTAXIS ACTUALIZADA
 services:
   pihole:
     image: pihole/pihole:latest
@@ -74,7 +59,8 @@ services:
       vpn-network:
         ipv4_address: 10.10.10.3
     depends_on:
-      - pihole
+      pihole:
+        condition: service_healthy
 
   outline:
     image: ghcr.io/jigsaw-works/outline-server:stable
@@ -98,3 +84,17 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+networks:
+  vpn-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+          gateway: 10.10.10.1
+
+volumes:
+  pihole_config:
+  pihole_dns:
+  wireguard_config:
+  outline_data:
