@@ -202,11 +202,18 @@ start_services() {
 
     # Generate random ports and update .env
     SERVER_IP=$(grep SERVER_IP "$ENV_FILE" | cut -d= -f2)
+    if [ -z "$SERVER_IP" ]; then
+        SERVER_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    fi
     PIHOLE_WEB_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     WIREGUARD_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     OUTLINE_API_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     SERVER_IPV6=$(curl -6 -s ifconfig.me 2>/dev/null || echo "")
-
+    
+    # Remove existing SERVER_IP and append new one
+    sed -i "/^SERVER_IP=/d" "$ENV_FILE"
+    echo "SERVER_IP=${SERVER_IP}" >> "$ENV_FILE"
+    
     # Update .env with new variables
     sed -i "/^SERVER_IPV4=/d" "$ENV_FILE"
     echo "SERVER_IPV4=${SERVER_IP}" >> "$ENV_FILE"
