@@ -1,7 +1,24 @@
 require('dotenv').config();
+const fs = require('fs');
 const { Telegraf, Markup } = require('telegraf');
 const WireGuardService = require('./services/wireguard');
 const OutlineService = require('./services/outline');
+
+// Cargar credenciales generadas por Docker
+const credentialsPath = process.env.CREDENTIALS_PATH || '../credentials/credentials.env';
+if (fs.existsSync(credentialsPath)) {
+  const credentials = fs.readFileSync(credentialsPath, 'utf8');
+  credentials.split('\n').forEach(line => {
+    if (line && !line.startsWith('#')) {
+      const [key, value] = line.split('=');
+      process.env[key.trim()] = value.trim();
+    }
+  });
+  console.log('✅ Credenciales de servicios VPN cargadas exitosamente');
+} else {
+  console.warn('⚠️  No se encontraron credenciales en:', credentialsPath);
+  console.warn('   Ejecuta init-services.sh primero para generarlas');
+}
 
 // Inicializar bot
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
