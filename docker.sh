@@ -244,13 +244,14 @@ start_services() {
     fi
 
     # Check if Outline config exists
-    if ! $DOCKER_CMD run --rm -v outline_data:/data alpine test -f /data/shadowbox_server_config.json; then
-        echo -e "${YELLOW}⚠️ Outline config not found. Creating initial config...${NC}"
-        $DOCKER_CMD run --rm -v outline_data:/data alpine sh -c "echo '{\"hostname\": \"$SERVER_IP\"}' > /data/shadowbox_server_config.json"
-        echo -e "${BLUE}🔧 Running Outline setup...${NC}"
-        $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state quay.io/outline/shadowbox:stable setup
-        echo -e "${GREEN}✅ Outline setup completed${NC}"
+    # Preparar volumen de Outline
+    echo -e "${BLUE}🔧 Preparando volumen para Outline...${NC}"
+    if groups | grep &>/dev/null '\bdocker\b'; then
+      docker volume create outline_data 2>/dev/null || true
+    else
+      run_sudo docker volume create outline_data 2>/dev/null || true
     fi
+    echo -e "${GREEN}✅ Volumen de Outline preparado${NC}"
 
     # Levantar servicios con docker-compose
     cd "$PROJECT_DIR"
