@@ -19,24 +19,18 @@ fi
 
 # Directorio donde se encuentra este script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_DIR="$SCRIPT_DIR"  # Asumimos que el proyecto está donde está el script
+PROJECT_DIR="$SCRIPT_DIR" 
 
 # Rutas corregidas
 BOT_DIR="$PROJECT_DIR/bot"
 DOCKER_COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
-ENV_FILE="$BOT_DIR/.env"
+ENV_FILE="$PROJECT_DIR/.env"
 
 # Global variables for service configuration
-# Detectar IP pública IPv4 o IPv6
-SERVER_IP=$(curl -4 -s ifconfig.co 2>/dev/null || ip -4 addr | sed -ne 's|^.* inet \([^/]*\)/.* scope global.*$|\1|p' | awk '{print $1}' | head -1)
-if [[ -z ${SERVER_IP} ]]; then
-  # Detectar IP pública IPv6 si no se encontró IPv4
-  SERVER_IP=$(curl -6 -s ifconfig.co 2>/dev/null || ip -6 addr | sed -ne 's|^.* inet6 \([^/]*\)/.* scope global.*$|\1|p' | head -1)
-fi
-
-# Opcional: Separar IPv4 e IPv6 para mayor claridad
 SERVER_IPV4=$(curl -4 -s ifconfig.co 2>/dev/null || ip -4 addr | sed -ne 's|^.* inet \([^/]*\)/.* scope global.*$|\1|p' | awk '{print $1}' | head -1)
 SERVER_IPV6=$(curl -6 -s ifconfig.co 2>/dev/null || ip -6 addr | sed -ne 's|^.* inet6 \([^/]*\)/.* scope global.*$|\1|p' | head -1)
+
+SERVER_IP=SERVER_IPV4
 
 PIHOLE_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
 
@@ -201,7 +195,7 @@ start_services() {
     # Crear archivo .env si no existe
     if [ ! -f "$ENV_FILE" ]; then
         echo -e "${YELLOW}⚠️ No se encontró el archivo .env. Creando uno copiando de example.env...${NC}"
-        cp "$PROJECT_DIR/bot/example.env" "$ENV_FILE"
+        cp "$PROJECT_DIR/example.env" "$ENV_FILE"
         # Append service variables
         echo "" >> "$ENV_FILE"
         echo "# Service configuration" >> "$ENV_FILE"
@@ -214,15 +208,15 @@ start_services() {
     PIHOLE_WEB_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     WIREGUARD_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     OUTLINE_API_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
-    SERVER_IPV6=$(curl -6 -s ifconfig.me 2>/dev/null || echo "")
+    
     
     # Remove existing SERVER_IP and append new one
     sed -i "/^SERVER_IP=/d" "$ENV_FILE"
     echo "SERVER_IP=${SERVER_IP}" >> "$ENV_FILE"
-    
-    # Update .env with new variables
     sed -i "/^SERVER_IPV4=/d" "$ENV_FILE"
-    echo "SERVER_IPV4=${SERVER_IP}" >> "$ENV_FILE"
+    echo "SERVER_IPV4=${SERVER_IPV4}" >> "$ENV_FILE"
+    sed -i "/^SERVER_IPV6=/d" "$ENV_FILE"
+    echo "SERVER_IPV6=${SERVER_IPV6}" >> "$ENV_FILE"
     sed -i "/^PIHOLE_WEB_PORT=/d" "$ENV_FILE"
     echo "PIHOLE_WEB_PORT=${PIHOLE_WEB_PORT}" >> "$ENV_FILE"
     sed -i "/^WIREGUARD_PORT=/d" "$ENV_FILE"
@@ -231,11 +225,7 @@ start_services() {
     echo "OUTLINE_API_PORT=${OUTLINE_API_PORT}" >> "$ENV_FILE"
     sed -i "/^SERVERPORT=/d" "$ENV_FILE"
     echo "SERVERPORT=${WIREGUARD_PORT}" >> "$ENV_FILE"
-    if [ -n "$SERVER_IPV6" ]; then
-      sed -i "/^SERVER_IPV6=/d" "$ENV_FILE"
-      echo "SERVER_IPV6=${SERVER_IPV6}" >> "$ENV_FILE"
-    fi
-
+    
     # Outline server setup
     if groups | grep &>/dev/null '\bdocker\b'; then
         DOCKER_CMD="docker"

@@ -68,6 +68,7 @@ services:
     environment:
       - SB_STATE_DIR=/opt/outline/persisted-state
       - SB_API_PORT=${OUTLINE_API_PORT:-8080}
+      - SB_PUBLIC_IP=${SERVER_IP}
     volumes:
       - outline_data:/opt/outline/persisted-state
     restart: unless-stopped
@@ -75,7 +76,7 @@ services:
       pihole:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/metrics"]
+      test: ["CMD", "curl", "-f", "http://localhost:${OUTLINE_API_PORT:-8080}/metrics"]
       interval: 30s
       timeout: 10s
       retries: 3
