@@ -41,7 +41,7 @@ services:
       - PGID=1000
       - TZ=America/Mexico_City
       - SERVERURL=${SERVER_IP}
-      - SERVERPORT=51820
+      - SERVERPORT=${WIREGUARD_PORT:-51820}
       - PEERS=bot_user
       - PEERDNS=10.10.10.2
       - INTERNAL_SUBNET=10.10.10.0
