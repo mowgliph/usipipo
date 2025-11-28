@@ -64,21 +64,34 @@ services:
   outline:
     image: quay.io/outline/shadowbox:stable
     container_name: outline
-    network_mode: host
+    # network_mode: host  # COMENTADO/ELIMINADO
+    ports:
+      # API Metrics Port (8081) - para healthcheck y comunicación interna si es necesario
+      - "8081:8081/tcp"
+      # API Access Key Port (12345 por defecto, o el puerto que especifiques en SB_API_PORT) - expuesto para clientes
+      # Este puerto es el que usarán los clientes de Outline para conectarse
+      - "12345:12345/tcp" # Asegúrate de que este puerto esté libre y permitido en tu firewall
+      # Puerto API para el bot (SB_API_PORT), expuesto para que el bot pueda comunicarse
+      - "${OUTLINE_API_PORT:-8080}:8080/tcp" # Usa la variable del .env o 8080 por defecto
     environment:
-      - SB_STATE_DIR=/opt/outline/persisted-state
-      - SB_API_PORT=${OUTLINE_API_PORT:-8080}
+      - SB_API_PORT=8080 # Puerto interno del contenedor para la API
+      - SB_METRICS_PORT=8081 # Puerto interno para métricas
+      # - SB_HOSTNAME=${SERVER_IP} # Descomenta y asegúrate que SERVER_IP esté definido en .env
     volumes:
       - outline_data:/opt/outline/persisted-state
     restart: unless-stopped
-    depends_on:
-      pihole:
-        condition: service_healthy
+    # networks: # COMENTADO temporalmente para simplificar, usar la red por defecto o asegurarte que SB_HOSTNAME funcione con el nombre del contenedor
+    #   vpn-network:
+    #     ipv4_address: 10.10.10.4 # Asigna una IP si usas la red personalizada
+    # depends_on: # Opcional, Pi-hole no es estrictamente necesario para Outline
+    #   pihole:
+    #     condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/metrics"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/access-keys"] # Cambiado a metrics port
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s # Da más tiempo para la inicialización
 
   watchtower:
     image: containrrr/watchtower
