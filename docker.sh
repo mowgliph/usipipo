@@ -27,7 +27,17 @@ DOCKER_COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 ENV_FILE="$BOT_DIR/.env"
 
 # Global variables for service configuration
-SERVER_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+# Detectar IP pública IPv4 o IPv6
+SERVER_IP=$(curl -4 -s ifconfig.co 2>/dev/null || ip -4 addr | sed -ne 's|^.* inet \([^/]*\)/.* scope global.*$|\1|p' | awk '{print $1}' | head -1)
+if [[ -z ${SERVER_IP} ]]; then
+  # Detectar IP pública IPv6 si no se encontró IPv4
+  SERVER_IP=$(curl -6 -s ifconfig.co 2>/dev/null || ip -6 addr | sed -ne 's|^.* inet6 \([^/]*\)/.* scope global.*$|\1|p' | head -1)
+fi
+
+# Opcional: Separar IPv4 e IPv6 para mayor claridad
+SERVER_IPV4=$(curl -4 -s ifconfig.co 2>/dev/null || ip -4 addr | sed -ne 's|^.* inet \([^/]*\)/.* scope global.*$|\1|p' | awk '{print $1}' | head -1)
+SERVER_IPV6=$(curl -6 -s ifconfig.co 2>/dev/null || ip -6 addr | sed -ne 's|^.* inet6 \([^/]*\)/.* scope global.*$|\1|p' | head -1)
+
 PIHOLE_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
 
 # Función para ejecutar comandos con sudo manteniendo el entorno

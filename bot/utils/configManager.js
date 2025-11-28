@@ -22,8 +22,10 @@ class ConfigManager {
   }
 
   static generateWGConfig(clientIP, privateKey, publicKey) {
-    const serverPublicKey = this.getServerPublicKey();
-    const wgDns = process.env.SERVER_IPV4;
+    // Usar variable de entorno en lugar de leer del archivo
+    const serverPublicKey = process.env.WIREGUARD_PUBLIC_KEY;
+    // Priorizar Pi-hole DNS, si no está disponible usar SERVER_IPV4
+    const wgDns = process.env.PIHOLE_DNS || process.env.SERVER_IPV4;
     const wgServerEndpoint = `${process.env.SERVER_IPV4}:${process.env.WIREGUARD_PORT}`;
 
     return `[Interface]
@@ -36,22 +38,6 @@ PublicKey = ${serverPublicKey}
 Endpoint = ${wgServerEndpoint}
 AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25`;
-  }
-
-  static getServerPublicKey() {
-    const config = fs.readFileSync('/etc/wireguard/wg0.conf', 'utf8');
-    const lines = config.split('\n');
-    let inInterface = false;
-    for (const line of lines) {
-      if (line.trim() === '[Interface]') {
-        inInterface = true;
-      } else if (line.trim() === '[Peer]') {
-        inInterface = false;
-      } else if (inInterface && line.startsWith('PublicKey')) {
-        return line.split('=')[1].trim();
-      }
-    }
-    throw new Error('Server public key not found in WireGuard config');
   }
 
   static addPeerToServer(publicKey, clientIP) {
