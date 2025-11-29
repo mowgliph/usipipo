@@ -69,17 +69,13 @@ services:
       - SB_STATE_DIR=/opt/outline/persisted-state
       - SB_API_PORT=${OUTLINE_API_PORT:-8080}
       - SB_PUBLIC_IP=${SERVER_IP}
+      - SB_LOG_LEVEL=debug
     volumes:
       - outline_data:/opt/outline/persisted-state
     restart: unless-stopped
     depends_on:
       pihole:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${OUTLINE_API_PORT:-8080}/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   watchtower:
     image: containrrr/watchtower
@@ -89,7 +85,7 @@ services:
     labels:
       - com.centurylinklabs.watchtower.enable=true
       - com.centurylinklabs.watchtower.scope=outline
-    command: --cleanup --label-enable --scope=outline --tlsverify --interval 3600
+    command: --cleanup --label-enable --scope=outline --interval 3600
 
 networks:
   vpn-network:

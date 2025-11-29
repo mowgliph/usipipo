@@ -12,7 +12,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_DIR="$SCRIPT_DIR"
 
-# Rutas corregidas - EL ENV DEBE ESTAR EN LA RAIZ PARA DOCKER COMPOSE
+# Rutas
 BOT_DIR="$PROJECT_DIR/bot"
 DOCKER_COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 ENV_FILE="$PROJECT_DIR/.env" 
@@ -24,9 +24,10 @@ else
     ACTUAL_USER_HOME=$HOME
 fi
 
-# Variables globales de IP (Detectar una sola vez)
-SERVER_IPV4=$(curl -4 -s ifconfig.co 2>/dev/null || ip -4 addr | sed -ne 's|^.* inet \([^/]*\)/.* scope global.*$|\1|p' | awk '{print $1}' | head -1)
-SERVER_IPV6=$(curl -6 -s ifconfig.co 2>/dev/null || ip -6 addr | sed -ne 's|^.* inet6 \([^/]*\)/.* scope global.*$|\1|p' | head -1)
+# Variables globales de IP (Detección mejorada)
+echo -e "${BLUE}🔍 Detectando IP Pública...${NC}"
+SERVER_IPV4=$(curl -4 -s --connect-timeout 5 ifconfig.co 2>/dev/null || curl -4 -s --connect-timeout 5 icanhazip.com 2>/dev/null || ip -4 addr | sed -ne 's|^.* inet \([^/]*\)/.* scope global.*$|\1|p' | awk '{print $1}' | head -1)
+SERVER_IPV6=$(curl -6 -s --connect-timeout 5 ifconfig.co 2>/dev/null || ip -6 addr | sed -ne 's|^.* inet6 \([^/]*\)/.* scope global.*$|\1|p' | head -1)
 
 # Priorizar IPv4 para SERVER_IP
 if [[ -n ${SERVER_IPV4} ]]; then
@@ -35,9 +36,14 @@ else
     SERVER_IP=$SERVER_IPV6
 fi
 
+# VALIDACIÓN CRÍTICA: Outline falla si no hay IP
+if [[ -z "$SERVER_IP" ]]; then
+    echo -e "${RED}❌ Error: No se pudo detectar la IP Pública. Outline necesita una IP válida.${NC}"
+    exit 1
+fi
+
 PIHOLE_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
 
-# Función para ejecutar comandos con sudo
 run_sudo() {
     if [ "$(id -u)" = "0" ]; then
         "$@"
@@ -93,7 +99,6 @@ install_docker() {
     run_sudo apt-get update
     run_sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     
-    # Añadir usuario al grupo docker
     if [ "$(id -u)" = "0" ] && [ ! -z "$SUDO_USER" ]; then
         run_sudo usermod -aG docker "$SUDO_USER"
     else
@@ -121,7 +126,6 @@ start_services() {
             [ -d "usipipo" ] && run_sudo rm -rf usipipo
             git clone https://github.com/mowgliph/usipipo.git
             cd usipipo
-            # Recargar variables de ruta tras clonar
             PROJECT_DIR="$ACTUAL_USER_HOME/usipipo"
             DOCKER_COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
             ENV_FILE="$PROJECT_DIR/.env"
@@ -132,15 +136,13 @@ start_services() {
 
     mkdir -p "$BOT_DIR"
 
-    # Generar o actualizar .env
     echo -e "${BLUE}📝 Configurando variables de entorno en $ENV_FILE...${NC}"
     
-    # Puertos aleatorios si no existen
     PIHOLE_WEB_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     WIREGUARD_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     OUTLINE_API_PORT=$((1024 + RANDOM % (65535 - 1024 + 1)))
     
-    # Crear archivo limpio
+    # Crear .env
     echo "# Configuración generada automáticamente" > "$ENV_FILE"
     echo "SERVER_IP=${SERVER_IP}" >> "$ENV_FILE"
     echo "SERVER_IPV4=${SERVER_IPV4}" >> "$ENV_FILE"
@@ -152,7 +154,6 @@ start_services() {
     echo "OUTLINE_API_PORT=${OUTLINE_API_PORT}" >> "$ENV_FILE"
     echo "SERVERPORT=${WIREGUARD_PORT}" >> "$ENV_FILE"
 
-    # Determinar comando Docker
     if groups | grep &>/dev/null '\bdocker\b'; then
         DOCKER_CMD="docker"
         COMPOSE_CMD="docker compose"
@@ -161,27 +162,31 @@ start_services() {
         COMPOSE_CMD="run_sudo docker compose"
     fi
 
-    # Volumen Outline
     $DOCKER_CMD volume create outline_data 2>/dev/null || true
 
-    # Levantar
     cd "$PROJECT_DIR"
     echo -e "${BLUE}🐳 Iniciando contenedores...${NC}"
     $COMPOSE_CMD up -d --force-recreate
     
-    echo -e "${YELLOW}⏳ Esperando 30 segundos para arranque inicial...${NC}"
-    sleep 30
+    echo -e "${YELLOW}⏳ Esperando 20 segundos para arranque inicial...${NC}"
+    sleep 20
     
-    # Obtener variables dinámicas
     WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard wg show wg0 public-key 2>/dev/null || echo "Error_Obtaining_Key")
 
-    # === CORRECCIÓN PRINCIPAL: ESPERA ACTIVA PARA OUTLINE ===
     echo -e "${BLUE}🔑 Esperando configuración de Outline...${NC}"
     MAX_RETRIES=30
     COUNT=0
     OUTLINE_READY=false
     
     while [ $COUNT -lt $MAX_RETRIES ]; do
+        # Verificar si el contenedor outline sigue vivo, si muere, abortar espera
+        if ! $DOCKER_CMD ps | grep -q outline; then
+             echo -e "\n${RED}🛑 El contenedor Outline se ha detenido inesperadamente.${NC}"
+             echo -e "${YELLOW}Mostrando últimos logs de Outline para depuración:${NC}"
+             $DOCKER_CMD logs outline | tail -n 10
+             break
+        fi
+
         if $DOCKER_CMD run --rm -v outline_data:/data alpine ls /data/shadowbox_server_config.json >/dev/null 2>&1; then
             OUTLINE_READY=true
             break
@@ -194,30 +199,28 @@ start_services() {
 
     if [ "$OUTLINE_READY" = true ]; then
         OUTLINE_API_SECRET=$($DOCKER_CMD run --rm -v outline_data:/data python:alpine python3 -c "import json; print(json.load(open('/data/shadowbox_server_config.json'))['managementUdpSecret'])")
-    else
-        echo -e "${RED}⚠️ Error: Outline tardó demasiado en generar la configuración.${NC}"
-        OUTLINE_API_SECRET="Error_Timeout"
-    fi
+        
+        echo "PIHOLE_DNS=${SERVER_IP}" >> "$ENV_FILE"
+        echo "WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}" >> "$ENV_FILE"
+        echo "WIREGUARD_ENDPOINT=${SERVER_IP}:${WIREGUARD_PORT}" >> "$ENV_FILE"
+        echo "OUTLINE_API_URL=https://${SERVER_IP}:${OUTLINE_API_PORT}/${OUTLINE_API_SECRET}" >> "$ENV_FILE"
+        echo "OUTLINE_API_SECRET=$OUTLINE_API_SECRET" >> "$ENV_FILE"
+        
+        if [ ! -z "$SUDO_USER" ]; then
+            chown "$SUDO_USER:$(id -gn $SUDO_USER)" "$ENV_FILE" 2>/dev/null || true
+        else
+            chown "$USER:$(id -gn $USER)" "$ENV_FILE" 2>/dev/null || true
+        fi
 
-    # Guardar datos finales en .env
-    echo "PIHOLE_DNS=${SERVER_IP}" >> "$ENV_FILE"
-    echo "WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}" >> "$ENV_FILE"
-    echo "WIREGUARD_ENDPOINT=${SERVER_IP}:${WIREGUARD_PORT}" >> "$ENV_FILE"
-    echo "OUTLINE_API_URL=http://${SERVER_IP}:${OUTLINE_API_PORT}" >> "$ENV_FILE"
-    echo "OUTLINE_API_SECRET=$OUTLINE_API_SECRET" >> "$ENV_FILE"
-    
-    # Asegurar permisos del .env
-    if [ ! -z "$SUDO_USER" ]; then
-        chown "$SUDO_USER:$(id -gn $SUDO_USER)" "$ENV_FILE" 2>/dev/null || true
-    else
-         chown "$USER:$(id -gn $USER)" "$ENV_FILE" 2>/dev/null || true
-    fi
+        echo -e "\n${GREEN}🎉 SERVICIOS INICIADOS${NC}"
+        echo -e "🌐 Pi-hole: http://${SERVER_IP}:${PIHOLE_WEB_PORT}/admin (Pass: ${PIHOLE_PASS})"
+        echo -e "🔧 WireGuard Endpoint: ${SERVER_IP}:${WIREGUARD_PORT}"
+        echo -e "🌍 Outline API: https://${SERVER_IP}:${OUTLINE_API_PORT}/${OUTLINE_API_SECRET}"
+        echo -e "💡 Outline Key (Copiar en Outline Manager): {\"apiUrl\":\"https://${SERVER_IP}:${OUTLINE_API_PORT}/${OUTLINE_API_SECRET}\",\"certSha256\":\"$(openssl x509 -in <($DOCKER_CMD run --rm -v outline_data:/data alpine cat /data/access.txt | cut -d: -f2) -noout -fingerprint -sha256 | cut -d= -f2 | tr -d :)\"}"
 
-    echo -e "\n${GREEN}🎉 SERVICIOS INICIADOS${NC}"
-    echo -e "🌐 Pi-hole: http://${SERVER_IP}:${PIHOLE_WEB_PORT}/admin (Pass: ${PIHOLE_PASS})"
-    echo -e "🔧 WireGuard Endpoint: ${SERVER_IP}:${WIREGUARD_PORT}"
-    echo -e "🌍 Outline API: http://${SERVER_IP}:${OUTLINE_API_PORT}"
-    echo -e "🔑 Outline Secret: ${OUTLINE_API_SECRET}"
+    else
+        echo -e "${RED}⚠️ Error: Outline falló o tardó demasiado.${NC}"
+    fi
     
     read -p "Presione Enter..."
     show_menu
@@ -270,8 +273,6 @@ uninstall_docker_force() {
     echo -e "${RED}🔧 Eliminando Docker...${NC}"
     run_sudo apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-compose 2>/dev/null || true
     run_sudo rm -rf /var/lib/docker /etc/docker 2>/dev/null || true
-    
-    # Limpiar archivos del proyecto
     rm -f "$ENV_FILE"
 }
 
