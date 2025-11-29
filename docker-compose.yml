@@ -67,7 +67,7 @@ services:
     network_mode: host
     environment:
       - SB_STATE_DIR=/opt/outline/persisted-state
-      - SB_API_PORT=${OUTLINE_API_PORT:-8080}
+      - SB_API_PORT=${OUTLINE_API_PORT:-8081}
       - SB_PUBLIC_IP=${SERVER_IP}
       - SB_LOG_LEVEL=debug
     volumes:
