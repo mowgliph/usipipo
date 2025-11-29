@@ -70,8 +70,7 @@ services:
       - SB_API_PORT=${OUTLINE_API_PORT:-8081}
       - SB_PUBLIC_IP=${SERVER_IP}
       - SB_LOG_LEVEL=debug
-      - SB_CERTIFICATE_FILE=/opt/outline/persisted-state/cert.pem
-      - SB_PRIVATE_KEY_FILE=/opt/outline/persisted-state/key.pem
+      # ELIMINADAS LAS LÍNEAS DE CERTIFICADOS PARA QUE SE AUTOGENEREN
     volumes:
       - outline_data:/opt/outline/persisted-state
     restart: unless-stopped
