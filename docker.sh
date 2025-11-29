@@ -60,7 +60,8 @@ run_sudo() {
 }
 
 get_public_ip() {
-    log_info "Detecting public IP address..."
+    # El >&2 es vital para que este texto no se guarde dentro de la variable IP
+    log_info "Detecting public IP address..." >&2
     IP=$(curl -4 -s --connect-timeout 5 ifconfig.co 2>/dev/null)
     if [ -z "$IP" ]; then
         IP=$(curl -6 -s --connect-timeout 5 ifconfig.co 2>/dev/null)
