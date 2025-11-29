@@ -70,7 +70,9 @@ services:
       - SB_API_PORT=${OUTLINE_API_PORT:-8081}
       - SB_PUBLIC_IP=${SERVER_IP}
       - SB_LOG_LEVEL=debug
-      # ELIMINADAS LAS LÍNEAS DE CERTIFICADOS PARA QUE SE AUTOGENEREN
+      # Agregamos esto de nuevo, apuntando a los nombres que generaremos
+      - SB_CERTIFICATE_FILE=/opt/outline/persisted-state/shadowbox-selfsigned.crt
+      - SB_PRIVATE_KEY_FILE=/opt/outline/persisted-state/shadowbox-selfsigned.key
     volumes:
       - outline_data:/opt/outline/persisted-state
     restart: unless-stopped

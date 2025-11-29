@@ -198,6 +198,24 @@ EOF
         log_info "PRESERVE_CERTS is set to true, skipping volume removal."
     fi
 
+    # --- NUEVO PASO AÑADIDO ---
+    log_step "3.1" "Generating SSL Certificates for Outline..."
+    # Usamos un contenedor temporal alpine para generar los certificados dentro del volumen
+    $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine sh -c "
+        apk add --no-cache openssl >/dev/null 2>&1 && 
+        openssl req -x509 -nodes -days 36500 -newkey rsa:2048 \
+        -subj '/CN=${SERVER_IP}' \
+        -keyout /opt/outline/persisted-state/shadowbox-selfsigned.key \
+        -out /opt/outline/persisted-state/shadowbox-selfsigned.crt"
+    
+    if [ $? -eq 0 ]; then
+        log_success "Certificates generated successfully"
+    else
+        log_error "Failed to generate certificates"
+        exit 1
+    fi
+    # --------------------------
+
     log_step "4" "Starting containers..."
     $CMD up -d --remove-orphans > /dev/null 2>&1
     log_success "Containers started successfully"
