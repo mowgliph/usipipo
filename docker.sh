@@ -269,12 +269,18 @@ EOF
     # 5. Extract Credentials
     log_step "6" "Extracting service credentials..."
 
-    # Extract Secret ID
-    SECRET_ID=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine cat /opt/outline/persisted-state/shadowbox_server_config.json | grep -o '"managementUdpSecret":"[^"]*"' | cut -d'"' -f4)
+    # Extract Secret ID (Mejorado)
+    # Buscamos cualquier cadena que parezca un ID si el nombre del campo varió
+    SECRET_ID=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine cat /opt/outline/persisted-state/shadowbox_server_config.json | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+    
+    # Si el anterior falla, intentamos el viejo método
+    if [ -z "$SECRET_ID" ]; then
+        SECRET_ID=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine cat /opt/outline/persisted-state/shadowbox_server_config.json | grep -o '"managementUdpSecret":"[^"]*"' | cut -d'"' -f4)
+    fi
 
-    # Extract Certificate SHA256
-    CERT_SHA=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine openssl x509 -in /opt/outline/persisted-state/shadowbox-selfsigned.crt -noout -fingerprint -sha256 | cut -d= -f2 | tr -d :)
-
+    # Extract Certificate SHA256 (CORREGIDO: Instala openssl primero)
+    CERT_SHA=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine sh -c "apk add --no-cache openssl >/dev/null 2>&1 && openssl x509 -in /opt/outline/persisted-state/shadowbox-selfsigned.crt -noout -fingerprint -sha256" | cut -d= -f2 | tr -d :)
+    
     # Build API URL
     API_URL="https://${SERVER_IP}:${OUTLINE_API_PORT}/${SECRET_ID}"
 
