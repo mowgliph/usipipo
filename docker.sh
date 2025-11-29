@@ -176,6 +176,7 @@ PIHOLE_WEBPASS=${PIHOLE_PASS}
 PIHOLE_WEB_PORT=${PIHOLE_WEB_PORT}
 WIREGUARD_PORT=${WIREGUARD_PORT}
 OUTLINE_API_PORT=${OUTLINE_API_PORT}
+PRESERVE_CERTS=true
 EOF
     log_success "Configuration file created at ${ENV_FILE}"
 
@@ -191,7 +192,11 @@ EOF
 
     # Critical: Remove volume to prevent corruption
     log_info "Cleaning up previous Outline data volume..."
-    $DOCKER_CMD volume rm outline_data 2>/dev/null || true
+    if [ "$PRESERVE_CERTS" != "true" ]; then
+        $DOCKER_CMD volume rm outline_data 2>/dev/null || true
+    else
+        log_info "PRESERVE_CERTS is set to true, skipping volume removal."
+    fi
 
     log_step "4" "Starting containers..."
     $CMD up -d --remove-orphans > /dev/null 2>&1
