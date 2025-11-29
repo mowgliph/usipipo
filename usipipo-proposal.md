@@ -2,8 +2,6 @@
 
 **Fecha:** 27 de noviembre de 2025  
 **Versión:** 1.0  
-**Preparado para:** Comunidad uSipipo  
-**Preparado por:** [Tu nombre/Equipo]
 
 ---
 
@@ -105,7 +103,6 @@ uSipipo VPN es una solución integral de red privada virtual diseñada específi
 
 Para consultas adicionales o aprobación de esta propuesta:  
 📧 usipipo@etlgr.com  
-💬 Canal de Telegram: @uSipipo_Soporte  
 
 ---
 
