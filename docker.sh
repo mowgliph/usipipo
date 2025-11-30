@@ -289,6 +289,18 @@ EOF
 
     # Get WireGuard info
     WG_PUB_KEY=$($DOCKER_CMD exec wireguard wg show wg0 public-key 2>/dev/null || echo "Error retrieving key")
+    
+    # Agregar después de iniciar los contenedores
+    log_step "6" "Extracting WireGuard server public key..."
+    WG_SERVER_PUBKEY=$($DOCKER_CMD exec wireguard cat /config/server/publickey 2>/dev/null || echo "")
+
+    if [ -z "$WG_SERVER_PUBKEY" ]; then
+      log_warning "Could not extract WireGuard public key automatically"
+      echo "WIREGUARD_SERVER_PUBLIC_KEY=REPLACE_THIS_MANUALLY" >> "$ENV_FILE"
+    else
+      echo "WIREGUARD_SERVER_PUBLIC_KEY=$WG_SERVER_PUBKEY" >> "$ENV_FILE"
+      log_success "WireGuard public key saved: ${WG_SERVER_PUBKEY:0:20}..."
+    fi
 
     # Display Results
     clear

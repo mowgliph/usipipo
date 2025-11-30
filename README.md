@@ -19,25 +19,6 @@ Sistema integrado para gestión de conexiones VPN (WireGuard + Outline) con bloq
 - Acceso root al servidor
 - Bot de Telegram creado en [@BotFather](https://t.me/BotFather)
 
-## 🚀 Instalación
-
-### 1. Configurar servidor
-```bash
-git clone https://github.com/mowglioh/usipipo.git
-cd usipipo/installer
-sudo chmod +x i-all.sh
-sudo ./i-all.sh
-```
-
-### 2. Configurar bot
-```bash
-cd ../telegram-bot
-npm install
-cp .env.example .env
-# Editar .env con tus credenciales
-npm start
-```
-
 ## 🔐 Seguridad
 
 - Solo usuarios autorizados pueden generar configuraciones
