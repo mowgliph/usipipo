@@ -23,3 +23,37 @@ usipipo-vpn-bot/
 │   └── formatters.js                 # Funciones de formato
 └── bot/
     └── bot.instance.js               # Instancia del bot configurada
+    
+
+// Estructura en modo de arbol
+.
+├── bot
+│   ├── bot
+│   │   └── bot.instance.js
+│   ├── config
+│   │   ├── constants.js
+│   │   └── environment.js
+│   ├── handlers
+│   │   ├── auth.handler.js
+│   │   ├── info.handler.js
+│   │   └── vpn.handler.js
+│   ├── index.js
+│   ├── middleware
+│   │   └── auth.middleware.js
+│   ├── services
+│   │   ├── notification.service.js
+│   │   ├── outline.service.js
+│   │   └── wireguard.service.js
+│   └── utils
+│       ├── configManager.js
+│       ├── formatters.js
+│       ├── keyboards.js
+│       └── messages.js
+├── docker-compose.yml
+├── docker.sh
+├── example.env
+├── example.txt
+├── LICENCE
+├── package.json
+├── README.md
+└── structured.md
