@@ -1,7 +1,7 @@
 // bot/bot.instance.js
 const { Telegraf } = require('telegraf');
 const config = require('../config/environment');
-const { requireAuth, logUserAction } = require('../middleware/auth.middleware');
+const { requireAuth, requireAdmin, logUserAction } = require('../middleware/auth.middleware');
 
 // Services
 const NotificationService = require('../services/notification.service');
@@ -10,6 +10,7 @@ const NotificationService = require('../services/notification.service');
 const AuthHandler = require('../handlers/auth.handler');
 const VPNHandler = require('../handlers/vpn.handler');
 const InfoHandler = require('../handlers/info.handler');
+const AdminHandler = require('../handlers/admin.handler');
 
 // Crear instancia del bot
 const bot = new Telegraf(config.TELEGRAM_TOKEN);
@@ -21,14 +22,22 @@ const notificationService = new NotificationService(bot);
 const authHandler = new AuthHandler(notificationService);
 const vpnHandler = new VPNHandler();
 const infoHandler = new InfoHandler();
+const adminHandler = new AdminHandler(notificationService);
 
 // Aplicar middleware global de logging
 bot.use(logUserAction);
 
-// ========== COMANDOS ==========
+// ========== COMANDOS DE USUARIO ==========
 bot.start((ctx) => authHandler.handleStart(ctx));
 bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
-bot.command('usuarios', (ctx) => authHandler.handleListUsers(ctx));
+
+// ========== COMANDOS DE ADMINISTRACIÓN (Solo Admin) ==========
+bot.command('agregar', requireAdmin, (ctx) => adminHandler.handleAddUser(ctx));
+bot.command('remover', requireAdmin, (ctx) => adminHandler.handleRemoveUser(ctx));
+bot.command('suspender', requireAdmin, (ctx) => adminHandler.handleSuspendUser(ctx));
+bot.command('reactivar', requireAdmin, (ctx) => adminHandler.handleReactivateUser(ctx));
+bot.command('usuarios', requireAdmin, (ctx) => adminHandler.handleListUsers(ctx));
+bot.command('stats', requireAdmin, (ctx) => adminHandler.handleStats(ctx));
 
 // ========== ACCIONES DE AUTENTICACIÓN ==========
 bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));
@@ -47,14 +56,12 @@ bot.action('help', (ctx) => infoHandler.handleHelp(ctx));
 bot.catch(async (err, ctx) => {
   console.error(`❌ Bot error for user ${ctx.from?.id}:`, err);
   
-  // Notificar al admin sobre errores críticos
   await notificationService.notifyAdminError(err.message, {
     userId: ctx.from?.id,
     updateType: ctx.updateType
   });
   
-  // Responder al usuario
-  ctx.reply(messages.ERROR_GENERIC).catch(() => {});
+  ctx.reply('⚠️ Ocurrió un error inesperado. El administrador ha sido notificado.').catch(() => {});
 });
 
 module.exports = bot;

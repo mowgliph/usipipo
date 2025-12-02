@@ -1,26 +1,26 @@
 // middleware/auth.middleware.js
-const config = require('../config/environment');
+const userManager = require('../services/userManager.service');
 const messages = require('../utils/messages');
 
 /**
  * Verifica si un usuario está autorizado
  */
 function isAuthorized(userId) {
-  return config.AUTHORIZED_USERS.includes(userId.toString());
+  return userManager.isAuthorized(userId);
 }
 
 /**
  * Verifica si un usuario es administrador
  */
 function isAdmin(userId) {
-  return userId.toString() === config.ADMIN_ID;
+  return userManager.isAdmin(userId);
 }
 
 /**
  * Middleware para verificar autorización
  */
 function requireAuth(ctx, next) {
-  const userId = ctx.from?.id.toString();
+  const userId = ctx.from?.id;
   
   if (!isAuthorized(userId)) {
     return ctx.reply(messages.ACCESS_DENIED, { parse_mode: 'Markdown' });
@@ -33,7 +33,7 @@ function requireAuth(ctx, next) {
  * Middleware para verificar permisos de administrador
  */
 function requireAdmin(ctx, next) {
-  const userId = ctx.from?.id.toString();
+  const userId = ctx.from?.id;
   
   if (!isAdmin(userId)) {
     return ctx.reply(messages.ADMIN_ONLY, { parse_mode: 'Markdown' });
@@ -43,14 +43,17 @@ function requireAdmin(ctx, next) {
 }
 
 /**
- * Middleware de logging
+ * Middleware de logging con contexto mejorado
  */
 function logUserAction(ctx, next) {
   const userId = ctx.from?.id;
   const username = ctx.from?.username || ctx.from?.first_name;
   const action = ctx.updateType;
+  const isAuth = isAuthorized(userId);
+  const isAdminUser = isAdmin(userId);
   
-  console.log(`📝 [${new Date().toISOString()}] User ${userId} (${username}) - ${action}`);
+  const role = isAdminUser ? '👑' : isAuth ? '✅' : '❌';
+  console.log(`${role} [${new Date().toISOString()}] ${userId} (${username}) - ${action}`);
   
   return next();
 }

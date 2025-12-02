@@ -1,14 +1,12 @@
 // config/environment.js
 const requiredEnvVars = [
   'TELEGRAM_TOKEN',
-  'AUTHORIZED_USERS',
   'SERVER_IPV4',
   'WIREGUARD_PORT',
   'OUTLINE_API_PORT',
   'WIREGUARD_SERVER_PUBLIC_KEY'
 ];
 
-// Validar variables de entorno requeridas
 function validateEnvironment() {
   const missing = requiredEnvVars.filter(varName => !process.env[varName]);
   
@@ -20,13 +18,11 @@ function validateEnvironment() {
 
 validateEnvironment();
 
-// Exportar configuración
-const authorizedUsers = process.env.AUTHORIZED_USERS.split(',').map(id => id.trim());
+// AUTHORIZED_USERS ahora es opcional (se usa solo para inicialización)
+const legacyUsers = process.env.AUTHORIZED_USERS?.split(',').map(id => id.trim()) || [];
 
 module.exports = {
   TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
-  AUTHORIZED_USERS: authorizedUsers,
-  ADMIN_ID: authorizedUsers[0],
   
   // Configuración del servidor
   SERVER_IPV4: process.env.SERVER_IPV4,
@@ -48,6 +44,10 @@ module.exports = {
   PIHOLE_WEBPASS: process.env.PIHOLE_WEBPASS,
   PIHOLE_DNS: process.env.PIHOLE_DNS,
   
-  // Admin contact
-  ADMIN_EMAIL: 'usipipo@etlgr.com'
+  // Admin
+  ADMIN_EMAIL: 'usipipo@etlgr.com',
+  
+  // Legacy support
+  LEGACY_AUTHORIZED_USERS: legacyUsers,
+  ADMIN_ID: legacyUsers[0] || null
 };

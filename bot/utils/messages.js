@@ -124,5 +124,25 @@ module.exports = {
   ERROR_WIREGUARD: (error) => `❌ Error al crear configuración WireGuard: ${error}`,
   ERROR_OUTLINE: (error) => `❌ Error al crear clave Outline: ${error}`,
   ERROR_LIST_CLIENTS: '❌ Error al obtener lista de clientes',
-  ERROR_SERVER_STATUS: '⚠️ Algunos servicios podrían no estar respondiendo'
+  ERROR_SERVER_STATUS: '⚠️ Algunos servicios podrían no estar respondiendo',
+  
+  // Mensajes de administración
+  USER_APPROVED: (userId, userName) =>
+    `🎉 **¡Solicitud Aprobada!**\n\n` +
+    `✅ El usuario ha sido autorizado:\n` +
+    `🆔 ID: \`${userId}\`\n` +
+    `👤 Nombre: ${userName || 'No especificado'}\n\n` +
+    `El usuario recibirá una notificación automática.`,
+    
+  ADMIN_HELP:
+    `👑 **COMANDOS DE ADMINISTRADOR**\n\n` +
+    `**Gestión de usuarios:**\n` +
+    `• \`/agregar [ID] [nombre]\` - Autorizar usuario\n` +
+    `• \`/remover [ID]\` - Quitar acceso\n` +
+    `• \`/suspender [ID]\` - Suspender temporalmente\n` +
+    `• \`/reactivar [ID]\` - Reactivar usuario\n\n` +
+    `**Información:**\n` +
+    `• \`/usuarios\` - Lista completa\n` +
+    `• \`/stats\` - Estadísticas del sistema\n\n` +
+    `💡 El ID se obtiene con /miinfo`
 };

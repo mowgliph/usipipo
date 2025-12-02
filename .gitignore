@@ -5,6 +5,7 @@ credentials.env
 *.pem
 *.key
 *.crt
+bot/data/authorized_users.json
 
 # Node.js
 node_modules/
