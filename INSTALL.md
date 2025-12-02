@@ -85,8 +85,8 @@ El proyecto incluye un script que instala Docker automáticamente:
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/tu-usuario/usipipo-vpn-bot.git
-cd usipipo-vpn-bot
+git clone https://github.com/mowgliph/usipipo.git
+cd usipipo
 
 # Dar permisos de ejecución
 chmod +x docker.sh
@@ -141,8 +141,8 @@ Si aún no has clonado el repositorio:
 
 ```bash
 cd ~
-git clone https://github.com/tu-usuario/usipipo-vpn-bot.git
-cd usipipo-vpn-bot
+git clone https://github.com/mowgliph/usipipo.git
+cd usipipo
 ```
 
 ### Paso 2: Iniciar servicios Docker
@@ -227,7 +227,7 @@ npm --version
 ### Paso 4: Instalar dependencias del bot
 
 ```bash
-cd ~/usipipo-vpn-bot/bot
+cd ~/usipipo/bot
 npm install
 ```
 
@@ -247,7 +247,7 @@ Esto instalará las dependencias definidas en `package.json`:
 Desde el directorio raíz del proyecto:
 
 ```bash
-cd ~/usipipo-vpn-bot
+cd ~/usipipo
 cp example.env .env
 nano .env
 ```
@@ -344,9 +344,9 @@ Pega el siguiente contenido:
 ```javascript
 module.exports = {
   apps: [{
-    name: 'usipipo-vpn-bot',
+    name: 'usipipo',
     script: './bot/index.js',
-    cwd: '/root/usipipo-vpn-bot',
+    cwd: '/root/usipipo',
     instances: 1,
     autorestart: true,
     watch: false,
@@ -363,18 +363,18 @@ module.exports = {
 };
 ```
 
-**Ajustar ruta si es necesario:** Cambia `/root/usipipo-vpn-bot` por la ruta real donde clonaste el repositorio.
+**Ajustar ruta si es necesario:** Cambia `/root/usipipo` por la ruta real donde clonaste el repositorio.
 
 ### Paso 3: Crear directorio de logs
 
 ```bash
-mkdir -p ~/usipipo-vpn-bot/logs
+mkdir -p ~/usipipo/logs
 ```
 
 ### Paso 4: Iniciar el bot con PM2
 
 ```bash
-cd ~/usipipo-vpn-bot
+cd ~/usipipo
 pm2 start ecosystem.config.js
 ```
 
@@ -398,19 +398,19 @@ sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -
 pm2 status
 
 # Ver logs en tiempo real
-pm2 logs usipipo-vpn-bot
+pm2 logs usipipo
 
 # Ver logs de errores únicamente
-pm2 logs usipipo-vpn-bot --err
+pm2 logs usipipo --err
 
 # Reiniciar el bot
-pm2 restart usipipo-vpn-bot
+pm2 restart usipipo
 
 # Detener el bot
-pm2 stop usipipo-vpn-bot
+pm2 stop usipipo
 
 # Eliminar del PM2 (no elimina archivos)
-pm2 delete usipipo-vpn-bot
+pm2 delete usipipo
 
 # Monitorear recursos
 pm2 monit
@@ -432,14 +432,14 @@ Deberías ver algo como:
 ┌─────┬────────────────────┬─────────┬─────────┬─────────┬──────────┐
 │ id  │ name               │ mode    │ ↺       │ status  │ cpu      │
 ├─────┼────────────────────┼─────────┼─────────┼─────────┼──────────┤
-│ 0   │ usipipo-vpn-bot    │ fork    │ 0       │ online  │ 0%       │
+│ 0   │ usipipo            │ fork    │ 0       │ online  │ 0%       │
 └─────┴────────────────────┴─────────┴─────────┴─────────┴──────────┘
 ```
 
 ### Paso 2: Verificar logs del bot
 
 ```bash
-pm2 logs usipipo-vpn-bot --lines 50
+pm2 logs usipipo --lines 50
 ```
 
 Deberías ver:
@@ -453,7 +453,7 @@ Deberías ver:
 
 ### Paso 3: Probar el bot en Telegram
 
-1. Abre Telegram y busca tu bot por su username (ejemplo: `@usipipo_vpn_bot`)
+1. Abre Telegram y busca tu bot por su username (ejemplo: `@usipipo`)
 2. Envía el comando `/start`
 3. Deberías recibir el menú principal con opciones:
    - 🔐 Crear WireGuard
@@ -511,7 +511,7 @@ pm2 status
 docker compose logs --tail=100
 
 # Logs del bot (últimas 100 líneas)
-pm2 logs usipipo-vpn-bot --lines 100
+pm2 logs usipipo --lines 100
 ```
 
 ### Problemas comunes
@@ -521,7 +521,7 @@ pm2 logs usipipo-vpn-bot --lines 100
 **Diagnóstico:**
 
 ```bash
-pm2 logs usipipo-vpn-bot --err
+pm2 logs usipipo --err
 ```
 
 **Soluciones:**
@@ -533,7 +533,7 @@ pm2 logs usipipo-vpn-bot --err
    ```
 3. Reiniciar el bot:
    ```bash
-   pm2 restart usipipo-vpn-bot
+   pm2 restart usipipo
    ```
 
 #### 🔴 Error: "WIREGUARD_SERVER_PUBLIC_KEY not found"
@@ -549,7 +549,7 @@ nano ~/usipipo-vpn-bot/.env
 # Pegar la clave en WIREGUARD_SERVER_PUBLIC_KEY=...
 
 # Reiniciar bot
-pm2 restart usipipo-vpn-bot
+pm2 restart usipipo
 ```
 
 #### 🔴 Error: "Outline API connection failed"
@@ -623,7 +623,7 @@ cd bot
 npm install
 
 # Reiniciar con PM2
-pm2 restart usipipo-vpn-bot
+pm2 restart usipipo
 ```
 
 ### Backup de configuración
@@ -636,9 +636,9 @@ mkdir -p ~/backups
 
 # Backup de configuración
 tar -czf ~/backups/usipipo-backup-$(date +%Y%m%d).tar.gz \
-  ~/usipipo-vpn-bot/.env \
-  ~/usipipo-vpn-bot/bot/data/authorized_users.json \
-  ~/usipipo-vpn-bot/docker-compose.yml
+  ~/usipipo/.env \
+  ~/usipipo/bot/data/authorized_users.json \
+  ~/usipipo/docker-compose.yml
 
 # Listar backups
 ls -lh ~/backups/
@@ -648,7 +648,7 @@ ls -lh ~/backups/
 
 ```bash
 # Detener servicios
-pm2 stop usipipo-vpn-bot
+pm2 stop usipipo
 docker compose down
 
 # Extraer backup
@@ -656,7 +656,7 @@ tar -xzf ~/backups/usipipo-backup-YYYYMMDD.tar.gz -C ~/
 
 # Reiniciar servicios
 docker compose up -d
-pm2 restart usipipo-vpn-bot
+pm2 restart usipipo
 ```
 
 ### Monitoreo de recursos
@@ -678,8 +678,8 @@ htop  # Si no está instalado: sudo apt install htop
 
 ```bash
 # Logs del bot (PM2)
-~/usipipo-vpn-bot/logs/pm2-out.log
-~/usipipo-vpn-bot/logs/pm2-error.log
+~/usipipo/logs/pm2-out.log
+~/usipipo/logs/pm2-error.log
 
 # Logs de Docker
 docker compose logs -f outline
@@ -705,7 +705,7 @@ docker compose logs -f pihole
 **Contacto:**
 
 - Email: usipipo@etlgr.com
-- Issues: [GitHub Issues](https://github.com/tu-usuario/usipipo-vpn-bot/issues)
+- Issues: [GitHub Issues](https://github.com/mowgliph/usipipo/issues)
 
 ---
 
@@ -737,8 +737,8 @@ Una vez que el bot esté funcionando correctamente:
    ```bash
    #!/bin/bash
    tar -czf /root/backups/usipipo-backup-$(date +%Y%m%d).tar.gz \
-     /root/usipipo-vpn-bot/.env \
-     /root/usipipo-vpn-bot/bot/data/authorized_users.json
+     /root/usipipo/.env \
+     /root/usipipo/bot/data/authorized_users.json
    
    # Mantener solo últimos 7 backups
    find /root/backups -name "usipipo-backup-*.tar.gz" -mtime +7 -delete
