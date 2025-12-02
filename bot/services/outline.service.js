@@ -1,33 +1,29 @@
-// services/outline.js
+// services/outline.service.js
 const axios = require('axios');
 const https = require('https');
-const { exec } = require('child_process');
-const util = require('util');
-const execPromise = util.promisify(exec);
+const config = require('../config/environment');
+const constants = require('../config/constants');
 
 class OutlineService {
-  static async createAccessKey(name = null) {
-    const apiUrl = `https://${process.env.SERVER_IPV4}:${process.env.OUTLINE_API_PORT}`;
+  static getApiConfig() {
+    const apiUrl = `https://${config.SERVER_IPV4}:${config.OUTLINE_API_PORT}`;
+    const httpsAgent = new https.Agent({ rejectUnauthorized: false });
     
-    // Crear agente HTTPS que ignore certificados autofirmados
-    const httpsAgent = new https.Agent({
-      rejectUnauthorized: false
-    });
+    return { apiUrl, httpsAgent };
+  }
+
+  static async createAccessKey(name = null) {
+    const { apiUrl, httpsAgent } = this.getApiConfig();
 
     try {
-      // Crear nueva clave de acceso
       const response = await axios.post(
         `${apiUrl}/access-keys`,
         {},
-        { 
-          httpsAgent,
-          timeout: 10000
-        }
+        { httpsAgent, timeout: 10000 }
       );
 
       const accessKey = response.data;
       
-      // Opcional: asignar nombre descriptivo
       if (name) {
         await axios.put(
           `${apiUrl}/access-keys/${accessKey.id}/name`,
@@ -37,25 +33,16 @@ class OutlineService {
         accessKey.name = name;
       }
 
-      // Configurar DNS de Pi-hole para esta clave
       await this.configureDNS(accessKey.id, httpsAgent, apiUrl);
 
       return accessKey;
     } catch (error) {
-      if (error.response) {
-        console.error('Outline API Error:', error.response.status, error.response.data);
-      } else if (error.request) {
-        console.error('No response from Outline server. Is it running?');
-      } else {
-        console.error('Error:', error.message);
-      }
+      console.error('Outline API Error:', error.message);
       throw new Error('Failed to create Outline access key');
     }
   }
 
   static async configureDNS(keyId, httpsAgent, apiUrl) {
-    const piholeIP = process.env.PIHOLE_DNS || '10.2.0.100';
-    
     try {
       await axios.put(
         `${apiUrl}/access-keys/${keyId}`,
@@ -63,21 +50,20 @@ class OutlineService {
           "metricsEnabled": false,
           "name": `User-${keyId}`,
           "dataLimit": {
-            "bytes": 10737418240 // 10GB default limit
+            "bytes": constants.OUTLINE_DEFAULT_DATA_LIMIT
           }
         },
         { httpsAgent }
       );
       
-      console.log(`✅ DNS configured for key ${keyId} -> ${piholeIP}`);
+      console.log(`✅ DNS configured for key ${keyId}`);
     } catch (error) {
       console.warn(`⚠️ Could not configure DNS for key ${keyId}`);
     }
   }
 
   static async listAccessKeys() {
-    const apiUrl = `https://${process.env.SERVER_IPV4}:${process.env.OUTLINE_API_PORT}`;
-    const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+    const { apiUrl, httpsAgent } = this.getApiConfig();
 
     try {
       const response = await axios.get(`${apiUrl}/access-keys`, { httpsAgent });
@@ -89,8 +75,7 @@ class OutlineService {
   }
 
   static async deleteAccessKey(keyId) {
-    const apiUrl = `https://${process.env.SERVER_IPV4}:${process.env.OUTLINE_API_PORT}`;
-    const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+    const { apiUrl, httpsAgent } = this.getApiConfig();
 
     try {
       await axios.delete(`${apiUrl}/access-keys/${keyId}`, { httpsAgent });
@@ -103,8 +88,7 @@ class OutlineService {
   }
 
   static async getServerInfo() {
-    const apiUrl = `https://${process.env.SERVER_IPV4}:${process.env.OUTLINE_API_PORT}`;
-    const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+    const { apiUrl, httpsAgent } = this.getApiConfig();
 
     try {
       const response = await axios.get(`${apiUrl}/server`, { httpsAgent });

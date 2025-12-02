@@ -1,0 +1,24 @@
+# Telegram Bot Configuration
+TELEGRAM_TOKEN=tu_token_de_telegram
+AUTHORIZED_USERS=123456789,987654321  # IDs de usuarios autorizados
+
+# Server Configuration
+SERVER_IPV4=
+SERVER_IPV6=
+SERVER_IP=  
+
+# Pi-hole Configuration
+PIHOLE_WEB_PORT=
+PIHOLE_WEBPASS=
+PIHOLE_DNS=
+
+# WireGuard Configuration
+WIREGUARD_PORT=
+WIREGUARD_PUBLIC_KEY=
+WIREGUARD_ENDPOINT=
+WIREGUARD_PATH=
+
+# Outline Configuration
+OUTLINE_API_URL=
+OUTLINE_API_SECRET=
+OUTLINE_API_PORT=
