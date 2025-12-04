@@ -45,3 +45,6 @@ build/
 
 # Outline
 outline_persist/
+
+# PM2
+*.pm2 
