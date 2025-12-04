@@ -854,7 +854,7 @@ uninstall_docker() {
     echo -e "  • Docker Engine itself"
     echo ""
     
-    if ! confirm_action "Type 'yes' to proceed with complete removal" "N"; then
+    if ! confirm_action "Type 'Y' to proceed with complete removal" "N"; then
         log_info "Uninstallation cancelled"
         show_menu
         return
