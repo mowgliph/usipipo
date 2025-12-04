@@ -342,6 +342,7 @@ start_services() {
     PIHOLE_WEB_PORT=$((10000 + RANDOM % 50000))
     WIREGUARD_PORT=$((10000 + RANDOM % 50000))
     OUTLINE_API_PORT=$((10000 + RANDOM % 50000))
+    OUTLINE_API_SECRET=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 32)
     
     log_success "Pi-hole password: ${PIHOLE_WEBPASS:0:4}****** (16 characters)"
     log_success "Pi-hole web port: ${PIHOLE_WEB_PORT}"
@@ -381,6 +382,7 @@ WIREGUARD_PATH=${WIREGUARD_PATH}
 
 # Outline Configuration
 OUTLINE_API_URL=${OUTLINE_API_URL}
+OUTLINE_API_SECRET=${OUTLINE_API_SECRET}
 OUTLINE_API_PORT=${OUTLINE_API_PORT}
 OUTLINE_CERT_SHA256=${OUTLINE_CERT_SHA256}
 PRESERVE_CERTS=${PRESERVE_CERTS}
@@ -425,9 +427,6 @@ EOF
     # STEP 6: Generate SSL Certificates for Outline
     # =========================================================================
     log_step "6" "8" "Generating SSL certificates and configuration..."
-    
-    # 1. Generar el secreto API ahora, para usarlo en la creación del archivo config
-    OUTLINE_API_SECRET=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 32)
     
     # 2. Asegurar que el volumen existe
     $DOCKER_CMD volume create outline_data 2>/dev/null || true
