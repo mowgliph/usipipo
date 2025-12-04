@@ -49,15 +49,30 @@ class VPNHandler {
     await ctx.reply(messages.OUTLINE_CREATING);
     
     try {
-      const userName = ctx.from.username || ctx.from.first_name;
-      const accessKey = await OutlineService.createAccessKey(`TG-${userName}`);
+      const userId = ctx.from.id;
+      const userName = ctx.from.username || ctx.from.first_name || `User${userId}`;
       
-      await ctx.reply(
-        messages.OUTLINE_SUCCESS(accessKey),
-        { parse_mode: 'Markdown' }
-      );
+      // Crear clave con nombre descriptivo
+      const keyName = `TG-${userName}-${Date.now()}`;
+      const accessKey = await OutlineService.createAccessKey(keyName);
       
-      console.log(`✅ Outline creado para usuario ${ctx.from.id} - Key ID: ${accessKey.id}`);
+      // Mensaje con la clave de acceso
+      const message = 
+        `✅ **Clave Outline creada exitosamente**\n\n` +
+        `🔑 **ID:** \`${accessKey.id}\`\n` +
+        `👤 **Nombre:** ${keyName}\n\n` +
+        `📱 **Copia este enlace en tu app Outline:**\n\n` +
+        `\`${accessKey.accessUrl}\`\n\n` +
+        `📊 **Límite de datos:** 10GB/mes\n` +
+        `🛡️ **DNS:** Protección con Pi-hole activada\n\n` +
+        `🔗 **Descargar Outline:**\n` +
+        `• Android: https://play.google.com/store/apps/details?id=org.outline.android.client\n` +
+        `• iOS: https://apps.apple.com/app/outline-app/id1356177741\n` +
+        `• Windows/Mac: https://getoutline.org/get-started/`;
+      
+      await ctx.reply(message, { parse_mode: 'Markdown' });
+      
+      console.log(`✅ Outline key created for user ${userId} - Key ID: ${accessKey.id}`);
       
     } catch (error) {
       console.error('Outline creation error:', error);

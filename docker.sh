@@ -381,7 +381,6 @@ WIREGUARD_PATH=${WIREGUARD_PATH}
 
 # Outline Configuration
 OUTLINE_API_URL=${OUTLINE_API_URL}
-OUTLINE_API_SECRET=${OUTLINE_API_SECRET}
 OUTLINE_API_PORT=${OUTLINE_API_PORT}
 OUTLINE_CERT_SHA256=${OUTLINE_CERT_SHA256}
 PRESERVE_CERTS=${PRESERVE_CERTS}
@@ -514,20 +513,30 @@ EOF
     # =========================================================================
     log_subheader "Extracting Service Credentials"
     
-    # Extract Outline Secret ID
-    log_info "Extracting Outline API secret..."
-    OUTLINE_API_SECRET=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
+    # Extract Outline API URL (contiene el secreto embebido)
+    log_info "Extracting Outline API URL..."
+    OUTLINE_API_URL=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
         cat /opt/outline/persisted-state/shadowbox_server_config.json 2>/dev/null | \
-        grep -o '"apiUrl":"[^"]*"' | cut -d'/' -f4 | tr -d '"' || \
-        $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
-        cat /opt/outline/persisted-state/shadowbox_server_config.json 2>/dev/null | \
-        grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+        grep -o '"apiUrl":"[^"]*"' | cut -d'"' -f4)
     
-    if [ -n "$OUTLINE_API_SECRET" ]; then
-        log_success "Outline API secret extracted: ${OUTLINE_API_SECRET:0:20}..."
+    if [ -n "$OUTLINE_API_URL" ]; then
+        log_success "Outline API URL extracted: ${OUTLINE_API_URL:0:40}..."
     else
-        log_error "Failed to extract Outline API secret"
-        OUTLINE_API_SECRET="EXTRACTION_FAILED"
+        log_error "Failed to extract Outline API URL"
+        log_warning "Attempting manual construction..."
+        
+        # Fallback: construir manualmente si falla la extracción
+        local TEMP_SECRET=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
+            cat /opt/outline/persisted-state/shadowbox_server_config.json 2>/dev/null | \
+            grep -o '"[a-zA-Z0-9_-]\{20,\}"' | head -1 | tr -d '"')
+        
+        if [ -n "$TEMP_SECRET" ]; then
+            OUTLINE_API_URL="https://${SERVER_IP}:${OUTLINE_API_PORT}/${TEMP_SECRET}"
+            log_success "API URL constructed: ${OUTLINE_API_URL:0:40}..."
+        else
+            OUTLINE_API_URL="https://${SERVER_IP}:${OUTLINE_API_PORT}/EXTRACTION_FAILED"
+            log_error "Could not construct API URL - manual configuration required"
+        fi
     fi
     
     # Extract Certificate SHA256
@@ -535,7 +544,7 @@ EOF
     OUTLINE_CERT_SHA256=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine sh -c \
         "apk add --no-cache openssl >/dev/null 2>&1 && \
         openssl x509 -in /opt/outline/persisted-state/shadowbox-selfsigned.crt -noout -fingerprint -sha256" 2>/dev/null | \
-        cut -d= -f2 | tr -d : || echo "")
+        cut -d= -f2 | tr -d :)
     
     if [ -n "$OUTLINE_CERT_SHA256" ]; then
         log_success "Certificate SHA256: ${OUTLINE_CERT_SHA256:0:40}..."
@@ -543,9 +552,6 @@ EOF
         log_error "Failed to extract certificate fingerprint"
         OUTLINE_CERT_SHA256="EXTRACTION_FAILED"
     fi
-    
-    # Build Outline API URL
-    OUTLINE_API_URL="https://${SERVER_IP}:${OUTLINE_API_PORT}/${OUTLINE_API_SECRET}"
     
     # Extract WireGuard Public Key
     log_info "Extracting WireGuard server public key..."
@@ -607,8 +613,8 @@ WIREGUARD_PATH=${WIREGUARD_PATH}
 
 # Outline Configuration
 # ──────────────────────────────────────────────────────────────────
+# La API URL ya incluye el secreto en la ruta
 OUTLINE_API_URL=${OUTLINE_API_URL}
-OUTLINE_API_SECRET=${OUTLINE_API_SECRET}
 OUTLINE_API_PORT=${OUTLINE_API_PORT}
 OUTLINE_CERT_SHA256=${OUTLINE_CERT_SHA256}
 PRESERVE_CERTS=${PRESERVE_CERTS}

@@ -6,8 +6,11 @@ const constants = require('../config/constants');
 
 class OutlineService {
   static getApiConfig() {
-    const apiUrl = `https://${config.SERVER_IPV4}:${config.OUTLINE_API_PORT}`;
-    const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+    // La URL ya contiene el secreto embebido
+    const apiUrl = config.OUTLINE_API_URL;
+    const httpsAgent = new https.Agent({ 
+      rejectUnauthorized: false // Certificado autofirmado
+    });
     
     return { apiUrl, httpsAgent };
   }
@@ -16,6 +19,7 @@ class OutlineService {
     const { apiUrl, httpsAgent } = this.getApiConfig();
 
     try {
+      // POST a /access-keys (sin /api/access-keys, Outline no usa /api)
       const response = await axios.post(
         `${apiUrl}/access-keys`,
         {},
@@ -24,6 +28,7 @@ class OutlineService {
 
       const accessKey = response.data;
       
+      // Asignar nombre si se proporciona
       if (name) {
         await axios.put(
           `${apiUrl}/access-keys/${accessKey.id}/name`,
@@ -33,32 +38,29 @@ class OutlineService {
         accessKey.name = name;
       }
 
-      await this.configureDNS(accessKey.id, httpsAgent, apiUrl);
+      // Configurar límite de datos
+      await this.setDataLimit(accessKey.id, constants.OUTLINE_DEFAULT_DATA_LIMIT, httpsAgent, apiUrl);
 
+      console.log(`✅ Outline key created: ${accessKey.id}`);
       return accessKey;
+      
     } catch (error) {
-      console.error('Outline API Error:', error.message);
-      throw new Error('Failed to create Outline access key');
+      console.error('Outline API Error:', error.response?.data || error.message);
+      throw new Error(`Failed to create Outline access key: ${error.message}`);
     }
   }
 
-  static async configureDNS(keyId, httpsAgent, apiUrl) {
+  static async setDataLimit(keyId, bytes, httpsAgent, apiUrl) {
     try {
       await axios.put(
-        `${apiUrl}/access-keys/${keyId}`,
-        { 
-          "metricsEnabled": false,
-          "name": `User-${keyId}`,
-          "dataLimit": {
-            "bytes": constants.OUTLINE_DEFAULT_DATA_LIMIT
-          }
-        },
+        `${apiUrl}/access-keys/${keyId}/data-limit`,
+        { limit: { bytes } },
         { httpsAgent }
       );
       
-      console.log(`✅ DNS configured for key ${keyId}`);
+      console.log(`✅ Data limit set for key ${keyId}: ${bytes} bytes`);
     } catch (error) {
-      console.warn(`⚠️ Could not configure DNS for key ${keyId}`);
+      console.warn(`⚠️ Could not set data limit for key ${keyId}:`, error.message);
     }
   }
 
@@ -66,7 +68,11 @@ class OutlineService {
     const { apiUrl, httpsAgent } = this.getApiConfig();
 
     try {
-      const response = await axios.get(`${apiUrl}/access-keys`, { httpsAgent });
+      const response = await axios.get(
+        `${apiUrl}/access-keys`,
+        { httpsAgent }
+      );
+      
       return response.data.accessKeys || [];
     } catch (error) {
       console.error('Error fetching access keys:', error.message);
@@ -78,7 +84,11 @@ class OutlineService {
     const { apiUrl, httpsAgent } = this.getApiConfig();
 
     try {
-      await axios.delete(`${apiUrl}/access-keys/${keyId}`, { httpsAgent });
+      await axios.delete(
+        `${apiUrl}/access-keys/${keyId}`,
+        { httpsAgent }
+      );
+      
       console.log(`🗑️ Deleted access key ${keyId}`);
       return true;
     } catch (error) {
@@ -91,11 +101,33 @@ class OutlineService {
     const { apiUrl, httpsAgent } = this.getApiConfig();
 
     try {
-      const response = await axios.get(`${apiUrl}/server`, { httpsAgent });
+      const response = await axios.get(
+        `${apiUrl}/server`,
+        { httpsAgent }
+      );
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching server info:', error.message);
       return null;
+    }
+  }
+
+  static async renameAccessKey(keyId, newName) {
+    const { apiUrl, httpsAgent } = this.getApiConfig();
+
+    try {
+      await axios.put(
+        `${apiUrl}/access-keys/${keyId}/name`,
+        { name: newName },
+        { httpsAgent }
+      );
+      
+      console.log(`✏️ Renamed key ${keyId} to: ${newName}`);
+      return true;
+    } catch (error) {
+      console.error(`Error renaming key ${keyId}:`, error.message);
+      return false;
     }
   }
 }
