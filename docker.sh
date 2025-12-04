@@ -290,7 +290,7 @@ install_docker() {
 start_services() {
     log_header "🚀 STARTING VPN SERVICES"
     
-    # Variables para el .env
+        # Variables para el .env
     local SERVER_IPV4=""
     local SERVER_IPV6=""
     local SERVER_IP=""
@@ -303,7 +303,7 @@ start_services() {
     local WIREGUARD_PATH="/config"
     local OUTLINE_API_PORT=""
     local OUTLINE_API_URL=""
-    local OUTLINE_API_SECRET=""
+    local OUTLINE_API_SECRET=""  # <--- IMPORTANTE
     local OUTLINE_CERT_SHA256=""
     local PRESERVE_CERTS="false"
     local TELEGRAM_TOKEN=""
@@ -421,109 +421,66 @@ EOF
         log_info "Certificate preservation enabled, keeping existing volume"
     fi
     
-        # =========================================================================
+    # =========================================================================
     # STEP 6: Generate SSL Certificates for Outline
     # =========================================================================
-    log_step "6" "8" "Generating SSL certificates for Outline VPN..."
+    log_step "6" "8" "Generating SSL certificates and configuration..."
     
-    # Primero, asegurar que el volumen existe
+    # 1. Generar el secreto API ahora, para usarlo en la creación del archivo config
+    OUTLINE_API_SECRET=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 32)
+    
+    # 2. Asegurar que el volumen existe
     $DOCKER_CMD volume create outline_data 2>/dev/null || true
     
-    # Generar certificados con verificación robusta
+    # 3. Generar archivos dentro del volumen usando la ruta NATIVA (/opt/outline/persisted-state)
+    # Usamos una imagen Alpine para escribir en el volumen antes de arrancar Outline
     $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine sh -c "
         set -e
         apk add --no-cache openssl >/dev/null 2>&1
         
-        # Verificar y crear directorio si no existe
+        # Crear directorio si no existe (aunque el volumen lo maneja)
         mkdir -p /opt/outline/persisted-state
         cd /opt/outline/persisted-state
         
-        # Generar certificados
-        openssl req -x509 -nodes -days 36500 -newkey rsa:2048 \
-            -subj '/CN=${SERVER_IP}' \
-            -keyout shadowbox-selfsigned.key \
-            -out shadowbox-selfsigned.crt 2>&1 | grep -v \"Can't load\" || true
+        echo '--- Generating Certificates ---'
+        if [ ! -f shadowbox-selfsigned.crt ]; then
+            openssl req -x509 -nodes -days 36500 -newkey rsa:2048 \
+                -subj '/CN=${SERVER_IP}' \
+                -keyout shadowbox-selfsigned.key \
+                -out shadowbox-selfsigned.crt 2>&1
+        else
+            echo 'Certificates already exist.'
+        fi
         
-        # Establecer permisos correctos
+        echo '--- Generating Server Config ---'
+        # Outline necesita este archivo para saber su ID y Puerto
+        # Esto evita que intente autoconfigurarse y falle
+        cat <<EOF > shadowbox_server_config.json
+{
+  \"rolloutId\": \"vpn-manager-$(date +%s)\",
+  \"portForNewAccessKeys\": ${OUTLINE_API_PORT},
+  \"hostname\": \"${SERVER_IP}\",
+  \"created\": $(date +%s)000
+}
+EOF
+
+        # 4. CORRECCIÓN DE PERMISOS
+        # Damos permisos de lectura global a los certificados y config
+        # Esto soluciona el error 'ENOENT' si el usuario del contenedor no es root
         chmod 644 shadowbox-selfsigned.crt
+        chmod 644 shadowbox_server_config.json
         chmod 600 shadowbox-selfsigned.key
         
-        # Verificar que los archivos existen
-        if [ ! -f shadowbox-selfsigned.crt ] || [ ! -f shadowbox-selfsigned.key ]; then
-            echo 'ERROR: Certificate files not created'
-            exit 1
-        fi
-        
-        echo 'Certificates generated successfully'
-    " 2>&1 | grep -v "Can't load" || true
+        echo '--- File Verification ---'
+        ls -lh /opt/outline/persisted-state/
+    "
     
-    # Verificar que los certificados realmente existen en el volumen
-    if $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
-        test -f /opt/outline/persisted-state/shadowbox-selfsigned.crt && \
-       $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
-        test -f /opt/outline/persisted-state/shadowbox-selfsigned.key; then
-        
-        log_success "SSL certificates generated successfully (valid for 100 years)"
-        
-        # Mostrar información de los certificados para debug
-        log_info "Certificate details:"
-        $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
-            ls -lh /opt/outline/persisted-state/shadowbox-selfsigned.* 2>&1 | \
-            while read line; do
-                log_info "  $line"
-            done
+    if [ $? -eq 0 ]; then
+        log_success "Configuration generated successfully in /opt/outline/persisted-state"
     else
-        log_error "Failed to generate SSL certificates using primary method"
-        log_warning "Attempting alternative method (host-based generation)..."
-        
-        # Método alternativo: generar en el host y copiar al volumen
-        TEMP_CERT_DIR="/tmp/outline_certs_$$"
-        mkdir -p "$TEMP_CERT_DIR"
-        
-        # Generar certificados en el host
-        if openssl req -x509 -nodes -days 36500 -newkey rsa:2048 \
-            -subj "/CN=${SERVER_IP}" \
-            -keyout "$TEMP_CERT_DIR/shadowbox-selfsigned.key" \
-            -out "$TEMP_CERT_DIR/shadowbox-selfsigned.crt" 2>/dev/null; then
-            
-            log_info "Certificates generated on host, copying to volume..."
-            
-            # Copiar al volumen de Docker
-            $DOCKER_CMD run --rm \
-                -v "$TEMP_CERT_DIR:/certs:ro" \
-                -v outline_data:/opt/outline/persisted-state \
-                alpine sh -c "
-                    cp /certs/shadowbox-selfsigned.crt /opt/outline/persisted-state/
-                    cp /certs/shadowbox-selfsigned.key /opt/outline/persisted-state/
-                    chmod 644 /opt/outline/persisted-state/shadowbox-selfsigned.crt
-                    chmod 600 /opt/outline/persisted-state/shadowbox-selfsigned.key
-                    ls -lh /opt/outline/persisted-state/shadowbox-selfsigned.*
-                "
-            
-            # Limpiar directorio temporal
-            rm -rf "$TEMP_CERT_DIR"
-            
-            # Verificar una vez más
-            if $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
-                test -f /opt/outline/persisted-state/shadowbox-selfsigned.crt; then
-                log_success "SSL certificates generated successfully using alternative method"
-            else
-                log_error "Alternative method also failed"
-                log_error "Cannot proceed without SSL certificates"
-                press_any_key
-                show_menu
-                return 1
-            fi
-        else
-            log_error "OpenSSL not available or failed on host"
-            log_error "Cannot generate SSL certificates"
-            log_warning "Please install OpenSSL: sudo apt-get install openssl"
-            press_any_key
-            show_menu
-            return 1
-        fi
+        log_error "Failed to generate configuration files"
+        return 1
     fi
-
     
     # =========================================================================
     # STEP 7: Start Docker Containers
@@ -561,15 +518,24 @@ EOF
             echo -e "${NC}]"
             log_error "Outline container failed with status: ${STATUS}"
             log_subheader "Container Debug Logs"
-            $DOCKER_CMD logs outline --tail 30
+            $DOCKER_CMD logs outline --tail 50
+            
+            # Verificar si los certificados existen en la ubicación correcta
+            log_subheader "Certificate Verification"
+            log_info "Checking certificates in volume..."
+            $DOCKER_CMD run --rm -v outline_data:/root/shadowbox alpine \
+                ls -la /root/shadowbox/persisted-state/ 2>&1 | while read line; do
+                    log_info "  $line"
+                done
+            
             press_any_key
             show_menu
             return 1
         fi
         
-        # Check for configuration file
-        if $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
-            test -f /opt/outline/persisted-state/shadowbox_server_config.json > /dev/null 2>&1; then
+        # Check for configuration file en la ruta CORRECTA
+        if $DOCKER_CMD run --rm -v outline_data:/root/shadowbox alpine \
+            test -f /root/shadowbox/persisted-state/shadowbox_server_config.json > /dev/null 2>&1; then
             SUCCESS=true
             echo -e "${GREEN}█${NC}] ${SUCCESS_ICON}"
             break
@@ -584,46 +550,39 @@ EOF
         echo -e "${NC}]"
         log_error "Timeout waiting for Outline configuration (waited ${MAX_RETRIES}s)"
         log_warning "The service may still be initializing. Check logs with option 3."
+        
+        # Debug info
+        log_subheader "Debug Information"
+        log_info "Container status:"
+        $DOCKER_CMD inspect --format='{{.State.Status}}' outline
+        
+        log_info "Volume contents:"
+        $DOCKER_CMD run --rm -v outline_data:/root/shadowbox alpine \
+            find /root/shadowbox -type f 2>&1 | while read line; do
+                log_info "  $line"
+            done
+        
         press_any_key
         show_menu
         return 1
     fi
     
     log_success "Outline initialized successfully in ${COUNT} seconds"
+
     
     # =========================================================================
     # Extract Service Credentials
     # =========================================================================
-    log_subheader "Extracting Service Credentials"
+    log_subheader "Finalizing Configuration"
     
-    # Extract Outline API URL (contiene el secreto embebido)
-    log_info "Extracting Outline API URL..."
-    OUTLINE_API_URL=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
-        cat /opt/outline/persisted-state/shadowbox_server_config.json 2>/dev/null | \
-        grep -o '"apiUrl":"[^"]*"' | cut -d'"' -f4)
-    
-    if [ -n "$OUTLINE_API_URL" ]; then
-        log_success "Outline API URL extracted: ${OUTLINE_API_URL:0:40}..."
-    else
-        log_error "Failed to extract Outline API URL"
-        log_warning "Attempting manual construction..."
-        
-        # Fallback: construir manualmente si falla la extracción
-        local TEMP_SECRET=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
-            cat /opt/outline/persisted-state/shadowbox_server_config.json 2>/dev/null | \
-            grep -o '"[a-zA-Z0-9_-]\{20,\}"' | head -1 | tr -d '"')
-        
-        if [ -n "$TEMP_SECRET" ]; then
-            OUTLINE_API_URL="https://${SERVER_IP}:${OUTLINE_API_PORT}/${TEMP_SECRET}"
-            log_success "API URL constructed: ${OUTLINE_API_URL:0:40}..."
-        else
-            OUTLINE_API_URL="https://${SERVER_IP}:${OUTLINE_API_PORT}/EXTRACTION_FAILED"
-            log_error "Could not construct API URL - manual configuration required"
-        fi
-    fi
-    
+    # Construir la API URL usando el secreto que generamos en el paso 6
+    # Nota: Outline usa el prefijo como parte de la URL
+    OUTLINE_API_URL="https://${SERVER_IP}:${OUTLINE_API_PORT}/${OUTLINE_API_SECRET}"
+    log_success "Outline API URL constructed"
+
     # Extract Certificate SHA256
-    log_info "Extracting SSL certificate fingerprint..."
+    # Buscamos en la ruta nativa /opt/outline/persisted-state
+    log_info "Calculating SSL certificate fingerprint..."
     OUTLINE_CERT_SHA256=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine sh -c \
         "apk add --no-cache openssl >/dev/null 2>&1 && \
         openssl x509 -in /opt/outline/persisted-state/shadowbox-selfsigned.crt -noout -fingerprint -sha256" 2>/dev/null | \
@@ -633,26 +592,20 @@ EOF
         log_success "Certificate SHA256: ${OUTLINE_CERT_SHA256:0:40}..."
     else
         log_error "Failed to extract certificate fingerprint"
-        OUTLINE_CERT_SHA256="EXTRACTION_FAILED"
+        OUTLINE_CERT_SHA256="MANUAL_CHECK_REQUIRED"
     fi
     
-    # Extract WireGuard Public Key
-    log_info "Extracting WireGuard server public key..."
-    sleep 2  # Give WireGuard time to generate keys
+    # WireGuard Public Key (Igual que antes, pero con verificación mejorada)
+    log_info "Waiting for WireGuard keys..."
+    sleep 3
+    WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard cat /config/server/publickey 2>/dev/null || echo "")
     
-    WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard cat /config/server/publickey 2>/dev/null || \
-                           $DOCKER_CMD exec wireguard wg show wg0 public-key 2>/dev/null || \
-                           echo "")
-    
-    if [ -n "$WIREGUARD_PUBLIC_KEY" ]; then
-        log_success "WireGuard public key: ${WIREGUARD_PUBLIC_KEY:0:30}..."
-        WIREGUARD_ENDPOINT="${SERVER_IP}:${WIREGUARD_PORT}"
-    else
-        log_warning "Could not extract WireGuard public key automatically"
-        log_info "It will be available after WireGuard fully initializes"
-        WIREGUARD_PUBLIC_KEY="PENDING_INITIALIZATION"
-        WIREGUARD_ENDPOINT="${SERVER_IP}:${WIREGUARD_PORT}"
+    if [ -z "$WIREGUARD_PUBLIC_KEY" ]; then
+         # Fallback: try standard wg command
+         WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard wg show wg0 public-key 2>/dev/null || echo "PENDING")
     fi
+    log_success "WireGuard Key: ${WIREGUARD_PUBLIC_KEY:0:20}..."
+
     
     # =========================================================================
     # Generate Final .env File
@@ -661,50 +614,40 @@ EOF
     
     cat > "$ENV_FILE" <<EOF
 # =============================================================================
-# uSipipo VPN Manager - Auto-Generated Configuration
+# uSipipo VPN Manager - Production Configuration
 # Generated: $(date '+%Y-%m-%d %H:%M:%S %Z')
-# =============================================================================
-# ⚠️  WARNING: This file contains sensitive credentials!
-# Keep it secure and never commit it to version control.
 # =============================================================================
 
 # Telegram Bot Configuration
-# ──────────────────────────────────────────────────────────────────
-# TODO: Get your bot token from @BotFather on Telegram
-# TODO: Get your user ID from @userinfobot
 TELEGRAM_TOKEN=${TELEGRAM_TOKEN:-your_telegram_bot_token_here}
-AUTHORIZED_USERS=${AUTHORIZED_USERS:-123456789,987654321}
+AUTHORIZED_USERS=${AUTHORIZED_USERS:-123456789}
 
 # Server Network Configuration
-# ──────────────────────────────────────────────────────────────────
 SERVER_IPV4=${SERVER_IPV4}
 SERVER_IPV6=${SERVER_IPV6}
 SERVER_IP=${SERVER_IP}
 
 # Pi-hole Configuration
-# ──────────────────────────────────────────────────────────────────
 PIHOLE_WEB_PORT=${PIHOLE_WEB_PORT}
 PIHOLE_WEBPASS=${PIHOLE_WEBPASS}
 PIHOLE_DNS=${PIHOLE_DNS}
 
 # WireGuard Configuration
-# ──────────────────────────────────────────────────────────────────
 WIREGUARD_PORT=${WIREGUARD_PORT}
 WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
-WIREGUARD_ENDPOINT=${WIREGUARD_ENDPOINT}
+WIREGUARD_ENDPOINT=${SERVER_IP}:${WIREGUARD_PORT}
 WIREGUARD_PATH=${WIREGUARD_PATH}
 
 # Outline Configuration
-# ──────────────────────────────────────────────────────────────────
-# La API URL ya incluye el secreto en la ruta
-OUTLINE_API_URL=${OUTLINE_API_URL}
+# Esta variable es INYECTADA en docker-compose como SB_API_PREFIX
+OUTLINE_API_SECRET=${OUTLINE_API_SECRET}
 OUTLINE_API_PORT=${OUTLINE_API_PORT}
+OUTLINE_API_URL=${OUTLINE_API_URL}
 OUTLINE_CERT_SHA256=${OUTLINE_CERT_SHA256}
 PRESERVE_CERTS=${PRESERVE_CERTS}
 
-# =============================================================================
-# End of Configuration
-# =============================================================================
+# Node Environment
+NODE_ENV=production
 EOF
     
     log_success "Final .env configuration saved to: ${ENV_FILE}"

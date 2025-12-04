@@ -6,18 +6,22 @@ services:
     restart: unless-stopped
     ports:
       - "${OUTLINE_API_PORT}:${OUTLINE_API_PORT}/tcp"
+      - "${OUTLINE_API_PORT}:${OUTLINE_API_PORT}/udp"
     volumes:
+      # CORRECCIÓN CRÍTICA: Usamos la ruta nativa de la imagen
       - outline_data:/opt/outline/persisted-state
     environment:
       - SB_API_PORT=${OUTLINE_API_PORT}
       - SB_API_PREFIX=${OUTLINE_API_SECRET}
+      # Apuntamos explícitamente a la ruta nativa
       - SB_CERTIFICATE_FILE=/opt/outline/persisted-state/shadowbox-selfsigned.crt
       - SB_PRIVATE_KEY_FILE=/opt/outline/persisted-state/shadowbox-selfsigned.key
+      # Desactivamos métricas automáticas para reducir ruido
+      - SB_METRICS_ENABLED=false
     networks:
       - vpn_network
-    # Healthcheck para asegurar que Outline esté listo
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:${OUTLINE_API_PORT}/access-keys"]
+      test: ["CMD", "wget", "--no-check-certificate", "--spider", "https://localhost:${OUTLINE_API_PORT}/access-keys"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -34,9 +38,9 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=America/Mexico_City
-      - SERVERURL=${SERVER_IPV4}
+      - SERVERURL=${SERVER_IP}
       - SERVERPORT=${WIREGUARD_PORT}
-      - PEERS=10
+      - PEERS=clients
       - PEERDNS=${PIHOLE_DNS}
       - INTERNAL_SUBNET=10.13.13.0
       - ALLOWEDIPS=0.0.0.0/0,::/0
@@ -63,7 +67,7 @@ services:
     environment:
       - TZ=America/Mexico_City
       - WEBPASSWORD=${PIHOLE_WEBPASS}
-      - FTLCONF_LOCAL_IPV4=${SERVER_IPV4}
+      - FTLCONF_LOCAL_IPV4=${SERVER_IP}
       - PIHOLE_DNS_=1.1.1.1;8.8.8.8
       - DNSMASQ_LISTENING=all
     volumes:
@@ -91,10 +95,6 @@ networks:
 
 volumes:
   outline_data:
-    driver: local
   wireguard_config:
-    driver: local
   pihole_data:
-    driver: local
   pihole_dnsmasq:
-    driver: local
