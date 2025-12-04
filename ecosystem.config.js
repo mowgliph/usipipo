@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
-    name: 'usipipo-vpn-bot',
-    script: './bot/index.js',
+    name: 'usipipo',
+    script: 'bot/index.js',
     cwd: __dirname,
     instances: 1,
     autorestart: true,
