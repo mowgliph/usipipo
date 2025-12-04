@@ -305,7 +305,7 @@ start_services() {
     local OUTLINE_API_URL=""
     local OUTLINE_API_SECRET=""
     local OUTLINE_CERT_SHA256=""
-    local PRESERVE_CERTS="true"
+    local PRESERVE_CERTS="false"
     local TELEGRAM_TOKEN=""
     local AUTHORIZED_USERS=""
     
@@ -421,26 +421,109 @@ EOF
         log_info "Certificate preservation enabled, keeping existing volume"
     fi
     
-    # =========================================================================
+        # =========================================================================
     # STEP 6: Generate SSL Certificates for Outline
     # =========================================================================
     log_step "6" "8" "Generating SSL certificates for Outline VPN..."
     
-    $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine sh -c "
-        apk add --no-cache openssl >/dev/null 2>&1 && 
-        openssl req -x509 -nodes -days 36500 -newkey rsa:2048 \
-        -subj '/CN=${SERVER_IP}' \
-        -keyout /opt/outline/persisted-state/shadowbox-selfsigned.key \
-        -out /opt/outline/persisted-state/shadowbox-selfsigned.crt" 2>&1 | grep -v "Can't load" || true
+    # Primero, asegurar que el volumen existe
+    $DOCKER_CMD volume create outline_data 2>/dev/null || true
     
-    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        log_success "SSL certificate generated successfully (valid for 100 years)"
+    # Generar certificados con verificación robusta
+    $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine sh -c "
+        set -e
+        apk add --no-cache openssl >/dev/null 2>&1
+        
+        # Verificar y crear directorio si no existe
+        mkdir -p /opt/outline/persisted-state
+        cd /opt/outline/persisted-state
+        
+        # Generar certificados
+        openssl req -x509 -nodes -days 36500 -newkey rsa:2048 \
+            -subj '/CN=${SERVER_IP}' \
+            -keyout shadowbox-selfsigned.key \
+            -out shadowbox-selfsigned.crt 2>&1 | grep -v \"Can't load\" || true
+        
+        # Establecer permisos correctos
+        chmod 644 shadowbox-selfsigned.crt
+        chmod 600 shadowbox-selfsigned.key
+        
+        # Verificar que los archivos existen
+        if [ ! -f shadowbox-selfsigned.crt ] || [ ! -f shadowbox-selfsigned.key ]; then
+            echo 'ERROR: Certificate files not created'
+            exit 1
+        fi
+        
+        echo 'Certificates generated successfully'
+    " 2>&1 | grep -v "Can't load" || true
+    
+    # Verificar que los certificados realmente existen en el volumen
+    if $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
+        test -f /opt/outline/persisted-state/shadowbox-selfsigned.crt && \
+       $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
+        test -f /opt/outline/persisted-state/shadowbox-selfsigned.key; then
+        
+        log_success "SSL certificates generated successfully (valid for 100 years)"
+        
+        # Mostrar información de los certificados para debug
+        log_info "Certificate details:"
+        $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
+            ls -lh /opt/outline/persisted-state/shadowbox-selfsigned.* 2>&1 | \
+            while read line; do
+                log_info "  $line"
+            done
     else
-        log_error "Failed to generate SSL certificates"
-        press_any_key
-        show_menu
-        return 1
+        log_error "Failed to generate SSL certificates using primary method"
+        log_warning "Attempting alternative method (host-based generation)..."
+        
+        # Método alternativo: generar en el host y copiar al volumen
+        TEMP_CERT_DIR="/tmp/outline_certs_$$"
+        mkdir -p "$TEMP_CERT_DIR"
+        
+        # Generar certificados en el host
+        if openssl req -x509 -nodes -days 36500 -newkey rsa:2048 \
+            -subj "/CN=${SERVER_IP}" \
+            -keyout "$TEMP_CERT_DIR/shadowbox-selfsigned.key" \
+            -out "$TEMP_CERT_DIR/shadowbox-selfsigned.crt" 2>/dev/null; then
+            
+            log_info "Certificates generated on host, copying to volume..."
+            
+            # Copiar al volumen de Docker
+            $DOCKER_CMD run --rm \
+                -v "$TEMP_CERT_DIR:/certs:ro" \
+                -v outline_data:/opt/outline/persisted-state \
+                alpine sh -c "
+                    cp /certs/shadowbox-selfsigned.crt /opt/outline/persisted-state/
+                    cp /certs/shadowbox-selfsigned.key /opt/outline/persisted-state/
+                    chmod 644 /opt/outline/persisted-state/shadowbox-selfsigned.crt
+                    chmod 600 /opt/outline/persisted-state/shadowbox-selfsigned.key
+                    ls -lh /opt/outline/persisted-state/shadowbox-selfsigned.*
+                "
+            
+            # Limpiar directorio temporal
+            rm -rf "$TEMP_CERT_DIR"
+            
+            # Verificar una vez más
+            if $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
+                test -f /opt/outline/persisted-state/shadowbox-selfsigned.crt; then
+                log_success "SSL certificates generated successfully using alternative method"
+            else
+                log_error "Alternative method also failed"
+                log_error "Cannot proceed without SSL certificates"
+                press_any_key
+                show_menu
+                return 1
+            fi
+        else
+            log_error "OpenSSL not available or failed on host"
+            log_error "Cannot generate SSL certificates"
+            log_warning "Please install OpenSSL: sudo apt-get install openssl"
+            press_any_key
+            show_menu
+            return 1
+        fi
     fi
+
     
     # =========================================================================
     # STEP 7: Start Docker Containers
