@@ -8,15 +8,12 @@ services:
       - "${OUTLINE_API_PORT}:${OUTLINE_API_PORT}/tcp"
       - "${OUTLINE_API_PORT}:${OUTLINE_API_PORT}/udp"
     volumes:
-      # CORRECCIÓN CRÍTICA: Usamos la ruta nativa de la imagen
       - outline_data:/opt/outline/persisted-state
     environment:
       - SB_API_PORT=${OUTLINE_API_PORT}
       - SB_API_PREFIX=${OUTLINE_API_SECRET}
-      # Apuntamos explícitamente a la ruta nativa
       - SB_CERTIFICATE_FILE=/opt/outline/persisted-state/shadowbox-selfsigned.crt
       - SB_PRIVATE_KEY_FILE=/opt/outline/persisted-state/shadowbox-selfsigned.key
-      # Desactivamos métricas automáticas para reducir ruido
       - SB_METRICS_ENABLED=false
     networks:
       - vpn_network
@@ -93,8 +90,13 @@ networks:
       config:
         - subnet: 172.20.0.0/16
 
+# CORRECCIÓN: Nombres explícitos para conectar con los volúmenes creados por el script
 volumes:
   outline_data:
+    name: outline_data
   wireguard_config:
+    name: wireguard_config
   pihole_data:
+    name: pihole_data
   pihole_dnsmasq:
+    name: pihole_dnsmasq

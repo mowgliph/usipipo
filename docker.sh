@@ -510,20 +510,22 @@ EOF
     echo -ne "${BLUE}Progress: [${NC}"
     
     while [ $COUNT -lt $MAX_RETRIES ]; do
-        # Check container health
+        # Check container health status
         local STATUS=$($DOCKER_CMD inspect -f '{{.State.Status}}' outline 2>/dev/null || echo "missing")
         
+        # Si el contenedor está reiniciando constantemente, hay un error fatal
         if [ "$STATUS" == "restarting" ] || [ "$STATUS" == "dead" ] || [ "$STATUS" == "exited" ]; then
             echo -e "${NC}]"
             log_error "Outline container failed with status: ${STATUS}"
             log_subheader "Container Debug Logs"
             $DOCKER_CMD logs outline --tail 50
             
-            # Verificar si los certificados existen en la ubicación correcta
-            log_subheader "Certificate Verification"
-            log_info "Checking certificates in volume..."
-            $DOCKER_CMD run --rm -v outline_data:/root/shadowbox alpine \
-                ls -la /root/shadowbox/persisted-state/ 2>&1 | while read line; do
+            # Verificar contenido del volumen usando la MISMA RUTA que el contenedor
+            log_subheader "Volume Content Verification"
+            log_info "Listing /opt/outline/persisted-state inside volume..."
+            
+            $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
+                ls -la /opt/outline/persisted-state/ 2>&1 | while read line; do
                     log_info "  $line"
                 done
             
@@ -532,9 +534,10 @@ EOF
             return 1
         fi
         
-        # Check for configuration file en la ruta CORRECTA
-        if $DOCKER_CMD run --rm -v outline_data:/root/shadowbox alpine \
-            test -f /root/shadowbox/persisted-state/shadowbox_server_config.json > /dev/null 2>&1; then
+        # Check for configuration file existence
+        # CORREGIDO: Usamos la ruta /opt/outline/persisted-state para coincidir con el montaje del paso 6
+        if $DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine \
+            test -f /opt/outline/persisted-state/shadowbox_server_config.json > /dev/null 2>&1; then
             SUCCESS=true
             echo -e "${GREEN}█${NC}] ${SUCCESS_ICON}"
             break
@@ -550,17 +553,6 @@ EOF
         log_error "Timeout waiting for Outline configuration (waited ${MAX_RETRIES}s)"
         log_warning "The service may still be initializing. Check logs with option 3."
         
-        # Debug info
-        log_subheader "Debug Information"
-        log_info "Container status:"
-        $DOCKER_CMD inspect --format='{{.State.Status}}' outline
-        
-        log_info "Volume contents:"
-        $DOCKER_CMD run --rm -v outline_data:/root/shadowbox alpine \
-            find /root/shadowbox -type f 2>&1 | while read line; do
-                log_info "  $line"
-            done
-        
         press_any_key
         show_menu
         return 1
@@ -574,13 +566,12 @@ EOF
     # =========================================================================
     log_subheader "Finalizing Configuration"
     
-    # Construir la API URL usando el secreto que generamos en el paso 6
-    # Nota: Outline usa el prefijo como parte de la URL
+    # Construir la API URL
     OUTLINE_API_URL="https://${SERVER_IP}:${OUTLINE_API_PORT}/${OUTLINE_API_SECRET}"
     log_success "Outline API URL constructed"
 
     # Extract Certificate SHA256
-    # Buscamos en la ruta nativa /opt/outline/persisted-state
+    # CORREGIDO: Usar ruta consistente /opt/outline/persisted-state
     log_info "Calculating SSL certificate fingerprint..."
     OUTLINE_CERT_SHA256=$($DOCKER_CMD run --rm -v outline_data:/opt/outline/persisted-state alpine sh -c \
         "apk add --no-cache openssl >/dev/null 2>&1 && \
@@ -594,17 +585,16 @@ EOF
         OUTLINE_CERT_SHA256="MANUAL_CHECK_REQUIRED"
     fi
     
-    # WireGuard Public Key (Igual que antes, pero con verificación mejorada)
+    # WireGuard Public Key
     log_info "Waiting for WireGuard keys..."
     sleep 3
     WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard cat /config/server/publickey 2>/dev/null || echo "")
     
     if [ -z "$WIREGUARD_PUBLIC_KEY" ]; then
-         # Fallback: try standard wg command
          WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard wg show wg0 public-key 2>/dev/null || echo "PENDING")
     fi
     log_success "WireGuard Key: ${WIREGUARD_PUBLIC_KEY:0:20}..."
-
+    
     
     # =========================================================================
     # Generate Final .env File
