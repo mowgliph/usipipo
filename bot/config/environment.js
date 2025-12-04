@@ -4,7 +4,7 @@ const requiredEnvVars = [
   'SERVER_IPV4',
   'WIREGUARD_PORT',
   'OUTLINE_API_PORT',
-  'WIREGUARD_SERVER_PUBLIC_KEY'
+  'WIREGUARD_PUBLIC_KEY'
 ];
 
 function validateEnvironment() {
@@ -31,7 +31,7 @@ module.exports = {
   
   // WireGuard
   WIREGUARD_PORT: process.env.WIREGUARD_PORT,
-  WIREGUARD_SERVER_PUBLIC_KEY: process.env.WIREGUARD_SERVER_PUBLIC_KEY,
+  WIREGUARD_PUBLIC_KEY: process.env.WIREGUARD_PUBLIC_KEY,
   WIREGUARD_PATH: process.env.WIREGUARD_PATH,
   
   // Outline
