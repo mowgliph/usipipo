@@ -18,8 +18,11 @@ function validateEnvironment() {
 
 validateEnvironment();
 
-// AUTHORIZED_USERS ahora es opcional (se usa solo para inicialización)
-const legacyUsers = process.env.AUTHORIZED_USERS?.split(',').map(id => id.trim()) || [];
+// Procesar usuarios autorizados
+const authorizedUsersArray = process.env.AUTHORIZED_USERS?.split(',').map(id => id.trim()) || [];
+
+// El ADMIN_ID es el primero de AUTHORIZED_USERS
+const adminId = authorizedUsersArray.length > 0 ? authorizedUsersArray[0] : null;
 
 module.exports = {
   TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
@@ -33,6 +36,7 @@ module.exports = {
   WIREGUARD_PORT: process.env.WIREGUARD_PORT,
   WIREGUARD_PUBLIC_KEY: process.env.WIREGUARD_PUBLIC_KEY,
   WIREGUARD_PATH: process.env.WIREGUARD_PATH,
+  WIREGUARD_ENDPOINT: process.env.WIREGUARD_ENDPOINT,
   
   // Outline
   OUTLINE_API_URL: process.env.OUTLINE_API_URL,
@@ -44,10 +48,9 @@ module.exports = {
   PIHOLE_WEBPASS: process.env.PIHOLE_WEBPASS,
   PIHOLE_DNS: process.env.PIHOLE_DNS,
   
-  // Admin
+  // Admin y usuarios
   ADMIN_EMAIL: 'usipipo@etlgr.com',
-  
-  // Legacy support
-  LEGACY_AUTHORIZED_USERS: legacyUsers,
-  ADMIN_ID: legacyUsers[0] || null
+  ADMIN_ID: adminId, // ← ID del primer usuario autorizado
+  AUTHORIZED_USERS: authorizedUsersArray,
+  LEGACY_AUTHORIZED_USERS: authorizedUsersArray
 };

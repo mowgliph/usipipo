@@ -649,17 +649,3 @@ Cuando reinicies el bot (`pm2 restart usipipo`), tus administradores recibirán 
 ### 💡 Nota Importante sobre Markdown
 He usado el formato **Markdown estándar** (no V2) en este mensaje específico para evitar los errores de "Bad Request" con caracteres especiales en las IPs o versiones. Es más robusto para mensajes de sistema.
 
-
-Realicé un análisis profundo comparando tu script docker.sh y docker-compose.yml contra el script oficial outline_server.sh y la arquitectura de Shadowbox (el servidor de Outline).
-​He identificado dos errores críticos que impiden que los clientes se conecten, aunque la API y el Manager funcionen correctamente.
-​🔍 Diagnóstico del Problema
-​Aislamiento de Red (El error principal):
-En tu docker-compose.yml, el servicio outline está dentro de una red bridge (vpn_network) y solo mapeas el OUTLINE_API_PORT.
-​Cómo funciona Outline: Cuando creas un usuario en el Manager, Shadowbox asigna un puerto aleatorio (o uno definido en config) para el tráfico de datos de ese usuario (Access Key).
-​El fallo: Si Outline asigna el puerto 54321 para un usuario, el contenedor empieza a escuchar en ese puerto adentro de la red Docker. Pero como ese puerto no está explícitamente mapeado en el docker-compose.yml (bajo ports:), el tráfico desde internet golpea tu VPS y es rechazado porque Docker no está puenteando ese puerto específico.
-​Solución: Outline (y WireGuard) deben usar network_mode: host. Esto permite que cuando Outline abra un puerto dinámico para un usuario, este sea accesible inmediatamente desde internet sin mapeos manuales.
-​Conflicto de Puertos en docker.sh:
-En tu script docker.sh (línea 357 aprox), estás configurando esto:
-"portForNewAccessKeys": ${OUTLINE_API_PORT},
-​El fallo: Estás obligando a Outline a usar el mismo puerto para la API de Gestión (HTTPS) que para el Tráfico VPN (Shadowsocks). Esto crea un conflicto de sockets o hace que el cliente intente hacer un handshake VPN contra un puerto que espera comandos API.
-​Solución: Debes generar un segundo puerto aleatorio (OUTLINE_KEYS_PORT) para el tráfico de datos.

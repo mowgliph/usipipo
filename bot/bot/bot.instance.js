@@ -64,4 +64,30 @@ bot.catch(async (err, ctx) => {
   ctx.reply('⚠️ Ocurrió un error inesperado. El administrador ha sido notificado.').catch(() => {});
 });
 
+// 🚨 COMANDO DE EMERGENCIA ADMIN (solo para primer arranque)
+bot.command('forceadmin', async (ctx) => {
+  const userId = ctx.from.id.toString();
+  const envAdminId = config.ADMIN_ID;
+  
+  if (userId !== envAdminId) {
+    return ctx.reply('⛔ Solo el Admin configurado en .env puede usar este comando');
+  }
+  
+  try {
+    const userManager = require('../services/userManager.service');
+    await userManager.syncAdminFromEnv();
+    
+    await ctx.reply(
+      '✅ **Sincronización forzada completada**\n\n' +
+      `🆔 Admin ID: \`${envAdminId}\`\n` +
+      `👑 Rol: Administrador\n\n` +
+      `Prueba ahora: /stats o /usuarios`,
+      { parse_mode: 'Markdown' }
+    );
+    
+  } catch (error) {
+    ctx.reply(`❌ Error: ${error.message}`);
+  }
+});
+
 module.exports = bot;

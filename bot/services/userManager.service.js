@@ -1,17 +1,74 @@
 // services/userManager.service.js
 const fs = require('fs').promises;
 const path = require('path');
+const config = require('../config/environment');
 
 class UserManager {
   constructor() {
     this.usersFilePath = path.join(__dirname, '../data/authorized_users.json');
     this.users = new Map();
-    this.loadUsers();
+    this.init();
   }
 
   /**
-   * Carga usuarios desde el archivo JSON
+   * Inicialización con sincronización de Admin
    */
+  async init() {
+    await this.loadUsers();
+    await this.syncAdminFromEnv(); // ← NUEVO
+  }
+
+  /**
+   * Sincroniza el Admin ID desde .env (siempre tiene prioridad)
+   */
+  async syncAdminFromEnv() {
+    const envAdminId = config.ADMIN_ID;
+    
+    if (!envAdminId) {
+      console.warn('⚠️ ADMIN_ID no definido en .env');
+      return;
+    }
+
+    const adminIdStr = envAdminId.toString();
+    let needsSave = false;
+
+    // Caso 1: El admin del .env no está en la lista
+    if (!this.users.has(adminIdStr)) {
+      console.log(`📌 Agregando Admin desde .env: ${adminIdStr}`);
+      this.users.set(adminIdStr, {
+        id: adminIdStr,
+        name: 'Admin Principal',
+        addedAt: new Date().toISOString(),
+        addedBy: 'system',
+        status: 'active',
+        role: 'admin'
+      });
+      needsSave = true;
+    }
+
+    // Caso 2: El admin existe pero no tiene rol admin
+    const adminUser = this.users.get(adminIdStr);
+    if (adminUser.role !== 'admin') {
+      console.log(`🔧 Promoviendo usuario ${adminIdStr} a Admin`);
+      adminUser.role = 'admin';
+      needsSave = true;
+    }
+
+    // Caso 3: Revocar admin a usuarios que ya no están en ADMIN_ID
+    for (const [userId, user] of this.users.entries()) {
+      if (user.role === 'admin' && userId !== adminIdStr) {
+        console.log(`⬇️ Removiendo rol admin de ${userId}`);
+        user.role = 'user';
+        needsSave = true;
+      }
+    }
+
+    if (needsSave) {
+      await this.saveUsers();
+      console.log('✅ Roles de administrador sincronizados con .env');
+    }
+  }
+
   async loadUsers() {
     try {
       await fs.mkdir(path.dirname(this.usersFilePath), { recursive: true });
@@ -24,7 +81,6 @@ class UserManager {
       
     } catch (error) {
       if (error.code === 'ENOENT') {
-        // Archivo no existe, crear estructura inicial desde .env
         await this.initializeFromEnv();
       } else {
         console.error('❌ Error cargando usuarios:', error);
@@ -33,11 +89,9 @@ class UserManager {
     }
   }
 
-  /**
-   * Inicializa desde variables de entorno (primera vez)
-   */
   async initializeFromEnv() {
     const envUsers = process.env.AUTHORIZED_USERS?.split(',').map(id => id.trim()) || [];
+    const adminId = config.ADMIN_ID;
     
     const initialData = {
       users: {},
@@ -47,24 +101,37 @@ class UserManager {
       }
     };
 
-    envUsers.forEach(userId => {
-      initialData.users[userId] = {
-        id: userId,
+    // Agregar admin primero
+    if (adminId) {
+      initialData.users[adminId] = {
+        id: adminId,
+        name: 'Admin Principal',
         addedAt: new Date().toISOString(),
         addedBy: 'system',
         status: 'active',
-        role: userId === envUsers[0] ? 'admin' : 'user'
+        role: 'admin'
       };
-      this.users.set(userId, initialData.users[userId]);
+      this.users.set(adminId, initialData.users[adminId]);
+    }
+
+    // Agregar resto de usuarios
+    envUsers.forEach(userId => {
+      if (userId !== adminId && !this.users.has(userId)) {
+        initialData.users[userId] = {
+          id: userId,
+          addedAt: new Date().toISOString(),
+          addedBy: 'system',
+          status: 'active',
+          role: 'user'
+        };
+        this.users.set(userId, initialData.users[userId]);
+      }
     });
 
     await this.saveUsers(initialData);
-    console.log(`✅ Archivo de usuarios inicializado con ${envUsers.length} usuarios`);
+    console.log(`✅ Archivo de usuarios inicializado con ${this.users.size} usuarios`);
   }
 
-  /**
-   * Guarda usuarios en el archivo JSON
-   */
   async saveUsers(data = null) {
     try {
       const toSave = data || {
@@ -90,25 +157,16 @@ class UserManager {
     }
   }
 
-  /**
-   * Verifica si un usuario está autorizado
-   */
   isAuthorized(userId) {
     const user = this.users.get(userId.toString());
     return user && user.status === 'active';
   }
 
-  /**
-   * Verifica si un usuario es administrador
-   */
   isAdmin(userId) {
     const user = this.users.get(userId.toString());
     return user && user.role === 'admin' && user.status === 'active';
   }
 
-  /**
-   * Agrega un nuevo usuario
-   */
   async addUser(userId, addedByUserId, userName = null) {
     const userIdStr = userId.toString();
     
@@ -132,9 +190,6 @@ class UserManager {
     return newUser;
   }
 
-  /**
-   * Remueve un usuario
-   */
   async removeUser(userId) {
     const userIdStr = userId.toString();
     
@@ -154,9 +209,6 @@ class UserManager {
     return true;
   }
 
-  /**
-   * Suspende temporalmente un usuario
-   */
   async suspendUser(userId) {
     const userIdStr = userId.toString();
     const user = this.users.get(userIdStr);
@@ -173,9 +225,6 @@ class UserManager {
     return user;
   }
 
-  /**
-   * Reactiva un usuario suspendido
-   */
   async reactivateUser(userId) {
     const userIdStr = userId.toString();
     const user = this.users.get(userIdStr);
@@ -192,23 +241,14 @@ class UserManager {
     return user;
   }
 
-  /**
-   * Lista todos los usuarios
-   */
   getAllUsers() {
     return Array.from(this.users.values());
   }
 
-  /**
-   * Obtiene información de un usuario específico
-   */
   getUser(userId) {
     return this.users.get(userId.toString());
   }
 
-  /**
-   * Cuenta usuarios por rol
-   */
   getUserStats() {
     const stats = {
       total: this.users.size,
