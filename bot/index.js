@@ -8,7 +8,13 @@ bot.launch().then(() => {
   console.log('🚀 uSipipo VPN Bot iniciado exitosamente');
   console.log(`📡 Admin ID: ${config.ADMIN_ID}`);
   console.log(`👥 Usuarios autorizados: ${config.AUTHORIZED_USERS.length}`);
-  console.log(`🌍 Servidor: ${config.SERVER_IPV4}:${config.WIREGUARD_PORT}`);
+  console.log(`🌍 Servidor: ${config.SERVER_IPV4}`);
+  
+  // Esperar 2 segundos para asegurar que la conexión a Telegram esté estable
+  setTimeout(() => {
+    notificationService.notifyAdminsSystemStartup();
+  }, 2000);
+  
 }).catch((error) => {
   console.error('❌ Error al iniciar el bot:', error);
   process.exit(1);

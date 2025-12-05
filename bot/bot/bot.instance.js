@@ -30,6 +30,7 @@ bot.use(logUserAction);
 // ========== COMANDOS DE USUARIO ==========
 bot.start((ctx) => authHandler.handleStart(ctx));
 bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
+bot.command('estado', (ctx) => authHandler.handleCheckStatus(ctx));
 
 // ========== COMANDOS DE ADMINISTRACIÓN (Solo Admin) ==========
 bot.command('agregar', requireAdmin, (ctx) => adminHandler.handleAddUser(ctx));
@@ -39,9 +40,15 @@ bot.command('reactivar', requireAdmin, (ctx) => adminHandler.handleReactivateUse
 bot.command('usuarios', requireAdmin, (ctx) => adminHandler.handleListUsers(ctx));
 bot.command('stats', requireAdmin, (ctx) => adminHandler.handleStats(ctx));
 
+// ========== NUEVOS COMANDOS DE BROADCAST (Solo Admin) ==========
+bot.command('broadcast', requireAdmin, (ctx) => adminHandler.handleBroadcast(ctx));
+bot.command('mensaje', requireAdmin, (ctx) => adminHandler.handleDirectMessage(ctx));
+bot.command('plantillas', requireAdmin, (ctx) => adminHandler.handleTemplates(ctx));
+
 // ========== ACCIONES DE AUTENTICACIÓN ==========
 bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));
 bot.action('request_access', (ctx) => authHandler.handleAccessRequest(ctx));
+bot.action('check_status', (ctx) => authHandler.handleCheckStatus(ctx));
 
 // ========== ACCIONES DE VPN (Requieren autorización) ==========
 bot.action('create_wg', requireAuth, (ctx) => vpnHandler.handleCreateWireGuard(ctx));
@@ -51,6 +58,28 @@ bot.action('list_clients', requireAuth, (ctx) => vpnHandler.handleListClients(ct
 // ========== ACCIONES INFORMATIVAS ==========
 bot.action('server_status', requireAuth, (ctx) => infoHandler.handleServerStatus(ctx));
 bot.action('help', (ctx) => infoHandler.handleHelp(ctx));
+
+// ========== ACCIONES DE BROADCAST (Solo Admin) ==========
+bot.action(/^broadcast_all_(.+)$/, requireAdmin, (ctx) => {
+  const broadcastId = ctx.match[1];
+  return adminHandler.handleBroadcastConfirm(ctx, broadcastId, 'all');
+});
+
+bot.action(/^broadcast_users_(.+)$/, requireAdmin, (ctx) => {
+  const broadcastId = ctx.match[1];
+  return adminHandler.handleBroadcastConfirm(ctx, broadcastId, 'users');
+});
+
+bot.action(/^broadcast_admins_(.+)$/, requireAdmin, (ctx) => {
+  const broadcastId = ctx.match[1];
+  return adminHandler.handleBroadcastConfirm(ctx, broadcastId, 'admins');
+});
+
+bot.action(/^broadcast_cancel_(.+)$/, requireAdmin, (ctx) => {
+  const broadcastId = ctx.match[1];
+  return adminHandler.handleBroadcastCancel(ctx, broadcastId);
+});
+
 
 // ========== MANEJO DE ERRORES ==========
 bot.catch(async (err, ctx) => {

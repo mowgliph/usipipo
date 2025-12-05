@@ -16,7 +16,8 @@ module.exports = {
   mainMenuUnauthorized: () =>
     Markup.inlineKeyboard([
       [Markup.button.callback('👤 Ver mis datos', 'show_my_info')],
-      [Markup.button.callback('📧 Solicitar acceso', 'request_access')]
+      [Markup.button.callback('📧 Solicitar acceso', 'request_access')],
+      [Markup.button.callback('🔍 Comprobar Estado', 'check_status')]
     ]),
 
   // Menú de confirmación

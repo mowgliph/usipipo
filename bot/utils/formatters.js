@@ -1,4 +1,5 @@
 // utils/formatters.js
+const { escapeMarkdown, bold, code } = require('./markdown');
 
 /**
  * Formatea bytes a unidades legibles
@@ -42,14 +43,14 @@ function formatWireGuardClients(clients) {
     return '📭 No hay clientes WireGuard activos';
   }
 
-  let message = `🔐 **WireGuard** (${clients.length} clientes)\n`;
+  let message = `🔐 ${bold('WireGuard')} (${clients.length} clientes)\n`;
   message += '━━━━━━━━━━━━━━━━━\n';
   
   clients.forEach((client, index) => {
-    message += `${index + 1}. IP: \`${client.ip}\`\n`;
-    message += `   📡 Última conexión: ${client.lastSeen}\n`;
-    message += `   📥 Recibido: ${client.dataReceived}\n`;
-    message += `   📤 Enviado: ${client.dataSent}\n\n`;
+    message += `${index + 1}. IP: ${code(client.ip)}\n`;
+    message += `   📡 Última conexión: ${escapeMarkdown(client.lastSeen)}\n`;
+    message += `   📥 Recibido: ${escapeMarkdown(client.dataReceived)}\n`;
+    message += `   📤 Enviado: ${escapeMarkdown(client.dataSent)}\n\n`;
   });
 
   return message;
@@ -63,15 +64,17 @@ function formatOutlineKeys(keys) {
     return '📭 No hay claves Outline activas';
   }
 
-  let message = `🌐 **Outline** (${keys.length} claves)\n`;
+  let message = `🌐 ${bold('Outline')} (${keys.length} claves)\n`;
   message += '━━━━━━━━━━━━━━━━━\n';
   
   keys.forEach((key, index) => {
-    message += `${index + 1}. ID: \`${key.id}\` - ${key.name || 'Sin nombre'}\n`;
+    const keyName = key.name ? escapeMarkdown(key.name) : 'Sin nombre';
+    message += `${index + 1}. ID: ${code(key.id)} - ${keyName}\n`;
   });
 
   return message;
 }
+
 
 /**
  * Formatea lista completa de clientes
