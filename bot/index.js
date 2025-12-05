@@ -2,12 +2,15 @@
 require('dotenv').config();
 const bot = require('./bot/bot.instance');
 const config = require('./config/environment');
+// Importamos el servicio de notificaciones para usarlo en el arranque
+const NotificationService = require('./bot/services/notification.service');
 
 // Iniciar bot
-bot.launch().then(() => {
+bot.launch().then(async () => {
   console.log('🚀 uSipipo VPN Bot iniciado exitosamente');
   console.log(`📡 Admin ID: ${config.ADMIN_ID}`);
-  console.log(`👥 Usuarios autorizados: ${config.AUTHORIZED_USERS.length}`);
+  // Usamos ( || []) para prevenir errores si la lista está vacía o indefinida
+  console.log(`👥 Usuarios autorizados: ${(config.AUTHORIZED_USERS || []).length}`);
   console.log(`🌍 Servidor: ${config.SERVER_IPV4}`);
   
   // 1. Definir comandos para USUARIOS NORMALES
@@ -46,9 +49,15 @@ bot.launch().then(() => {
     console.error('⚠️ Error al actualizar el menú de comandos:', error);
   }
   
+  // Instanciar el servicio de notificación para el mensaje de bienvenida
+  const notificationService = new NotificationService(bot);
+
   // Esperar 2 segundos para asegurar que la conexión a Telegram esté estable
   setTimeout(() => {
-    notificationService.notifyAdminsSystemStartup();
+    // Se envía la notificación de arranque al admin
+    notificationService.notifyAdminsSystemStartup().catch(err => {
+        console.error('⚠️ No se pudo enviar la notificación de arranque:', err.message);
+    });
   }, 2000);
   
 }).catch((error) => {
