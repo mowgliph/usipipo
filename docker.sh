@@ -296,7 +296,7 @@ start_services() {
     local SERVER_IP=""
     local PIHOLE_WEBPASS=""
     local PIHOLE_WEB_PORT=""
-    local PIHOLE_DNS="53"
+    local PIHOLE_DNS="8.8.8.8;1.1.1.1"
     local WIREGUARD_PORT=""
     local WIREGUARD_PUBLIC_KEY=""
     local WIREGUARD_ENDPOINT=""
@@ -333,7 +333,7 @@ start_services() {
     
     [ -n "$SERVER_IPV6" ] && log_info "IPv6 also available: ${SERVER_IPV6}"
     
-    # =========================================================================
+    #    # =========================================================================
     # STEP 2: Generate Random Ports and Passwords
     # =========================================================================
     log_step "2" "8" "Generating secure random configuration..."
@@ -341,13 +341,26 @@ start_services() {
     PIHOLE_WEBPASS=$(tr -dc 'A-Za-z0-9!@#$%^&*' </dev/urandom | head -c 16)
     PIHOLE_WEB_PORT=$((10000 + RANDOM % 50000))
     WIREGUARD_PORT=$((10000 + RANDOM % 50000))
+    
+    # --- CORRECCIÓN OUTLINE ---
+    # Generamos dos puertos distintos para evitar conflicto de protocolos
     OUTLINE_API_PORT=$((10000 + RANDOM % 50000))
+    OUTLINE_KEYS_PORT=$((10000 + RANDOM % 50000))
+    
+    # Aseguramos que no sean el mismo puerto ni colisionen con otros
+    while [[ "$OUTLINE_KEYS_PORT" == "$OUTLINE_API_PORT" || \
+             "$OUTLINE_KEYS_PORT" == "$WIREGUARD_PORT" || \
+             "$OUTLINE_KEYS_PORT" == "$PIHOLE_WEB_PORT" ]]; do
+        OUTLINE_KEYS_PORT=$((10000 + RANDOM % 50000))
+    done
+    
     OUTLINE_API_SECRET=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 32)
     
     log_success "Pi-hole password: ${PIHOLE_WEBPASS:0:4}****** (16 characters)"
     log_success "Pi-hole web port: ${PIHOLE_WEB_PORT}"
     log_success "WireGuard port: ${WIREGUARD_PORT}"
     log_success "Outline API port: ${OUTLINE_API_PORT}"
+    log_success "Outline Keys port: ${OUTLINE_KEYS_PORT}"
     
     # =========================================================================
     # STEP 3: Create Preliminary .env
@@ -384,6 +397,7 @@ WIREGUARD_PATH=${WIREGUARD_PATH}
 OUTLINE_API_URL=${OUTLINE_API_URL}
 OUTLINE_API_SECRET=${OUTLINE_API_SECRET}
 OUTLINE_API_PORT=${OUTLINE_API_PORT}
+OUTLINE_KEYS_PORT=${OUTLINE_KEYS_PORT}
 OUTLINE_CERT_SHA256=${OUTLINE_CERT_SHA256}
 PRESERVE_CERTS=${PRESERVE_CERTS}
 
@@ -457,7 +471,7 @@ EOF
         cat <<EOF > shadowbox_server_config.json
 {
   \"rolloutId\": \"vpn-manager-$(date +%s)\",
-  \"portForNewAccessKeys\": ${OUTLINE_API_PORT},
+  \"portForNewAccessKeys\": ${OUTLINE_KEYS_PORT},
   \"hostname\": \"${SERVER_IP}\",
   \"created\": $(date +%s)000
 }
