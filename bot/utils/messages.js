@@ -3,6 +3,28 @@ const config = require('../config/environment');
 const constants = require('../config/constants');
 const { escapeMarkdown, bold, code } = require('./markdown');
 
+
+// Definición de los comandos disponibles (extraídos de bot.instance.js)
+const USER_COMMANDS = [
+    '/start - Iniciar conversación/Ver menú principal',
+    '/miinfo - Ver tus datos de Telegram (ID, etc.)',
+    '/estado - Comprobar tu estado de acceso y rol'
+];
+
+const ADMIN_COMMANDS = [
+    '/agregar [ID] [nombre] - Autorizar un nuevo usuario',
+    '/remover [ID] - Quitar acceso a un usuario',
+    '/suspender [ID] - Suspender temporalmente el acceso',
+    '/reactivar [ID] - Reactivar un usuario suspendido',
+    '/usuarios - Listar todos los usuarios en el sistema',
+    '/stats - Ver estadísticas de WireGuard y Outline',
+    '/broadcast [mensaje] - Enviar un mensaje a todos los usuarios',
+    '/mensaje [ID] [texto] - Enviar un mensaje directo a un usuario',
+    '/plantillas - Mostrar plantillas de mensaje predefinidas'
+    // Se omite /forceadmin por ser un comando de emergencia/configuración.
+];
+
+
 module.exports = {
   // Mensajes de bienvenida
   WELCOME_AUTHORIZED: (userName) => 
@@ -274,7 +296,41 @@ module.exports = {
 
   BROADCAST_CANCELLED: 
     '❌ Broadcast cancelado.',
-    
+   
+   
+  // Mensaje para comandos no reconocidos
+  UNKNOWN_COMMAND: (isUserAdmin) => {
+      let message = `⚠️ ${bold('Comando no reconocido')}\n\n`;
+      message += `El comando que has enviado no se encuentra en la lista de comandos disponibles. Por favor, revisa la sintaxis.\n\n`;
+      message += `**Comandos de Usuario**:\n`;
+      
+      // Formatear comandos de usuario
+      USER_COMMANDS.forEach(cmd => {
+          message += `${code(cmd.split(' - ')[0])} - ${escapeMarkdown(cmd.split(' - ')[1])}\n`;
+      });
+      
+      if (isUserAdmin) {
+          message += `\n👑 **Comandos de Administrador**:\n`;
+          
+          // Formatear comandos de administrador
+          ADMIN_COMMANDS.forEach(cmd => {
+              message += `${code(cmd.split(' - ')[0])} - ${escapeMarkdown(cmd.split(' - ')[1])}\n`;
+          });
+      }
+      
+      message += `\n💡 Para más ayuda, usa el comando ${code('/start')}.`;
+      return message;
+  },
+
+  // Mensaje para texto genérico (no comando)
+  GENERIC_TEXT_PROMPT: (userName) => {
+      const safeName = escapeMarkdown(userName || 'usuario');
+      return `👋 ${bold('¡Hola')} ${safeName},\n\n` +
+             `Soy ${bold('uSipipo VPN Bot')}, tu asistente de autogestión VPN.\n\n` +
+             `¿Aún no tienes una configuración VPN?\n` +
+             `Selecciona el tipo de servicio que deseas crear a continuación (WireGuard o Outline).`;
+  }, 
+   
   ADMIN_HELP:
     `👑 **COMANDOS DE ADMINISTRADOR**\n\n` +
     `**Gestión de usuarios:**\n` +

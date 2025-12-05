@@ -48,7 +48,7 @@ class WireGuardService {
 
   static async getNextAvailableIP() {
     const { stdout: configContent } = await execPromise(
-      'docker exec wireguard cat /config/wg0.conf'
+      'docker exec wireguard cat /config/wg_confs/wg0.conf'
     );
     
     const usedIPs = new Set();
@@ -72,7 +72,7 @@ class WireGuardService {
     const peerConfig = `\n[Peer]\nPublicKey = ${publicKey}\nAllowedIPs = ${clientIP}/32\n`;
     
     await execPromise(
-      `docker exec wireguard sh -c "echo '${peerConfig}' >> /config/wg0.conf"`
+      `docker exec wireguard sh -c "echo '${peerConfig}' >> /config/wg_confs/wg0.conf"`
     );
     
     await execPromise(
@@ -88,7 +88,7 @@ class WireGuardService {
     return `[Interface]
 PrivateKey = ${privateKey}
 Address = ${clientIP}/24
-DNS = ${config.PIHOLE_DNS}
+DNS = ${config.SERVER_IPV4}
 
 [Peer]
 PublicKey = ${config.WIREGUARD_SERVER_PUBLIC_KEY}

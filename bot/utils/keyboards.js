@@ -28,6 +28,13 @@ module.exports = {
         Markup.button.callback('❌ Cancelar', 'cancel')
       ]
     ]),
+    
+  // Menú de selección VPN (WireGuard/Outline) para texto genérico
+  vpnSelectionMenu: () =>
+    Markup.inlineKeyboard([
+      [Markup.button.callback('🔐 WireGuard', 'create_wg')],
+      [Markup.button.callback('🌐 Outline', 'create_outline')]
+    ]),
 
   // Menú de administración
   adminMenu: () =>
