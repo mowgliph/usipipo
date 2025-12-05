@@ -3,7 +3,7 @@ require('dotenv').config();
 const bot = require('./bot/bot.instance');
 const config = require('./config/environment');
 // Importamos el servicio de notificaciones para usarlo en el arranque
-const NotificationService = require('./bot/services/notification.service');
+const NotificationService = require('./services/notification.service');
 
 // Iniciar bot
 bot.launch().then(async () => {
