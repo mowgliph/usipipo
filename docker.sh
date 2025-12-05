@@ -630,7 +630,7 @@ EOF
     # WireGuard Public Key
     log_info "Waiting for WireGuard keys..."
     sleep 3
-    WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard cat /config/server/publickey 2>/dev/null || echo "")
+    WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard cat /config/server/publickey 2>/dev/null | tr -d '[:space:]' || echo "")
     
     if [ -z "$WIREGUARD_PUBLIC_KEY" ]; then
          WIREGUARD_PUBLIC_KEY=$($DOCKER_CMD exec wireguard wg show wg0 public-key 2>/dev/null || echo "PENDING")
