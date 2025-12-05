@@ -30,20 +30,22 @@ bot.use(logUserAction);
 // ========== COMANDOS DE USUARIO ==========
 bot.start((ctx) => authHandler.handleStart(ctx));
 bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
-bot.command('estado', (ctx) => authHandler.handleCheckStatus(ctx));
+bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
+bot.command('help', (ctx) => authHandler.handleHelp(ctx))
+bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx)); 
 
 // ========== COMANDOS DE ADMINISTRACIÓN (Solo Admin) ==========
-bot.command('agregar', requireAdmin, (ctx) => adminHandler.handleAddUser(ctx));
-bot.command('remover', requireAdmin, (ctx) => adminHandler.handleRemoveUser(ctx));
-bot.command('suspender', requireAdmin, (ctx) => adminHandler.handleSuspendUser(ctx));
-bot.command('reactivar', requireAdmin, (ctx) => adminHandler.handleReactivateUser(ctx));
-bot.command('usuarios', requireAdmin, (ctx) => adminHandler.handleListUsers(ctx));
+bot.command('add', requireAdmin, (ctx) => adminHandler.handleAddUser(ctx));
+bot.command('rm', requireAdmin, (ctx) => adminHandler.handleRemoveUser(ctx));
+bot.command('sus', requireAdmin, (ctx) => adminHandler.handleSuspendUser(ctx));
+bot.command('react', requireAdmin, (ctx) => adminHandler.handleReactivateUser(ctx));
+bot.command('users', requireAdmin, (ctx) => adminHandler.handleListUsers(ctx));
 bot.command('stats', requireAdmin, (ctx) => adminHandler.handleStats(ctx));
 
 // ========== NUEVOS COMANDOS DE BROADCAST (Solo Admin) ==========
 bot.command('broadcast', requireAdmin, (ctx) => adminHandler.handleBroadcast(ctx));
-bot.command('mensaje', requireAdmin, (ctx) => adminHandler.handleDirectMessage(ctx));
-bot.command('plantillas', requireAdmin, (ctx) => adminHandler.handleTemplates(ctx));
+bot.command('sms', requireAdmin, (ctx) => adminHandler.handleDirectMessage(ctx));
+bot.command('templates', requireAdmin, (ctx) => adminHandler.handleTemplates(ctx));
 
 // ========== ACCIONES DE AUTENTICACIÓN ==========
 bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));

@@ -10,6 +10,42 @@ bot.launch().then(() => {
   console.log(`👥 Usuarios autorizados: ${config.AUTHORIZED_USERS.length}`);
   console.log(`🌍 Servidor: ${config.SERVER_IPV4}`);
   
+  // 1. Definir comandos para USUARIOS NORMALES
+  const userCommands = [
+    { command: 'start', description: '🏠 Menú Principal' },
+    { command: 'miinfo', description: '👤 Ver mis datos e ID' },
+    { command: 'status', description: '✅ Comprobar estado de acceso' },
+    { command: 'commands', description: '📋 Lista de comandos' },
+    { command: 'help', description: '❓ Ayuda y soporte' }
+  ];
+
+  // 2. Definir comandos para ADMINISTRADOR (Incluye los de usuario + gestión)
+  const adminCommands = [
+    ...userCommands, // Hereda los comandos de usuario
+    { command: 'users', description: '👥 Listar usuarios' },
+    { command: 'add', description: '➕ Autorizar usuario (uso: /add ID Nombre)' },
+    { command: 'rm', description: '➖ Remover usuario (uso: /rm ID)' },
+    { command: 'sus', description: '⏸️ Suspender usuario' },
+    { command: 'react', description: '▶️ Reactivar usuario' },
+    { command: 'stats', description: '📊 Estadísticas del servidor' },
+    { command: 'broadcast', description: '📢 Enviar mensaje a todos' }
+  ];
+
+  try {
+    // A. Establecer comandos por defecto (para todos)
+    await bot.telegram.setMyCommands(userCommands);
+
+    // B. Establecer comandos específicos SOLO para el Admin
+    // Esto hace que en tu chat privado veas las opciones extra
+    await bot.telegram.setMyCommands(adminCommands, { 
+      scope: { type: 'chat', chat_id: config.ADMIN_ID } 
+    });
+    
+    console.log('✅ Menú de comandos actualizado en Telegram');
+  } catch (error) {
+    console.error('⚠️ Error al actualizar el menú de comandos:', error);
+  }
+  
   // Esperar 2 segundos para asegurar que la conexión a Telegram esté estable
   setTimeout(() => {
     notificationService.notifyAdminsSystemStartup();

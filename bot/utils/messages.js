@@ -300,35 +300,59 @@ module.exports = {
    
   // Mensaje para comandos no reconocidos
   UNKNOWN_COMMAND: (isUserAdmin) => {
-      let message = `⚠️ ${bold('Comando no reconocido')}\n\n`;
-      message += `El comando que has enviado no se encuentra en la lista de comandos disponibles. Por favor, revisa la sintaxis.\n\n`;
-      message += `**Comandos de Usuario**:\n`;
+    let message = `⚠️ ${bold('Comando no reconocido')}\n\n`;
+    message += `El comando que has enviado no se encuentra en la lista de comandos disponibles. Por favor, revisa la sintaxis.\n\n`;
+    message += `**Comandos de Usuario**:\n`;
       
-      // Formatear comandos de usuario
-      USER_COMMANDS.forEach(cmd => {
-          message += `${code(cmd.split(' - ')[0])} - ${escapeMarkdown(cmd.split(' - ')[1])}\n`;
-      });
+    // Formatear comandos de usuario
+    USER_COMMANDS.forEach(cmd => {
+      message += `${code(cmd.split(' - ')[0])} - ${escapeMarkdown(cmd.split(' - ')[1])}\n`;
+    });
       
-      if (isUserAdmin) {
-          message += `\n👑 **Comandos de Administrador**:\n`;
+    if (isUserAdmin) {
+      message += `\n👑 **Comandos de Administrador**:\n`;
           
-          // Formatear comandos de administrador
-          ADMIN_COMMANDS.forEach(cmd => {
-              message += `${code(cmd.split(' - ')[0])} - ${escapeMarkdown(cmd.split(' - ')[1])}\n`;
-          });
-      }
+      // Formatear comandos de administrador
+      ADMIN_COMMANDS.forEach(cmd => {
+        message += `${code(cmd.split(' - ')[0])} - ${escapeMarkdown(cmd.split(' - ')[1])}\n`;
+      });
+    }
       
-      message += `\n💡 Para más ayuda, usa el comando ${code('/start')}.`;
-      return message;
+    message += `\n💡 Para más ayuda, usa el comando ${code('/start')}.`;
+    return message;
+  },
+  
+  // Nueva función para listar comandos
+  COMMANDS_LIST: (isUserAdmin) => {
+    let message = `📋 ${bold('LISTA DE COMANDOS DISPONIBLES')}\n\n`;
+    
+    // Comandos de Usuario
+    message += `👤 ${bold('Usuario Regular')}:\n`;
+    USER_COMMANDS.forEach(cmd => {
+      const [command, description] = cmd.split(' - ');
+      message += `• ${code(command)}: ${escapeMarkdown(description)}\n`;
+    });
+    
+    // Comandos de Admin (solo si es admin)
+    if (isUserAdmin) {
+      message += `\n👑 ${bold('Administrador')}:\n`;
+      ADMIN_COMMANDS.forEach(cmd => {
+        const [command, description] = cmd.split(' - ');
+        message += `• ${code(command)}: ${escapeMarkdown(description)}\n`;
+        });
+    }
+    
+    message += `\n💡 ${italic('Toca cualquier comando para ejecutarlo.')}`;
+    return message;
   },
 
   // Mensaje para texto genérico (no comando)
   GENERIC_TEXT_PROMPT: (userName) => {
-      const safeName = escapeMarkdown(userName || 'usuario');
-      return `👋 ${bold('¡Hola')} ${safeName},\n\n` +
-             `Soy ${bold('uSipipo VPN Bot')}, tu asistente de autogestión VPN.\n\n` +
-             `¿Aún no tienes una configuración VPN?\n` +
-             `Selecciona el tipo de servicio que deseas crear a continuación (WireGuard o Outline).`;
+    const safeName = escapeMarkdown(userName || 'usuario');
+    return `👋 ${bold('¡Hola')} ${safeName},\n\n` +
+      `Soy ${bold('uSipipo VPN Bot')}, tu asistente de autogestión VPN.\n\n` +
+      `¿Aún no tienes una configuración VPN?\n` +
+      `Selecciona el tipo de servicio que deseas crear a continuación (WireGuard o Outline).`;
   }, 
    
   ADMIN_HELP:

@@ -2,6 +2,7 @@
 const OutlineService = require('../services/outline.service');
 const messages = require('../utils/messages');
 const { isAuthorized } = require('../middleware/auth.middleware');
+const { isAdmin } = require('../middleware/auth.middleware'); 
 
 class InfoHandler {
   /**
@@ -34,6 +35,25 @@ class InfoHandler {
     
     return ctx.reply(message, { parse_mode: 'Markdown' });
   }
+  
+  /**
+   * Maneja el comando /comandos
+   */
+  async handleCommandList(ctx) {
+    try {
+      const userId = ctx.from.id;
+      // Verificamos si es admin usando la utilidad existente
+      const isUserAdmin = isAdmin(userId);
+      
+      await ctx.reply(messages.COMMANDS_LIST(isUserAdmin), {
+        parse_mode: 'Markdown'
+      });
+    } catch (error) {
+      console.error('Error en handleCommandList:', error);
+      ctx.reply('⚠️ Error al mostrar los comandos.');
+    }
+  }
+  
 }
 
 module.exports = InfoHandler;
