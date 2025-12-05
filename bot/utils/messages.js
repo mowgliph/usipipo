@@ -99,7 +99,7 @@ module.exports = {
     `📱 Copia el siguiente enlace en tu app Outline:\n\n` +
     `${code(accessKey.accessUrl)}\n\n` +
     `🛡️ DNS con bloqueo de anuncios activado\n` +
-    `📊 Límite de datos: 10GB/mes`, +
+    `📊 Límite de datos: 10GB/mes` +
     `🔗 Descarga Outline: ${constants.URLS.OUTLINE_DOWNLOAD}`,
 
   // Estado del servidor
