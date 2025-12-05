@@ -496,6 +496,34 @@ EOF
     fi
     
     # =========================================================================
+    # STEP 6.5: Configure Kernel Networking
+    # =========================================================================
+    log_info "Configuring host kernel for WIREGUARD VPN routing..."
+    
+    # Aplicar configuraciones en caliente
+    run_sudo sysctl -w net.ipv4.ip_forward=1 > /dev/null
+    run_sudo sysctl -w net.ipv4.conf.all.src_valid_mark=1 > /dev/null
+    run_sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0 > /dev/null
+
+    # Hacerlo persistente tras reiniciar
+    echo -e "net.ipv4.ip_forward=1\nnet.ipv4.conf.all.src_valid_mark=1\nnet.ipv6.conf.all.disable_ipv6=0" | \
+        run_sudo tee /etc/sysctl.d/99-vpn-manager.conf > /dev/null
+    
+    run_sudo sysctl -p /etc/sysctl.d/99-vpn-manager.conf > /dev/null
+    
+    log_success "Kernel IP forwarding enabled successfully"
+
+
+    # Hacerlo persistente tras reiniciar
+    sudo tee /etc/sysctl.d/99-vpn-manager.conf > /dev/null <<EOF
+net.ipv4.ip_forward=1
+net.ipv4.conf.all.src_valid_mark=1
+net.ipv6.conf.all.disable_ipv6=0
+EOF
+    sudo sysctl -p /etc/sysctl.d/99-vpn-manager.conf
+
+    
+    # =========================================================================
     # STEP 7: Start Docker Containers
     # =========================================================================
     log_step "7" "8" "Starting Docker containers..."
@@ -645,6 +673,7 @@ WIREGUARD_PATH=${WIREGUARD_PATH}
 # Esta variable es INYECTADA en docker-compose como SB_API_PREFIX
 OUTLINE_API_SECRET=${OUTLINE_API_SECRET}
 OUTLINE_API_PORT=${OUTLINE_API_PORT}
+OUTLINE_KEYS_PORT=${OUTLINE_KEYS_PORT}
 OUTLINE_API_URL=${OUTLINE_API_URL}
 OUTLINE_CERT_SHA256=${OUTLINE_CERT_SHA256}
 PRESERVE_CERTS=${PRESERVE_CERTS}
