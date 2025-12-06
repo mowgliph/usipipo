@@ -37,10 +37,9 @@ class VPNHandler {
         }
       );
 
-      // Enviar código QR como bloque de texto
-      await ctx.reply(````
-${qr}
-````, { parse_mode: 'MarkdownV2' });
+      // Enviar código QR como bloque de texto (MarkdownV2: ```texto```)
+      // CORRECCIÓN: Usar concatenación o template string con escape para asegurar el formato ```
+      await ctx.reply('```\n' + qr + '\n```', { parse_mode: 'MarkdownV2' });
 
       // Enviar instrucciones de conexión
       await ctx.reply(messages.WIREGUARD_INSTRUCTIONS, { parse_mode: 'MarkdownV2' });
