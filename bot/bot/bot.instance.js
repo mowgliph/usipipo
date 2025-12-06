@@ -1,7 +1,9 @@
 // bot/bot.instance.js
+'use strict';
 
 const { Telegraf } = require('telegraf');
 const config = require('../config/environment');
+const logger = require('../utils/logger');
 
 const {
   requireAuth,
@@ -19,82 +21,72 @@ const VPNHandler = require('../handlers/vpn.handler');
 const InfoHandler = require('../handlers/info.handler');
 const AdminHandler = require('../handlers/admin.handler');
 
-// Utils (corrección de rutas)
+// Utils
 const messages = require('../utils/messages');
 const keyboards = require('../utils/keyboards');
 
-// Crear instancia del bot
+// Inicialización del bot
 const bot = new Telegraf(config.TELEGRAM_TOKEN);
-
-// Inicializar servicios
 const notificationService = new NotificationService(bot);
 
-// Inicializar handlers
 const authHandler = new AuthHandler(notificationService);
 const vpnHandler = new VPNHandler();
 const infoHandler = new InfoHandler();
 const adminHandler = new AdminHandler(notificationService);
 
-// Aplicar middleware global de logging
+// Middleware global
 bot.use(logUserAction);
 
-// ========== COMANDOS DE USUARIO ==========
+// =====================================================
+// COMANDOS DE USUARIO
+// =====================================================
 
-bot.start((ctx) => authHandler.handleStart(ctx));
-
+bot.command('start', (ctx) => authHandler.handleStart(ctx));
 bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
-
 bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
-
 bot.command('help', (ctx) => authHandler.handleHelp(ctx));
-
 bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx));
 
-// ========== COMANDOS DE ADMINISTRACIÓN (Solo Admin) ==========
+// =====================================================
+// COMANDOS DE ADMINISTRACIÓN (Solo Admin)
+// =====================================================
 
 bot.command('add', requireAdmin, (ctx) => adminHandler.handleAddUser(ctx));
-
 bot.command('rm', requireAdmin, (ctx) => adminHandler.handleRemoveUser(ctx));
-
 bot.command('sus', requireAdmin, (ctx) => adminHandler.handleSuspendUser(ctx));
-
 bot.command('react', requireAdmin, (ctx) => adminHandler.handleReactivateUser(ctx));
-
 bot.command('users', requireAdmin, (ctx) => adminHandler.handleListUsers(ctx));
-
 bot.command('stats', requireAdmin, (ctx) => adminHandler.handleStats(ctx));
-
-// ========== COMANDOS DE BROADCAST (Solo Admin) ==========
-
 bot.command('broadcast', requireAdmin, (ctx) => adminHandler.handleBroadcast(ctx));
-
 bot.command('sms', requireAdmin, (ctx) => adminHandler.handleDirectMessage(ctx));
-
 bot.command('templates', requireAdmin, (ctx) => adminHandler.handleTemplates(ctx));
 
-// ========== ACCIONES DE AUTENTICACIÓN ==========
+// =====================================================
+// ACCIONES DE AUTENTICACIÓN
+// =====================================================
 
 bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));
-
 bot.action('request_access', (ctx) => authHandler.handleAccessRequest(ctx));
-
 bot.action('check_status', (ctx) => authHandler.handleCheckStatus(ctx));
 
-// ========== ACCIONES DE VPN (Requieren autorización) ==========
+// =====================================================
+// ACCIONES DE VPN (Requiere autorización)
+// =====================================================
 
 bot.action('create_wg', requireAuth, (ctx) => vpnHandler.handleCreateWireGuard(ctx));
-
 bot.action('create_outline', requireAuth, (ctx) => vpnHandler.handleCreateOutline(ctx));
-
 bot.action('list_clients', requireAuth, (ctx) => vpnHandler.handleListClients(ctx));
 
-// ========== ACCIONES INFORMATIVAS ==========
+// =====================================================
+// ACCIONES INFORMATIVAS
+// =====================================================
 
 bot.action('server_status', requireAuth, (ctx) => infoHandler.handleServerStatus(ctx));
-
 bot.action('help', (ctx) => infoHandler.handleHelp(ctx));
 
-// ========== ACCIONES DE BROADCAST (Solo Admin) ==========
+// =====================================================
+// ACCIONES DE BROADCAST (Solo Admin)
+// =====================================================
 
 bot.action(/^broadcast_all_(.+)$/, requireAdmin, (ctx) => {
   const broadcastId = ctx.match[1];
@@ -116,99 +108,83 @@ bot.action(/^broadcast_cancel_(.+)$/, requireAdmin, (ctx) => {
   return adminHandler.handleBroadcastCancel(ctx, broadcastId);
 });
 
-// ========== MANEJO DE ERRORES GLOBALES DEL BOT ==========
+// =====================================================
+// HANDLER DE ERRORES GLOBALES
+// =====================================================
 
 bot.catch(async (err, ctx) => {
   const userId = ctx.from?.id;
   const updateType = ctx.updateType;
 
-  console.error(`❌ Error en bot para usuario ${userId || 'desconocido'}:`, err);
+  logger.error('bot.catch', err, { userId, updateType });
 
   try {
-    await notificationService.notifyAdminError(err.message, {
-      userId,
-      updateType
-    });
+    await notificationService.notifyAdminError(err.message, { userId, updateType });
   } catch (notifyError) {
-    console.error(
-      `⚠️ No se pudo notificar el error al admin: ${notifyError.message}`
-    );
+    logger.warn('Error notificando al admin', { notifyError: notifyError.message });
   }
 
-  ctx
-    .reply('⚠️ Ocurrió un error inesperado. El administrador ha sido notificado.')
-    .catch(() => {});
+  await ctx.reply(messages.ERROR_GENERIC).catch(() => {});
 });
 
-// 🚨 COMANDO DE EMERGENCIA ADMIN (solo para primer arranque)
+// =====================================================
+// COMANDO DE EMERGENCIA (Solo Admin .env)
+// =====================================================
 
 bot.command('forceadmin', async (ctx) => {
   const userId = ctx.from.id.toString();
   const envAdminId = config.ADMIN_ID;
 
   if (userId !== envAdminId) {
-    return ctx.reply(
-      '⛔ Solo el Admin configurado en .env puede usar este comando'
-    );
+    return ctx.reply('⛔ Solo el Admin configurado en .env puede usar este comando.');
   }
 
   try {
     const userManager = require('../services/userManager.service');
-
     await userManager.syncAdminFromEnv();
 
     await ctx.reply(
-      '✅ **Sincronización forzada completada**
+      `✅ **Sincronización forzada completada**
 
-' +
-        `🆔 Admin ID: `${envAdminId}`
-` +
-        '👑 Rol: Administrador
+🆔 Admin ID: ${envAdminId}
+👑 Rol: Administrador
 
-' +
-        'Prueba ahora: /stats o /usuarios',
+Prueba ahora: /stats o /usuarios`,
       { parse_mode: 'Markdown' }
     );
+
+    logger.success(userId, 'forceadmin', envAdminId);
   } catch (error) {
+    logger.error('forceadmin', error, { userId });
     await ctx.reply(`❌ Error: ${error.message}`);
   }
 });
 
-// ========== HANDLER GENÉRICO PARA MENSAJES DE TEXTO ==========
-// Comandos no reconocidos o texto libre
+// =====================================================
+// HANDLER DE TEXTO LIBRE Y COMANDOS NO RECONOCIDOS
+// =====================================================
 
 bot.on('text', async (ctx) => {
   const userId = ctx.from?.id;
   const userName = ctx.from?.first_name || 'usuario';
   const messageText = ctx.message.text.trim();
 
-  // Si el mensaje comienza con '/', se asume que es un comando no reconocido
-  // ya que los comandos conocidos fueron manejados por bot.command()
-  if (messageText.startsWith('/')) {
-    // 1. Manejo de COMANDOS NO RECONOCIDOS
-    const isUserAdmin = isAdmin(userId);
-
-    await ctx
-      .reply(messages.UNKNOWN_COMMAND(isUserAdmin), {
+  try {
+    if (messageText.startsWith('/')) {
+      const adminStatus = isAdmin(userId);
+      await ctx.reply(messages.UNKNOWN_COMMAND(adminStatus), {
         parse_mode: 'Markdown'
-      })
-      .catch((err) => {
-        console.error(
-          `⚠️ Error al enviar mensaje de comando desconocido: ${err.message}`
-        );
       });
-  } else {
-    // 2. Manejo de TEXTO GENÉRICO (no es un comando)
-    await ctx
-      .reply(messages.GENERIC_TEXT_PROMPT(userName), {
+      logger.verbose('unknown_command', { userId, text: messageText });
+    } else {
+      await ctx.reply(messages.GENERIC_TEXT_PROMPT(userName), {
         parse_mode: 'Markdown',
         reply_markup: keyboards.vpnSelectionMenu().reply_markup
-      })
-      .catch((err) => {
-        console.error(
-          `⚠️ Error al enviar mensaje de texto genérico: ${err.message}`
-        );
       });
+      logger.verbose('generic_message', { userId, text: messageText });
+    }
+  } catch (err) {
+    logger.error('text_handler', err, { userId });
   }
 });
 
