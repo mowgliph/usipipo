@@ -1,5 +1,5 @@
 // utils/formatters.js
-const { escapeMarkdown, bold, code } = require('./markdown');
+const { escapeMarkdown, bold } = require('./markdown');
 
 /**
  * Formatea bytes a unidades legibles (B, KB, MB, GB, TB).
@@ -16,7 +16,7 @@ function formatBytes(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   const value = (bytes / Math.pow(k, i)).toFixed(2);
 
-  return `\( {value} \){units[i]}`;
+  return `${value} ${units[i]}`;
 }
 
 /**
@@ -67,13 +67,20 @@ function formatWireGuardClients(clients) {
     return '📭 No hay clientes WireGuard activos';
   }
 
-  let message = `🔐 \( {bold('WireGuard')} ( \){clients.length} clientes)\n━━━━━━━━━━━━━━━━━━\n`;
+  let message = `🔐 ${bold('WireGuard')} (${clients.length} clientes)
+━━━━━━━━━━━━━━━━━━
+`;
 
   clients.forEach((client, index) => {
-    message += `\( {index + 1}. IP: \){code(client.ip)}\n`;
-    message += `   📡 Última conexión: ${escapeMarkdown(client.lastSeen)}\n`;
-    message += `   📥 Recibido: ${escapeMarkdown(client.dataReceived)}\n`;
-    message += `   📤 Enviado: ${escapeMarkdown(client.dataSent)}\n\n`;
+    message += `${index + 1}. IP: ${code(client.ip)}
+`;
+    message += `   📡 Última conexión: ${escapeMarkdown(client.lastSeen)}
+`;
+    message += `   📥 Recibido: ${escapeMarkdown(client.dataReceived)}
+`;
+    message += `   📤 Enviado: ${escapeMarkdown(client.dataSent)}
+
+`;
   });
 
   return message.trimEnd();
@@ -89,11 +96,14 @@ function formatOutlineKeys(keys) {
     return '📭 No hay claves Outline activas';
   }
 
-  let message = `🌐 \( {bold('Outline')} ( \){keys.length} claves)\n━━━━━━━━━━━━━━━━━━\n`;
+  let message = `🌐 ${bold('Outline')} (${keys.length} claves)
+━━━━━━━━━━━━━━━━━━
+`;
 
   keys.forEach((key, index) => {
     const keyName = key.name ? escapeMarkdown(key.name) : 'Sin nombre';
-    message += `\( {index + 1}. ID: \){code(key.id)} - ${keyName}\n`;
+    message += `${index + 1}. ID: ${code(key.id)} - ${keyName}
+`;
   });
 
   return message.trimEnd();
@@ -106,9 +116,13 @@ function formatOutlineKeys(keys) {
  * @returns {string} Mensaje combinado
  */
 function formatClientsList(wgClients, outlineKeys) {
-  let message = `${bold('📊 CLIENTES ACTIVOS')}\n\n`;
+  let message = `${bold('📊 CLIENTES ACTIVOS')}
 
-  message += `${formatWireGuardClients(wgClients)}\n\n`;
+`;
+
+  message += `${formatWireGuardClients(wgClients)}
+
+`;
   message += formatOutlineKeys(outlineKeys);
 
   return message.trimEnd();

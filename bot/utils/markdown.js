@@ -63,7 +63,7 @@ function italic(text) {
  * @throws {TypeError} Si el input no es string
  */
 function code(text) {
-  return `\`${escapeCode(text)}\``;
+  return ``${escapeCode(text)}``;
 }
 
 /**
@@ -77,7 +77,7 @@ function link(text, url) {
   if (typeof text !== 'string' || typeof url !== 'string') {
     throw new TypeError('Both text and url must be strings');
   }
-  return `[\( {escapeMarkdown(text)}]( \){url})`;
+  return `[${escapeMarkdown(text)}](${url})`;
 }
 
 /**
@@ -101,8 +101,8 @@ function spoiler(text) {
 }
 
 /**
- * Formatea texto subrayado (MarkdownV2: __texto__ no, usa <u> para compatibilidad limitada; nota: V2 soporta HTML-like).
- * Nota: Telegram V2 prefiere entidades via API, pero para string: <u>texto</u> (experimental).
+ * Formatea texto subrayado (MarkdownV2: <u>texto</u> para compatibilidad limitada).
+ * Nota: Telegram V2 prefiere entidades via API, pero para string: <u>texto</u>.
  * @param {string} text - Texto a formatear
  * @returns {string} Texto subrayado escapado
  * @throws {TypeError} Si el input no es string

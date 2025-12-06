@@ -25,13 +25,13 @@ const ADMIN_COMMANDS = [
 
 const messages = {
   // Mensajes de bienvenida
-  WELCOME_AUTHORIZED: (userName) => `👋 ¡Hola \( {escapeMarkdown(userName)}! Bienvenido a \){bold('uSipipo VPN Manager')}
+  WELCOME_AUTHORIZED: (userName) => `👋 ¡Hola ${escapeMarkdown(userName)}! Bienvenido a ${bold('uSipipo VPN Manager')}
 
 ✅ Tienes acceso autorizado al sistema.
 
 Selecciona una opción del menú:`,
 
-  WELCOME_UNAUTHORIZED: (userName) => `👋 ¡Hola \( {escapeMarkdown(userName)}! Bienvenido a \){bold('uSipipo VPN Manager')}
+  WELCOME_UNAUTHORIZED: (userName) => `👋 ¡Hola ${escapeMarkdown(userName)}! Bienvenido a ${bold('uSipipo VPN Manager')}
 
 ⚠️ Actualmente ${bold('no tienes acceso autorizado')} a este servicio.
 
@@ -49,16 +49,16 @@ Selecciona una opción del menú:`,
 
     return `👤 ${bold('TUS DATOS DE TELEGRAM')}
 
-🆔 \( {bold('ID:')} \){code(String(user.id))}
-📝 \( {bold('Nombre:')} \){firstName}
-📝 \( {bold('Apellido:')} \){lastName}
-🔗 \( {bold('Username:')} \){username}
-🌐 \( {bold('Idioma:')} \){languageCode}
+🆔 ${bold('ID:')} ${code(String(user.id))}
+📝 ${bold('Nombre:')} ${firstName}
+📝 ${bold('Apellido:')} ${lastName}
+🔗 ${bold('Username:')} ${username}
+🌐 ${bold('Idioma:')} ${languageCode}
 
 ${isAuthorized ? constants.STATUS.AUTHORIZED : constants.STATUS.UNAUTHORIZED}
 
 📋 ${bold('Para solicitar acceso:')}
-Envía tu \( {bold(`ID ( \){user.id})`)} al administrador en ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}`;
+Envía tu ${bold(`ID (${user.id})`)} al administrador en ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}`;
   },
 
   // Solicitud de acceso
@@ -88,7 +88,7 @@ Tu solicitud de acceso ha sido enviada al administrador.
 
     return `🔔 ${bold('NUEVA SOLICITUD DE ACCESO')}
 
-👤 Usuario: \( {firstName} \){lastName}
+👤 Usuario: ${firstName}${lastName}
 🆔 ID: ${code(String(user.id))}
 🔗 Username: ${username}
 🌐 Idioma: ${languageCode}
@@ -112,7 +112,7 @@ Usa /miinfo para ver tu ID y solicitar acceso al administrador.`,
   WIREGUARD_SUCCESS: (clientIP) => `✅ ${bold('Configuración WireGuard creada')}
 
 📍 IP asignada: ${code(clientIP)}
-🔗 Endpoint: \( {code(` \){config.SERVER_IPV4}:${config.WIREGUARD_PORT}`)}
+🔗 Endpoint: ${code(`${config.SERVER_IPV4}:${config.WIREGUARD_PORT}`)}
 
 📱 Usa el QR code a continuación para configuración rápida en móvil.`,
 
@@ -227,7 +227,7 @@ El usuario recibirá una notificación automática.`;
     const roleIcon = userData.role === 'admin' ? '👑' : '✅';
     const roleText = userData.role === 'admin' ? 'Administrador' : 'Usuario autorizado';
 
-    return `\( {roleIcon} \){bold('Estado: ACTIVO')}
+    return `${roleIcon} ${bold('Estado: ACTIVO')}
 
 👤 Usuario: ${firstName}
 🆔 ID: ${code(String(user.id))}
@@ -273,7 +273,7 @@ ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}
     return `❓ ${bold('Estado: DESCONOCIDO')}
 
 👤 Usuario: ${firstName}
-🆔 ID: ${code(String(user.id)))}
+🆔 ID: ${code(String(user.id))}
 
 ⚠️ ${bold('No se pudo determinar tu estado de acceso')}
 
@@ -298,7 +298,7 @@ ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}
     return `🚀 ${bold('SISTEMA INICIADO CORRECTAMENTE')}
 ━━━━━━━━━━━━━━━━━━━━━
 
-📅 \( {bold('Fecha:')} \){escapeMarkdown(startTime)}
+📅 ${bold('Fecha:')} ${escapeMarkdown(startTime)}
 
 🖥️ ${bold('Estado del servidor:')}
 • IP: ${code(serverInfo.ip)}
@@ -347,46 +347,59 @@ ${bold('Opciones de envío:')}
 
 El comando que has enviado no se encuentra en la lista de comandos disponibles. Por favor, revisa la sintaxis.
 
-${bold('Comandos de usuario:')}\n`;
+${bold('Comandos de usuario:')}
+`;
 
     message += USER_COMMANDS.map(cmd => {
       const [command, description] = cmd.split(' - ');
-      return `\( {code(command)} - \){escapeMarkdown(description)}\n`;
+      return `${code(command)} - ${escapeMarkdown(description)}
+`;
     }).join('');
 
     if (isUserAdmin) {
-      message += `\n👑 ${bold('Comandos de administrador:')}\n`;
+      message += `
+👑 ${bold('Comandos de administrador:')}
+`;
       message += ADMIN_COMMANDS.map(cmd => {
         const [command, description] = cmd.split(' - ');
-        return `\( {code(command)} - \){escapeMarkdown(description)}\n`;
+        return `${code(command)} - ${escapeMarkdown(description)}
+`;
       }).join('');
     }
 
-    message += `\n💡 Para más ayuda, usa el comando ${code('/start')}.`;
+    message += `
+💡 Para más ayuda, usa el comando ${code('/start')}.`;
     return message;
   },
 
   // Nueva función para listar comandos
   COMMANDS_LIST: (isUserAdmin) => {
-    let message = `📋 ${bold('LISTA DE COMANDOS DISPONIBLES')}\n`;
+    let message = `📋 ${bold('LISTA DE COMANDOS DISPONIBLES')}
+`;
 
     // Comandos de usuario
-    message += `👤 ${bold('Usuario regular:')}\n`;
+    message += `👤 ${bold('Usuario regular:')}
+`;
     message += USER_COMMANDS.map(cmd => {
       const [command, description] = cmd.split(' - ');
-      return `• \( {code(command)}: \){escapeMarkdown(description)}\n`;
+      return `• ${code(command)}: ${escapeMarkdown(description)}
+`;
     }).join('');
 
     // Comandos de admin (solo si es admin)
     if (isUserAdmin) {
-      message += `\n👑 ${bold('Administrador:')}\n`;
+      message += `
+👑 ${bold('Administrador:')}
+`;
       message += ADMIN_COMMANDS.map(cmd => {
         const [command, description] = cmd.split(' - ');
-        return `• \( {code(command)}: \){escapeMarkdown(description)}\n`;
+        return `• ${code(command)}: ${escapeMarkdown(description)}
+`;
       }).join('');
     }
 
-    message += `\n💡 ${italic('Toca cualquier comando para ejecutarlo.')}`;
+    message += `
+💡 ${italic('Toca cualquier comando para ejecutarlo.')}`;
     return message;
   },
 
@@ -394,7 +407,7 @@ ${bold('Comandos de usuario:')}\n`;
   GENERIC_TEXT_PROMPT: (userName) => {
     const safeName = escapeMarkdown(userName || 'usuario');
 
-    return `👋 \( {bold('¡Hola')} \){safeName},
+    return `👋 ${bold('¡Hola')}, ${safeName},
 
 Soy ${bold('uSipipo VPN Bot')}, tu asistente de autogestión VPN.
 
