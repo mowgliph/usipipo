@@ -28,16 +28,25 @@ class Logger {
    */
   #getSensitivePatterns() {
     return [
-      /telegram_token[:s]*[^,s}]+/gi,
-      /admin_id[:s]*[^,s}]+/gi,
-      // IPs públicas con CIDR
-      /\b(?:(?:25[0-5]|2[0-4]d|1d{2}|[1-9]?d).){3}(?:25[0-5]|2[0-4]d|1d{2}|[1-9]?d)(?:/d{1,2})?\b/g,
-      // IPs privadas
-      /\b10(?:.d{1,3}){3}\b/g,
-      /\b172.(1[6-9]|2d|3[01])(?:.d{1,3}){2}\b/g,
-      /\b192.168(?:.d{1,3}){2}\b/g,
+      // Tokens y IDs: se agregó \ antes de s (espacio)
+      /telegram_token[:\s]*[^,\s}]+/gi,
+      /admin_id[:\s]*[^,\s}]+/gi,
+      
+      // IPs públicas con CIDR opcional
+      // CORREGIDO: \d (dígitos), \. (puntos literales) y \/ (barra escapada)
+      /\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(?:\/\d{1,2})?\b/g,
+      
+      // IPs privadas (10.x.x.x)
+      /\b10(?:\.\d{1,3}){3}\b/g,
+      
+      // IPs privadas (172.16.x.x - 172.31.x.x)
+      /\b172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}\b/g,
+      
+      // IPs privadas (192.168.x.x)
+      /\b192\.168(?:\.\d{1,3}){2}\b/g,
+      
       // Claves Wireguard/Outline
-      /(wireguard_|outline_)(private_)?key[:s]*[^,s}]+/gi
+      /(wireguard_|outline_)(private_)?key[:\s]*[^,\s}]+/gi
     ];
   }
 
@@ -50,7 +59,7 @@ class Logger {
       defaultMeta: {
         service: 'uSipipoVPNBot',
         env: process.env.NODE_ENV || 'development',
-        version: '2.0.1', // Actualizado
+        version: '2.0.1', 
         pid: process.pid
       },
       transports: [
