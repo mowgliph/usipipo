@@ -1,4 +1,6 @@
 // utils/logger.js
+'use strict';
+
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
@@ -23,7 +25,7 @@ class Logger {
    */
   #getLoggerConfig() {
     const logLevel = process.env.LOG_LEVEL || 'info';
-    
+
     return {
       level: logLevel,
       format: this.#getLogFormat(),
@@ -74,21 +76,21 @@ class Logger {
     const sensitivePatterns = [
       /telegram_token[:s]*[^,s}]+/gi,
       /admin_id[:s]*[^,s}]+/gi,
-      /(d{1,3}.){3}d{1,3}(/d{1,2})?/g, // IPs públicas
-      /10.d{1,3}.d{1,3}.d{1,3}/g,     // IPs privadas 10.x
-      /172.(1[6-9]|2d|3[01]).d{1,3}.d{1,3}/g, // 172.16-31
-      /192.168.d{1,3}.d{1,3}/g,         // 192.168
-      /(wireguard_|outline_)(private_)?key[:s]*[^,s}]+/gi
+      /\b(d{1,3}.){3}d{1,3}(/d{1,2})?\b/g,        // IPs públicas o con máscara
+      /\b10.d{1,3}.d{1,3}.d{1,3}\b/g,             // IPs privadas 10.x.x.x
+      /\b172.(1[6-9]|2d|3[01]).d{1,3}.d{1,3}\b/g, // IPs privadas 172.16–31
+      /\b192.168.d{1,3}.d{1,3}\b/g,                // IPs privadas 192.168.x.x
+      /(wireguard_|outline_)(private_)?key[:s]*[^,s}]+/gi // Claves privadas
     ];
 
     return winston.format((info) => {
       let message = info.message;
-      
+
       if (typeof message === 'object') {
         message = JSON.stringify(message);
       }
 
-      sensitivePatterns.forEach(pattern => {
+      sensitivePatterns.forEach((pattern) => {
         message = message.replace(pattern, '[SANITIZED]');
       });
 
@@ -102,64 +104,53 @@ class Logger {
    */
   #setupConsoleTransport() {
     if (process.env.NODE_ENV !== 'production') {
-      this.logger.add(new winston.transports.Console({
-        format: winston.format.combine(
-          winston.format.colorize(),
-          winston.format.simple()
-        )
-      }));
+      this.logger.add(
+        new winston.transports.Console({
+          format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+          )
+        })
+      );
     }
   }
 
-  // ========== MÉTODOS PÚBLICOS (compatibles con AdminHandler) ==========
+  // ======================
+  // MÉTODOS PÚBLICOS
+  // ======================
 
-  /**
-   * Log INFO estructurado (reemplaza console.log en AdminHandler)
-   */
   info(adminId, method, data = {}) {
-    this.logger.info(`Admin action`, {
-      adminId: adminId.toString(),
+    this.logger.info('Admin action', {
+      adminId: adminId?.toString(),
       method,
       ...data
     });
   }
 
-  /**
-   * Log SUCCESS (alias de info con contexto específico)
-   */
   success(adminId, action, target, data = {}) {
-    this.logger.info(`Admin success`, {
-      adminId: adminId.toString(),
+    this.logger.info('Admin success', {
+      adminId: adminId?.toString(),
       action,
       target: target?.toString(),
       ...data
     });
   }
 
-  /**
-   * Log ERROR con stack trace completo
-   */
   error(method, error, context = {}) {
-    this.logger.error(`Error occurred`, {
+    this.logger.error('Error occurred', {
       method,
-      error: error.message,
-      stack: error.stack,
+      error: error?.message || error,
+      stack: error?.stack,
       ...context
     });
   }
 
-  /**
-   * Log WARN para advertencias no críticas
-   */
   warn(message, context = {}) {
     this.logger.warn(message, context);
   }
 
-  /**
-   * Log HTTP requests/responses
-   */
   http(method, url, statusCode, duration, context = {}) {
-    this.logger.http(`HTTP request`, {
+    this.logger.http('HTTP request', {
       method,
       url,
       statusCode,
@@ -168,30 +159,19 @@ class Logger {
     });
   }
 
-  /**
-   * Log VERBOSE para información detallada
-   */
   verbose(message, context = {}) {
     this.logger.verbose(message, context);
   }
 
-  /**
-   * Log DEBUG para desarrollo
-   */
   debug(message, context = {}) {
     this.logger.debug(message, context);
   }
 
-  /**
-   * Log SILLY para trazas muy detalladas
-   */
   silly(message, context = {}) {
     this.logger.silly(message, context);
   }
 
-  /**
-   * Alias para compatibilidad con AdminHandler existente
-   */
+  // Alias de compatibilidad
   logInfo(adminId, method, data) {
     this.info(adminId, method, data);
   }
@@ -205,6 +185,6 @@ class Logger {
   }
 }
 
-// Singleton instance
+// Singleton global
 const logger = new Logger();
 module.exports = logger;
