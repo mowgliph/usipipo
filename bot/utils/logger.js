@@ -10,19 +10,37 @@ const config = require('../config/environment');
  * Logger profesional con Winston para uSipipo VPN Bot
  * - Rotación diaria de logs (30 días)
  * - Formato JSON estructurado
- * - 7 niveles: error, warn, info, http, verbose, debug, silly
- * - Sanitización de datos sensibles (tokens, IPs privadas, etc.)
- * - Integración directa con AdminHandler existente
+ * - Sanitización robusta de datos sensibles
+ * - 7 niveles de logging con métodos contextuales
  */
 class Logger {
+  #sensitivePatterns;
+  #logger;
+
   constructor() {
-    this.logger = winston.createLogger(this.#getLoggerConfig());
+    this.#sensitivePatterns = this.#getSensitivePatterns();
+    this.#logger = winston.createLogger(this.#getLoggerConfig());
     this.#setupConsoleTransport();
   }
 
   /**
-   * Configuración principal del logger
+   * Patrones regex robustos para sanitización (IPv4 + claves)
    */
+  #getSensitivePatterns() {
+    return [
+      /telegram_token[:s]*[^,s}]+/gi,
+      /admin_id[:s]*[^,s}]+/gi,
+      // IPs públicas con CIDR
+      /\b(?:(?:25[0-5]|2[0-4]d|1d{2}|[1-9]?d).){3}(?:25[0-5]|2[0-4]d|1d{2}|[1-9]?d)(?:/d{1,2})?\b/g,
+      // IPs privadas
+      /\b10(?:.d{1,3}){3}\b/g,
+      /\b172.(1[6-9]|2d|3[01])(?:.d{1,3}){2}\b/g,
+      /\b192.168(?:.d{1,3}){2}\b/g,
+      // Claves Wireguard/Outline
+      /(wireguard_|outline_)(private_)?key[:s]*[^,s}]+/gi
+    ];
+  }
+
   #getLoggerConfig() {
     const logLevel = process.env.LOG_LEVEL || 'info';
 
@@ -32,10 +50,10 @@ class Logger {
       defaultMeta: {
         service: 'uSipipoVPNBot',
         env: process.env.NODE_ENV || 'development',
-        version: '2.0.0'
+        version: '2.0.1', // Actualizado
+        pid: process.pid
       },
       transports: [
-        // Archivo principal (todos los niveles)
         new DailyRotateFile({
           filename: path.join('logs', 'app-%DATE%.log'),
           datePattern: 'YYYY-MM-DD',
@@ -44,7 +62,6 @@ class Logger {
           maxFiles: '30d',
           level: logLevel
         }),
-        // Errores críticos en archivo separado
         new DailyRotateFile({
           filename: path.join('logs', 'errors-%DATE%.log'),
           datePattern: 'YYYY-MM-DD',
@@ -57,9 +74,6 @@ class Logger {
     };
   }
 
-  /**
-   * Formato estructurado JSON con timestamp y sanitización
-   */
   #getLogFormat() {
     return winston.format.combine(
       winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
@@ -69,42 +83,37 @@ class Logger {
     );
   }
 
-  /**
-   * Sanitiza datos sensibles antes de loggear
-   */
   #sanitizeSensitiveData() {
-    const sensitivePatterns = [
-      /telegram_token[:s]*[^,s}]+/gi,
-      /admin_id[:s]*[^,s}]+/gi,
-      /\b(d{1,3}.){3}d{1,3}(/d{1,2})?\b/g,        // IPs públicas o con máscara
-      /\b10.d{1,3}.d{1,3}.d{1,3}\b/g,             // IPs privadas 10.x.x.x
-      /\b172.(1[6-9]|2d|3[01]).d{1,3}.d{1,3}\b/g, // IPs privadas 172.16–31
-      /\b192.168.d{1,3}.d{1,3}\b/g,                // IPs privadas 192.168.x.x
-      /(wireguard_|outline_)(private_)?key[:s]*[^,s}]+/gi // Claves privadas
-    ];
-
     return winston.format((info) => {
-      let message = info.message;
-
-      if (typeof message === 'object') {
-        message = JSON.stringify(message);
-      }
-
-      sensitivePatterns.forEach((pattern) => {
-        message = message.replace(pattern, '[SANITIZED]');
-      });
-
+      const message = this.#sanitizeString(info.message);
       info.message = message;
+      
+      // Sanitiza también otros campos del objeto
+      if (typeof info === 'object') {
+        Object.keys(info).forEach(key => {
+          if (typeof info[key] === 'string') {
+            info[key] = this.#sanitizeString(info[key]);
+          }
+        });
+      }
+      
       return info;
     })();
   }
 
-  /**
-   * Transport de consola con colores para desarrollo
-   */
+  #sanitizeString(str) {
+    if (typeof str !== 'string') return str;
+    
+    let sanitized = str;
+    this.#sensitivePatterns.forEach(pattern => {
+      sanitized = sanitized.replace(pattern, '[SANITIZED]');
+    });
+    return sanitized;
+  }
+
   #setupConsoleTransport() {
     if (process.env.NODE_ENV !== 'production') {
-      this.logger.add(
+      this.#logger.add(
         new winston.transports.Console({
           format: winston.format.combine(
             winston.format.colorize(),
@@ -120,7 +129,7 @@ class Logger {
   // ======================
 
   info(adminId, method, data = {}) {
-    this.logger.info('Admin action', {
+    this.#logger.info('Admin action', {
       adminId: adminId?.toString(),
       method,
       ...data
@@ -128,7 +137,7 @@ class Logger {
   }
 
   success(adminId, action, target, data = {}) {
-    this.logger.info('Admin success', {
+    this.#logger.info('Admin success', {
       adminId: adminId?.toString(),
       action,
       target: target?.toString(),
@@ -137,22 +146,22 @@ class Logger {
   }
 
   error(method, error, context = {}) {
-    this.logger.error('Error occurred', {
+    this.#logger.error('Error occurred', {
       method,
-      error: error?.message || error,
+      error: error?.message || String(error),
       stack: error?.stack,
       ...context
     });
   }
 
   warn(message, context = {}) {
-    this.logger.warn(message, context);
+    this.#logger.warn(message, context);
   }
 
   http(method, url, statusCode, duration, context = {}) {
-    this.logger.http('HTTP request', {
+    this.#logger.http('HTTP request', {
       method,
-      url,
+      url: this.#sanitizeString(url),
       statusCode,
       duration,
       ...context
@@ -160,15 +169,15 @@ class Logger {
   }
 
   verbose(message, context = {}) {
-    this.logger.verbose(message, context);
+    this.#logger.verbose(message, context);
   }
 
   debug(message, context = {}) {
-    this.logger.debug(message, context);
+    this.#logger.debug(message, context);
   }
 
   silly(message, context = {}) {
-    this.logger.silly(message, context);
+    this.#logger.silly(message, context);
   }
 
   // Alias de compatibilidad
