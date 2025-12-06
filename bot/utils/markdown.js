@@ -17,6 +17,9 @@ function escapeMarkdown(text) {
 
   let escaped = text;
   specials.forEach((ch) => {
+    // Escapar solo si el caracter NO es el delimitador de formato.
+    // Aunque en MarkdownV2 los delimitadores *siempre* deben escaparse si son usados literalmente.
+    // La expresión regular usa doble barra para escapar el caracter especial.
     escaped = escaped.replace(new RegExp(`\\${ch}`, 'g'), `\\${ch}`);
   });
 
@@ -33,27 +36,32 @@ function escapeCode(text) {
   if (typeof text !== 'string') {
     throw new TypeError('Input must be a string');
   }
+  // Se escapan la barra invertida y el backtick dentro del bloque de código.
   return text.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
 }
 
 /**
- * Formatea texto en negrita (MarkdownV2: **texto**).
+ * Formatea texto en negrita (MarkdownV2: *texto*).
  * @param {string} text - Texto a formatear
  * @returns {string} Texto en negrita escapado
  * @throws {TypeError} Si el input no es string
  */
 function bold(text) {
-  return `**${escapeMarkdown(text)}**`;
+  // STRICT V2: *texto*
+  if (typeof text !== 'string') { throw new TypeError('Input must be a string'); }
+  return `*${escapeMarkdown(text)}*`;
 }
 
 /**
- * Formatea texto en cursiva (MarkdownV2: __texto__).
+ * Formatea texto en cursiva (MarkdownV2: _texto_).
  * @param {string} text - Texto a formatear
  * @returns {string} Texto en cursiva escapado
  * @throws {TypeError} Si el input no es string
  */
 function italic(text) {
-  return `__${escapeMarkdown(text)}__`;
+  // STRICT V2: _texto_
+  if (typeof text !== 'string') { throw new TypeError('Input must be a string'); }
+  return `_${escapeMarkdown(text)}_`;
 }
 
 /**
@@ -63,7 +71,9 @@ function italic(text) {
  * @throws {TypeError} Si el input no es string
  */
 function code(text) {
-  return ``${escapeCode(text)}``;
+  // SyntaxError corregido y formato: `texto`
+  if (typeof text !== 'string') { throw new TypeError('Input must be a string'); }
+  return `\`${escapeCode(text)}\``;
 }
 
 /**
@@ -81,13 +91,15 @@ function link(text, url) {
 }
 
 /**
- * Formatea texto tachado (MarkdownV2: ~~texto~~).
+ * Formatea texto tachado (MarkdownV2: ~texto~ o ~~texto~~).
+ * Nota: Se usa ~~texto~~ ya que ~ solo es un carácter de escape V2.
  * @param {string} text - Texto a formatear
  * @returns {string} Texto tachado escapado
  * @throws {TypeError} Si el input no es string
  */
 function strikethrough(text) {
-  return `~~${escapeMarkdown(text)}~~`;
+  if (typeof text !== 'string') { throw new TypeError('Input must be a string'); }
+  return `~${escapeMarkdown(text)}~`; // ~texto~ es el formato más estricto
 }
 
 /**
@@ -97,18 +109,20 @@ function strikethrough(text) {
  * @throws {TypeError} Si el input no es string
  */
 function spoiler(text) {
+  if (typeof text !== 'string') { throw new TypeError('Input must be a string'); }
   return `||${escapeMarkdown(text)}||`;
 }
 
 /**
- * Formatea texto subrayado (MarkdownV2: <u>texto</u> para compatibilidad limitada).
- * Nota: Telegram V2 prefiere entidades via API, pero para string: <u>texto</u>.
+ * Formatea texto subrayado (MarkdownV2: __texto__).
  * @param {string} text - Texto a formatear
  * @returns {string} Texto subrayado escapado
  * @throws {TypeError} Si el input no es string
  */
 function underline(text) {
-  return `<u>${escapeMarkdown(text)}</u>`;
+  // STRICT V2: __texto__
+  if (typeof text !== 'string') { throw new TypeError('Input must be a string'); }
+  return `__${escapeMarkdown(text)}__`;
 }
 
 module.exports = {
