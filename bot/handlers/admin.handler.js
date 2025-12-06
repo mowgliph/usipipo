@@ -169,7 +169,7 @@ class AdminHandler {
     }
   }
 
-  /**
+    /**
    * Comando: /broadcast [mensaje] - Broadcast con confirmación
    */
   async handleBroadcast(ctx) {
@@ -177,7 +177,7 @@ class AdminHandler {
       const adminId = ctx.from.id.toString();
       logger.info(adminId, 'handleBroadcast');
 
-      const messageText = ctx.message.text.replace(/^/broadcasts*/, '').trim();
+      const messageText = ctx.message.text.replace(/^\/broadcasts?\s*/, '').trim();
       
       if (!messageText) {
         return ctx.reply(this.#formatBroadcastHelp(), { parse_mode: 'MarkdownV2' });
@@ -189,6 +189,7 @@ class AdminHandler {
       this.#handleError(ctx, error, 'handleBroadcast');
     }
   }
+
 
   /**
    * Confirma y envía broadcast
