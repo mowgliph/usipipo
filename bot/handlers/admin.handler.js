@@ -574,7 +574,7 @@ ${messageText}
                      `Ahora puedes usar /start para el menú principal.
 
 ` +
-                     `¡Bienvenido${userName ? ` ${userName}` : ''}! 🚀`;
+                     `¡Bienvenido${userName ? ` ${userName}` : ''}\\! 🚀`;
 
       await this.notificationService.bot.telegram.sendMessage(userId, message, {
         parse_mode: 'MarkdownV2'

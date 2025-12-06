@@ -217,7 +217,7 @@ show_menu() {
 }
 
 # =============================================================================
-# Docker Installation
+# Docker Installation (Updated for Ubuntu & Debian)
 # =============================================================================
 install_docker() {
     log_header "🐳 DOCKER & DOCKER COMPOSE INSTALLATION"
@@ -231,11 +231,44 @@ install_docker() {
         fi
     fi
     
-    log_step "1" "5" "Updating system package lists..."
+    # 1. OS Detection
+    log_step "1" "6" "Detecting Operating System..."
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS_ID=$ID
+    else
+        log_error "Could not detect OS. /etc/os-release not found."
+        return 1
+    fi
+
+    # Configurar URLs basadas en la distro
+    local GPG_URL=""
+    local REPO_URL=""
+    
+    case "$OS_ID" in
+        ubuntu)
+            log_info "Detected OS: Ubuntu"
+            GPG_URL="https://download.docker.com/linux/ubuntu/gpg"
+            REPO_URL="https://download.docker.com/linux/ubuntu"
+            ;;
+        debian)
+            log_info "Detected OS: Debian"
+            GPG_URL="https://download.docker.com/linux/debian/gpg"
+            REPO_URL="https://download.docker.com/linux/debian"
+            ;;
+        *)
+            log_error "Unsupported OS: $OS_ID. Only Ubuntu and Debian are supported."
+            press_any_key
+            show_menu
+            return 1
+            ;;
+    esac
+
+    log_step "2" "6" "Updating system package lists..."
     run_sudo apt-get update > /dev/null 2>&1
     log_success "Package lists updated successfully"
     
-    log_step "2" "5" "Installing required dependencies..."
+    log_step "3" "6" "Installing required dependencies..."
     run_sudo apt-get install -y \
         ca-certificates \
         curl \
@@ -243,33 +276,41 @@ install_docker() {
         lsb-release \
         apt-transport-https \
         software-properties-common > /dev/null 2>&1
-    log_success "Dependencies installed: ca-certificates, curl, gnupg, lsb-release"
+    log_success "Dependencies installed"
     
-    log_step "3" "5" "Configuring Docker official repository..."
+    log_step "4" "6" "Configuring Docker official repository..."
     if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
         run_sudo mkdir -p /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+        curl -fsSL "$GPG_URL" | \
             run_sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg > /dev/null 2>&1
         log_success "Docker GPG key added to system keyring"
     else
         log_info "Docker GPG key already exists, skipping..."
     fi
     
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+    # Añadir el repositorio usando las variables dinámicas
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] $REPO_URL $(lsb_release -cs) stable" | \
         run_sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    log_success "Docker repository configured successfully"
+    log_success "Docker repository configured for $OS_ID"
     
-    log_step "4" "5" "Installing Docker Engine and Docker Compose..."
+    log_step "5" "6" "Installing Docker Engine and Docker Compose..."
     run_sudo apt-get update > /dev/null 2>&1
     run_sudo apt-get install -y \
         docker-ce \
         docker-ce-cli \
         containerd.io \
         docker-compose-plugin > /dev/null 2>&1
-    log_success "Docker CE $(docker --version | cut -d' ' -f3 | tr -d ',') installed"
-    log_success "Docker Compose $(docker compose version | cut -d' ' -f4) installed"
+        
+    # Verificar instalación
+    if command -v docker &> /dev/null; then
+        log_success "Docker CE $(docker --version | cut -d' ' -f3 | tr -d ',') installed"
+        log_success "Docker Compose $(docker compose version | cut -d' ' -f4) installed"
+    else
+        log_error "Docker installation failed."
+        return 1
+    fi
     
-    log_step "5" "5" "Configuring user permissions and system settings..."
+    log_step "6" "6" "Configuring user permissions and system settings..."
     run_sudo usermod -aG docker $USER
     run_sudo systemctl enable docker > /dev/null 2>&1
     run_sudo systemctl start docker > /dev/null 2>&1
@@ -283,6 +324,7 @@ install_docker() {
     press_any_key
     show_menu
 }
+
 
 # =============================================================================
 # Service Startup
