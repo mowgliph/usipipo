@@ -147,8 +147,8 @@ PersistentKeepalive = 25`;
   static async listClients() {
     try {
       const { stdout } = await execPromise('docker exec wireguard wg show wg0 dump');
-      const lines = stdout.trim().split('
-').slice(1);
+      // CORRECCIÓN: Se usa '\n' en lugar de un salto de línea literal.
+      const lines = stdout.trim().split('\n').slice(1);
 
       const clients = lines
         .map((line) => {
