@@ -322,14 +322,14 @@ Usa /broadcast para crear uno nuevo.`,
     };
   }
 
-  #formatSuccessMessage(title, ...lines) {
+    #formatSuccessMessage(title, ...lines) {
     let message = `${title}
 
 `;
-    message += lines.map(line => `• ${line}`).join('
-');
+    message += lines.map(line => `• ${line}`).join('\n');
     return message;
   }
+
 
   #formatUsageError(command, format) {
     return `⚠️ ${bold('Uso incorrecto')}
