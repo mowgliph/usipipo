@@ -6,6 +6,7 @@ credentials.env
 *.key
 *.crt
 bot/data/authorized_users.json
+package-lock.json
 
 # Node.js
 node_modules/
