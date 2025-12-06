@@ -2,22 +2,38 @@
 const { escapeMarkdown, bold, code } = require('./markdown');
 
 /**
- * Formatea bytes a unidades legibles
+ * Formatea bytes a unidades legibles (B, KB, MB, GB, TB).
+ * @param {number} bytes - Bytes a formatear
+ * @returns {string} String formateado
  */
 function formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
+  if (!bytes || bytes <= 0) {
+    return '0 B';
+  }
+
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const value = (bytes / Math.pow(k, i)).toFixed(2);
+
+  return `\( {value} \){units[i]}`;
 }
 
 /**
- * Formatea timestamp a fecha legible
+ * Formatea timestamp Unix (segundos) a fecha legible en español.
+ * @param {string|number} timestamp - Timestamp Unix
+ * @returns {string} Fecha formateada o 'Nunca'
  */
 function formatTimestamp(timestamp) {
-  if (timestamp === '0' || !timestamp) return 'Nunca';
-  const date = new Date(parseInt(timestamp) * 1000);
+  if (!timestamp || timestamp === '0') {
+    return 'Nunca';
+  }
+
+  const date = new Date(parseInt(timestamp, 10) * 1000);
+  if (isNaN(date.getTime())) {
+    return 'Nunca';
+  }
+
   return date.toLocaleString('es-ES', {
     year: 'numeric',
     month: '2-digit',
@@ -28,69 +44,86 @@ function formatTimestamp(timestamp) {
 }
 
 /**
- * Trunca texto largo
+ * Trunca texto añadiendo "..." si excede longitud máxima.
+ * @param {string} text - Texto a truncar
+ * @param {number} [maxLength=50] - Longitud máxima
+ * @returns {string} Texto truncado
  */
 function truncate(text, maxLength = 50) {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+  if (typeof text !== 'string' || text.length <= maxLength) {
+    return text || '';
+  }
+
+  return `${text.substring(0, maxLength)}...`;
 }
 
 /**
- * Formatea lista de clientes WireGuard
+ * Formatea lista de clientes WireGuard para Telegram.
+ * @param {Array<Object>} clients - Lista de clientes
+ * @returns {string} Mensaje formateado
  */
 function formatWireGuardClients(clients) {
-  if (clients.length === 0) {
+  if (!clients || clients.length === 0) {
     return '📭 No hay clientes WireGuard activos';
   }
 
-  let message = `🔐 ${bold('WireGuard')} (${clients.length} clientes)\n`;
-  message += '━━━━━━━━━━━━━━━━━\n';
-  
+  let message = `🔐 \( {bold('WireGuard')} ( \){clients.length} clientes)\n━━━━━━━━━━━━━━━━━━\n`;
+
   clients.forEach((client, index) => {
-    message += `${index + 1}. IP: ${code(client.ip)}\n`;
+    message += `\( {index + 1}. IP: \){code(client.ip)}\n`;
     message += `   📡 Última conexión: ${escapeMarkdown(client.lastSeen)}\n`;
     message += `   📥 Recibido: ${escapeMarkdown(client.dataReceived)}\n`;
     message += `   📤 Enviado: ${escapeMarkdown(client.dataSent)}\n\n`;
   });
 
-  return message;
+  return message.trimEnd();
 }
 
 /**
- * Formatea lista de claves Outline
+ * Formatea lista de claves Outline para Telegram.
+ * @param {Array<Object>} keys - Lista de claves
+ * @returns {string} Mensaje formateado
  */
 function formatOutlineKeys(keys) {
-  if (keys.length === 0) {
+  if (!keys || keys.length === 0) {
     return '📭 No hay claves Outline activas';
   }
 
-  let message = `🌐 ${bold('Outline')} (${keys.length} claves)\n`;
-  message += '━━━━━━━━━━━━━━━━━\n';
-  
+  let message = `🌐 \( {bold('Outline')} ( \){keys.length} claves)\n━━━━━━━━━━━━━━━━━━\n`;
+
   keys.forEach((key, index) => {
     const keyName = key.name ? escapeMarkdown(key.name) : 'Sin nombre';
-    message += `${index + 1}. ID: ${code(key.id)} - ${keyName}\n`;
+    message += `\( {index + 1}. ID: \){code(key.id)} - ${keyName}\n`;
   });
 
-  return message;
+  return message.trimEnd();
 }
 
-
 /**
- * Formatea lista completa de clientes
+ * Formatea vista combinada de clientes WireGuard + Outline.
+ * @param {Array<Object>} wgClients - Clientes WireGuard
+ * @param {Array<Object>} outlineKeys - Claves Outline
+ * @returns {string} Mensaje combinado
  */
 function formatClientsList(wgClients, outlineKeys) {
-  let message = '📊 **CLIENTES ACTIVOS**\n\n';
-  message += formatWireGuardClients(wgClients);
-  message += '\n';
+  let message = `${bold('📊 CLIENTES ACTIVOS')}\n\n`;
+
+  message += `${formatWireGuardClients(wgClients)}\n\n`;
   message += formatOutlineKeys(outlineKeys);
-  return message;
+
+  return message.trimEnd();
 }
 
 /**
- * Sanitiza entrada de usuario
+ * Sanitiza entrada removiendo caracteres problemáticos básicos (< >).
+ * @param {string} input - Entrada a sanitizar
+ * @returns {string} Input limpio
  */
 function sanitizeInput(input) {
+  if (typeof input !== 'string') {
+    return '';
+  }
+
   return input.replace(/[<>]/g, '');
 }
 

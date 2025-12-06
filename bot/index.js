@@ -1,73 +1,79 @@
 // index.js
+
 require('dotenv').config();
+
 const bot = require('./bot/bot.instance');
 const config = require('./config/environment');
+
 // Importamos el servicio de notificaciones para usarlo en el arranque
 const NotificationService = require('./services/notification.service');
 
 // Iniciar bot
-bot.launch().then(async () => {
-  console.log('🚀 uSipipo VPN Bot iniciado exitosamente');
-  console.log(`📡 Admin ID: ${config.ADMIN_ID}`);
-  // Usamos ( || []) para prevenir errores si la lista está vacía o indefinida
-  console.log(`👥 Usuarios autorizados: ${(config.AUTHORIZED_USERS || []).length}`);
-  console.log(`🌍 Servidor: ${config.SERVER_IPV4}`);
-  
-  // 1. Definir comandos para USUARIOS NORMALES
-  const userCommands = [
-    { command: 'start', description: '🏠 Menú Principal' },
-    { command: 'miinfo', description: '👤 Ver mis datos e ID' },
-    { command: 'status', description: '✅ Comprobar estado de acceso' },
-    { command: 'commands', description: '📋 Lista de comandos' },
-    { command: 'help', description: '❓ Ayuda y soporte' }
-  ];
+bot
+  .launch()
+  .then(async () => {
+    console.log('🚀 uSipipo VPN Bot iniciado exitosamente');
+    console.log(`📡 Admin ID: ${config.ADMIN_ID}`);
+    // Usamos ( || []) para prevenir errores si la lista está vacía o indefinida
+    console.log(`👥 Usuarios autorizados: ${(config.AUTHORIZED_USERS || []).length}`);
+    console.log(`🌍 Servidor: ${config.SERVER_IPV4}`);
 
-  // 2. Definir comandos para ADMINISTRADOR (Incluye los de usuario + gestión)
-  const adminCommands = [
-    ...userCommands, // Hereda los comandos de usuario
-    { command: 'users', description: '👥 Listar usuarios' },
-    { command: 'add', description: '➕ Autorizar usuario (uso: /add ID Nombre)' },
-    { command: 'rm', description: '➖ Remover usuario (uso: /rm ID)' },
-    { command: 'sus', description: '⏸️ Suspender usuario' },
-    { command: 'react', description: '▶️ Reactivar usuario' },
-    { command: 'stats', description: '📊 Estadísticas del servidor' },
-    { command: 'broadcast', description: '📢 Enviar mensaje a todos' }
-  ];
+    // 1. Definir comandos para USUARIOS NORMALES
+    const userCommands = [
+      { command: 'start', description: '🏠 Menú Principal' },
+      { command: 'miinfo', description: '👤 Ver mis datos e ID' },
+      { command: 'status', description: '✅ Comprobar estado de acceso' },
+      { command: 'commands', description: '📋 Lista de comandos' },
+      { command: 'help', description: '❓ Ayuda y soporte' }
+    ];
 
-  try {
-    // A. Establecer comandos por defecto (para todos)
-    await bot.telegram.setMyCommands(userCommands);
+    // 2. Definir comandos para ADMINISTRADOR (Incluye los de usuario + gestión)
+    const adminCommands = [
+      ...userCommands, // Hereda los comandos de usuario
+      { command: 'users', description: '👥 Listar usuarios' },
+      { command: 'add', description: '➕ Autorizar usuario (uso: /add ID Nombre)' },
+      { command: 'rm', description: '➖ Remover usuario (uso: /rm ID)' },
+      { command: 'sus', description: '⏸️ Suspender usuario' },
+      { command: 'react', description: '▶️ Reactivar usuario' },
+      { command: 'stats', description: '📊 Estadísticas del servidor' },
+      { command: 'broadcast', description: '📢 Enviar mensaje a todos' }
+    ];
 
-    // B. Establecer comandos específicos SOLO para el Admin
-    // Esto hace que en tu chat privado veas las opciones extra
-    await bot.telegram.setMyCommands(adminCommands, { 
-      scope: { type: 'chat', chat_id: config.ADMIN_ID } 
-    });
-    
-    console.log('✅ Menú de comandos actualizado en Telegram');
-  } catch (error) {
-    console.error('⚠️ Error al actualizar el menú de comandos:', error);
-  }
-  
-  // Instanciar el servicio de notificación para el mensaje de bienvenida
-  const notificationService = new NotificationService(bot);
+    try {
+      // A. Establecer comandos por defecto (para todos)
+      await bot.telegram.setMyCommands(userCommands);
 
-  // Esperar 2 segundos para asegurar que la conexión a Telegram esté estable
-  setTimeout(() => {
-    // Se envía la notificación de arranque al admin
-    notificationService.notifyAdminsSystemStartup().catch(err => {
+      // B. Establecer comandos específicos SOLO para el Admin
+      // Esto hace que en tu chat privado veas las opciones extra
+      await bot.telegram.setMyCommands(adminCommands, {
+        scope: { type: 'chat', chat_id: config.ADMIN_ID }
+      });
+
+      console.log('✅ Menú de comandos actualizado en Telegram');
+    } catch (error) {
+      console.error('⚠️ Error al actualizar el menú de comandos:', error);
+    }
+
+    // Instanciar el servicio de notificación para el mensaje de bienvenida
+    const notificationService = new NotificationService(bot);
+
+    // Esperar 2 segundos para asegurar que la conexión a Telegram esté estable
+    setTimeout(() => {
+      // Se envía la notificación de arranque al admin
+      notificationService.notifyAdminsSystemStartup().catch((err) => {
         console.error('⚠️ No se pudo enviar la notificación de arranque:', err.message);
-    });
-  }, 2000);
-  
-}).catch((error) => {
-  console.error('❌ Error al iniciar el bot:', error);
-  process.exit(1);
-});
+      });
+    }, 2000);
+  })
+  .catch((error) => {
+    console.error('❌ Error al iniciar el bot:', error);
+    process.exit(1);
+  });
 
 // Graceful shutdown
 const shutdownHandler = (signal) => {
-  console.log(`\n📴 Recibida señal ${signal}. Cerrando bot...`);
+  console.log(`
+📴 Recibida señal ${signal}. Cerrando bot...`);
   bot.stop(signal);
   process.exit(0);
 };

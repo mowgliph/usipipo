@@ -3,102 +3,107 @@ const WireGuardService = require('../services/wireguard.service');
 const OutlineService = require('../services/outline.service');
 const messages = require('../utils/messages');
 const formatters = require('../utils/formatters');
+const logger = require('../utils/logger');
 
+/**
+ * Handler para operaciones VPN (WireGuard / Outline).
+ * Gestiona la creación, consulta y visualización de clientes VPN a través del bot Telegram.
+ */
 class VPNHandler {
   /**
-   * Crea configuración WireGuard
+   * Crea un nuevo cliente WireGuard y entrega al usuario
+   * el archivo de configuración + código QR.
+   * @param {import('telegraf').Context} ctx - Contexto del bot Telegraf
    */
   async handleCreateWireGuard(ctx) {
+    const userId = ctx.from?.id;
+    const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
+
     await ctx.answerCbQuery();
-    await ctx.reply(messages.WIREGUARD_CREATING);
-    
+    await ctx.reply(messages.WIREGUARD_CREATING, { parse_mode: 'MarkdownV2' });
+
     try {
       const { config, qr, clientIP } = await WireGuardService.createNewClient();
-      
+
       // Enviar archivo de configuración
       await ctx.replyWithDocument(
-        { 
-          source: Buffer.from(config), 
-          filename: `wireguard-${clientIP.replace(/\./g, '-')}.conf` 
+        {
+          source: Buffer.from(config),
+          filename: `wireguard-${clientIP.replace(/./g, '-')}.conf`
         },
-        { 
+        {
           caption: messages.WIREGUARD_SUCCESS(clientIP),
-          parse_mode: 'Markdown'
+          parse_mode: 'MarkdownV2'
         }
       );
-      
-      // Enviar QR code
-      await ctx.reply(`\`\`\`\n${qr}\n\`\`\``, { parse_mode: 'Markdown' });
-      
-      // Instrucciones
-      await ctx.reply(messages.WIREGUARD_INSTRUCTIONS, { parse_mode: 'Markdown' });
-      
-      console.log(`✅ WireGuard creado para usuario ${ctx.from.id} - IP: ${clientIP}`);
-      
+
+      // Enviar código QR como bloque de texto
+      await ctx.reply(````
+${qr}
+````, { parse_mode: 'MarkdownV2' });
+
+      // Enviar instrucciones de conexión
+      await ctx.reply(messages.WIREGUARD_INSTRUCTIONS, { parse_mode: 'MarkdownV2' });
+
+      logger.success(userId, 'create_wireguard', clientIP, { userName, clientIP });
     } catch (error) {
-      console.error('WireGuard creation error:', error);
-      ctx.reply(messages.ERROR_WIREGUARD(error.message));
+      logger.error('handleCreateWireGuard', error, { userId, userName });
+      await ctx.reply(messages.ERROR_WIREGUARD(error.message), { parse_mode: 'MarkdownV2' });
     }
   }
 
   /**
-   * Crea clave Outline
+   * Crea una nueva clave Outline y la devuelve al usuario.
+   * @param {import('telegraf').Context} ctx - Contexto del bot Telegraf
    */
   async handleCreateOutline(ctx) {
+    const userId = ctx.from?.id;
+    const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
+
     await ctx.answerCbQuery();
-    await ctx.reply(messages.OUTLINE_CREATING);
-    
+    await ctx.reply(messages.OUTLINE_CREATING, { parse_mode: 'MarkdownV2' });
+
     try {
-      const userId = ctx.from.id;
-      const userName = ctx.from.username || ctx.from.first_name || `User${userId}`;
-      
-      // Crear clave con nombre descriptivo
       const keyName = `TG-${userName}-${Date.now()}`;
       const accessKey = await OutlineService.createAccessKey(keyName);
-      
-      // Mensaje con la clave de acceso
-      const message = 
-        `✅ **Clave Outline creada exitosamente**\n\n` +
-        `🔑 **ID:** \`${accessKey.id}\`\n` +
-        `👤 **Nombre:** ${keyName}\n\n` +
-        `📱 **Copia este enlace en tu app Outline:**\n\n` +
-        `\`${accessKey.accessUrl}\`\n\n` +
-        `📊 **Límite de datos:** 10GB/mes\n` +
-        `🛡️ **DNS:** Protección con Pi-hole activada\n\n` +
-        `🔗 **Descargar Outline:**\n` +
-        `• Android: https://play.google.com/store/apps/details?id=org.outline.android.client\n` +
-        `• iOS: https://apps.apple.com/app/outline-app/id1356177741\n` +
-        `• Windows/Mac: https://getoutline.org/get-started/`;
-      
-      await ctx.reply(message, { parse_mode: 'Markdown' });
-      
-      console.log(`✅ Outline key created for user ${userId} - Key ID: ${accessKey.id}`);
-      
+
+      const message = messages.OUTLINE_SUCCESS(accessKey);
+      await ctx.reply(message, { parse_mode: 'MarkdownV2' });
+
+      logger.success(userId, 'create_outline', accessKey.id, { keyName, accessUrl: accessKey.accessUrl });
     } catch (error) {
-      console.error('Outline creation error:', error);
-      ctx.reply(messages.ERROR_OUTLINE(error.message));
+      logger.error('handleCreateOutline', error, { userId, userName });
+      await ctx.reply(messages.ERROR_OUTLINE(error.message), { parse_mode: 'MarkdownV2' });
     }
   }
 
   /**
-   * Lista clientes activos
+   * Lista todos los clientes activos de WireGuard y Outline.
+   * @param {import('telegraf').Context} ctx - Contexto del bot Telegraf
    */
   async handleListClients(ctx) {
+    const userId = ctx.from?.id;
+    const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
+
     await ctx.answerCbQuery();
-    await ctx.reply('🔍 Consultando clientes activos...');
-    
+    await ctx.reply('🔍 Consultando clientes activos...', { parse_mode: 'MarkdownV2' });
+
     try {
       const [wgClients, outlineKeys] = await Promise.all([
         WireGuardService.listClients(),
         OutlineService.listAccessKeys()
       ]);
-      
+
       const message = formatters.formatClientsList(wgClients, outlineKeys);
-      await ctx.reply(message, { parse_mode: 'Markdown' });
-      
+      await ctx.reply(message, { parse_mode: 'MarkdownV2' });
+
+      logger.info(userId, 'list_clients', {
+        wireguard_clients: wgClients.length,
+        outline_keys: outlineKeys.length
+      });
     } catch (error) {
-      console.error('List clients error:', error);
-      ctx.reply(messages.ERROR_LIST_CLIENTS);
+      logger.error('handleListClients', error, { userId, userName });
+      await ctx.reply(messages.ERROR_LIST_CLIENTS, { parse_mode: 'MarkdownV2' });
     }
   }
 }

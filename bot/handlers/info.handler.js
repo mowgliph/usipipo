@@ -1,59 +1,74 @@
 // handlers/info.handler.js
 const OutlineService = require('../services/outline.service');
 const messages = require('../utils/messages');
-const { isAuthorized } = require('../middleware/auth.middleware');
-const { isAdmin } = require('../middleware/auth.middleware'); 
+const { isAuthorized, isAdmin } = require('../middleware/auth.middleware');
+const logger = require('../utils/logger');
 
+/**
+ * Handler de información del sistema y ayuda del bot.
+ * Incluye estado del servidor, guía de uso y lista de comandos.
+ */
 class InfoHandler {
   /**
-   * Muestra estado del servidor
+   * Obtiene y muestra el estado del servidor (WireGuard + Outline).
+   * @param {import('telegraf').Context} ctx
    */
   async handleServerStatus(ctx) {
-    await ctx.answerCbQuery();
-    
+    const userId = ctx.from?.id;
+    await ctx.answerCbQuery?.();
+
     try {
       const outlineInfo = await OutlineService.getServerInfo();
-      await ctx.reply(messages.SERVER_STATUS(outlineInfo), { parse_mode: 'Markdown' });
-      
+      await ctx.reply(messages.SERVER_STATUS(outlineInfo), {
+        parse_mode: 'MarkdownV2'
+      });
+
+      logger.info(userId, 'handleServerStatus', { status: 'success' });
     } catch (error) {
-      ctx.reply(messages.ERROR_SERVER_STATUS);
+      logger.error('InfoHandler.handleServerStatus', error, { userId });
+      await ctx.reply(messages.ERROR_SERVER_STATUS, { parse_mode: 'MarkdownV2' });
     }
   }
 
   /**
-   * Muestra ayuda
+   * Muestra mensaje de ayuda contextual según el rol del usuario.
+   * @param {import('telegraf').Context} ctx
    */
   async handleHelp(ctx) {
-    if (ctx.updateType === 'callback_query') {
-      await ctx.answerCbQuery();
-    }
-    
-    const userId = ctx.from.id.toString();
-    const message = isAuthorized(userId) 
-      ? messages.HELP_AUTHORIZED 
+    await ctx.answerCbQuery?.();
+
+    const userId = ctx.from?.id?.toString();
+    const message = isAuthorized(userId)
+      ? messages.HELP_AUTHORIZED
       : messages.HELP_UNAUTHORIZED;
-    
-    return ctx.reply(message, { parse_mode: 'Markdown' });
+
+    try {
+      await ctx.reply(message, { parse_mode: 'MarkdownV2' });
+      logger.info(userId, 'handleHelp', { authorized: isAuthorized(userId) });
+    } catch (error) {
+      logger.error('InfoHandler.handleHelp', error, { userId });
+    }
   }
-  
+
   /**
-   * Maneja el comando /comandos
+   * Muestra la lista de comandos disponibles para el usuario actual.
+   * @param {import('telegraf').Context} ctx
    */
   async handleCommandList(ctx) {
+    const userId = ctx.from?.id;
+
     try {
-      const userId = ctx.from.id;
-      // Verificamos si es admin usando la utilidad existente
       const isUserAdmin = isAdmin(userId);
-      
       await ctx.reply(messages.COMMANDS_LIST(isUserAdmin), {
-        parse_mode: 'Markdown'
+        parse_mode: 'MarkdownV2'
       });
+
+      logger.info(userId, 'handleCommandList', { isAdmin: isUserAdmin });
     } catch (error) {
-      console.error('Error en handleCommandList:', error);
-      ctx.reply('⚠️ Error al mostrar los comandos.');
+      logger.error('InfoHandler.handleCommandList', error, { userId });
+      await ctx.reply('⚠️ Error al mostrar los comandos.');
     }
   }
-  
 }
 
 module.exports = InfoHandler;
