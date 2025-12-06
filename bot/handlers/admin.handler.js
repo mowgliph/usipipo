@@ -492,7 +492,7 @@ ${messageText}
       recipients
     );
 
-    const successRate = ((results.success / recipients.length) * 100).toFixed(1);
+        const successRate = ((results.success / recipients.length) * 100).toFixed(1);
     await ctx.editMessageText(
       `📢 ${bold('BROADCAST COMPLETADO')}
 
@@ -505,12 +505,11 @@ ${messageText}
 
 ` +
       `${bold('Hora:')} ${new Date().toLocaleString('es-ES')}` +
-      (results.failed > 0 ? '
-
-⚠️ Algunos usuarios bloquearon el bot.' : ''),
+      (results.failed > 0 ? '\n\n⚠️ Algunos usuarios bloquearon el bot.' : ''),
       { parse_mode: 'MarkdownV2' }
     );
   }
+
 
   #getBroadcastRecipients(users, target) {
     switch (target) {
