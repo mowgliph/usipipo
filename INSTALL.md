@@ -2,7 +2,7 @@
 
 **Sistema integrado de gestión de VPN con Telegram Bot**
 
-Esta guía te llevará paso a paso desde un servidor limpio hasta tener el bot completamente funcional.
+Esta guía proporciona instrucciones detalladas y secuenciales para la instalación de uSipipo VPN Bot en un servidor Ubuntu 22.04 LTS, desde un entorno limpio hasta un despliegue completamente funcional. Se recomienda seguir cada paso con precisión para garantizar la integridad del sistema.
 
 ---
 
@@ -22,56 +22,54 @@ Esta guía te llevará paso a paso desde un servidor limpio hasta tener el bot c
 
 ## 🔧 Requisitos Previos
 
-**Hardware mínimo recomendado:**
+### Hardware Mínimo Recomendado
+- Servidor VPS con Ubuntu 22.04 LTS.
+- 2 GB de RAM (4 GB recomendado para rendimiento óptimo).
+- 20 GB de almacenamiento SSD.
+- 1 núcleo de CPU (2 o más recomendado).
+- Dirección IP pública estática.
 
-- VPS/Servidor con Ubuntu 22.04 LTS
-- 2 GB de RAM (4 GB recomendado)
-- 20 GB de almacenamiento
-- 1 CPU core (2+ recomendado)
-- Dirección IP pública estática
+### Software Necesario
+- Acceso root o con privilegios sudo al servidor.
+- Conexión SSH configurada y segura.
+- Puertos disponibles: 51820/UDP (WireGuard), puerto aleatorio para API de Outline, puerto aleatorio para interfaz web de Pi-hole.
 
-**Software necesario:**
-
-- Acceso root o sudo al servidor
-- Conexión SSH configurada
-- Puertos disponibles: 51820 (WireGuard), API Outline (aleatorio), Pi-hole Web (aleatorio)
-
-**Servicios externos:**
-
-- Cuenta de Telegram
-- Bot de Telegram creado vía [@BotFather](https://t.me/BotFather)
+### Servicios Externos
+- Cuenta de Telegram activa.
+- Bot de Telegram creado mediante [@BotFather](https://t.me/BotFather).
 
 ---
 
 ## 🖥️ Preparación del Servidor
 
-### Paso 1: Actualizar el sistema
-
-Conecta a tu servidor vía SSH y ejecuta:
+### Paso 1: Actualización del Sistema
+Conéctese al servidor mediante SSH y ejecute el siguiente comando para actualizar los paquetes del sistema:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 ```
 
-### Paso 2: Instalar dependencias básicas
+### Paso 2: Instalación de Dependencias Básicas
+Instale las herramientas esenciales requeridas:
 
 ```bash
 sudo apt install -y curl git wget nano ufw
 ```
 
-### Paso 3: Configurar firewall básico
+### Paso 3: Configuración del Firewall Básico
+Configure reglas iniciales en UFW para seguridad:
 
 ```bash
-# Permitir SSH
+# Permitir acceso SSH
 sudo ufw allow 22/tcp
 
-# Permitir WireGuard (el puerto se configurará dinámicamente)
+# Permitir tráfico WireGuard
 sudo ufw allow 51820/udp
 
-# Habilitar firewall
+# Habilitar el firewall
 sudo ufw --force enable
 
-# Verificar estado
+# Verificar el estado
 sudo ufw status
 ```
 
@@ -79,54 +77,52 @@ sudo ufw status
 
 ## 🐳 Instalación de Docker
 
-### Opción A: Usando el script automatizado
-
-El proyecto incluye un script que instala Docker automáticamente:
+### Opción A: Script Automatizado
+El repositorio incluye un script para la instalación automatizada de Docker. Proceda de la siguiente manera:
 
 ```bash
 # Clonar el repositorio
 git clone https://github.com/mowgliph/usipipo.git
 cd usipipo
 
-# Dar permisos de ejecución
+# Otorgar permisos de ejecución
 chmod +x docker.sh
 
-# Ejecutar instalación de Docker
+# Ejecutar el script de instalación
 ./docker.sh
-# Selecciona la opción 1 del menú
+# Seleccione la opción 1 en el menú interactivo.
 ```
 
-### Opción B: Instalación manual de Docker
-
-Si prefieres hacerlo manualmente:
+### Opción B: Instalación Manual
+Si prefiere una instalación manual, siga estos pasos:
 
 ```bash
-# Eliminar versiones antiguas
+# Eliminar versiones antiguas de Docker
 sudo apt remove docker docker-engine docker.io containerd runc
 
-# Instalar dependencias
+# Instalar dependencias previas
 sudo apt install -y ca-certificates curl gnupg lsb-release
 
 # Agregar clave GPG oficial de Docker
 sudo mkdir -p /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
-# Configurar repositorio
+# Configurar repositorio oficial
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
   $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-# Instalar Docker Engine
+# Actualizar repositorios e instalar Docker Engine
 sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# Agregar usuario actual al grupo docker
+# Agregar el usuario actual al grupo docker
 sudo usermod -aG docker $USER
 
-# Aplicar cambios de grupo (o reiniciar sesión SSH)
+# Aplicar cambios de grupo (o reinicie la sesión SSH)
 newgrp docker
 
-# Verificar instalación
+# Verificar la instalación
 docker --version
 docker compose version
 ```
@@ -135,9 +131,8 @@ docker compose version
 
 ## 🔐 Configuración de Servicios VPN
 
-### Paso 1: Preparar directorio del proyecto
-
-Si aún no has clonado el repositorio:
+### Paso 1: Preparación del Directorio del Proyecto
+Si no ha clonado el repositorio previamente:
 
 ```bash
 cd ~
@@ -145,26 +140,23 @@ git clone https://github.com/mowgliph/usipipo.git
 cd usipipo
 ```
 
-### Paso 2: Iniciar servicios Docker
-
-Ejecuta el script de instalación:
+### Paso 2: Inicio de Servicios Docker
+Ejecute el script de instalación para inicializar los servicios:
 
 ```bash
 ./docker.sh
-# Selecciona la opción 2: "Start VPN Services"
+# Seleccione la opción 2: "Start VPN Services".
 ```
 
-El script realizará automáticamente:
+El script automatizará los siguientes procesos:
+- Detección de la IP pública del servidor.
+- Generación de certificados SSL para Outline.
+- Creación de la configuración de WireGuard.
+- Configuración de Pi-hole con DNS personalizado.
+- Asignación de puertos aleatorios para mayor seguridad.
 
-- Detección de tu IP pública
-- Generación de certificados SSL para Outline
-- Creación de configuración WireGuard
-- Configuración de Pi-hole con DNS personalizado
-- Asignación de puertos aleatorios para seguridad
-
-**Salida esperada:**
-
-Al finalizar, verás algo similar a:
+**Salida Esperada:**
+Al finalizar, se mostrará información similar a la siguiente:
 
 ```
 ═══════════════════════════════════════════════════════════════════════════════
@@ -185,65 +177,98 @@ Al finalizar, verás algo similar a:
    └─ Manager Config: {"apiUrl":"https://123.45.67.89:54321/SECRET123","certSha256":"ABC123..."}
 ```
 
-**Importante:** Guarda toda esta información, la necesitarás para el archivo `.env` del bot.
+**Nota Importante:** Registre esta información, ya que será requerida para la configuración del archivo `.env` del bot.
 
-### Paso 3: Extraer clave pública de WireGuard
+### Paso 3: Extracción de la Clave Pública de WireGuard
+Ejecute el siguiente comando para obtener la clave pública del servidor WireGuard:
 
 ```bash
 docker exec wireguard cat /config/server/publickey
 ```
 
-Copia esta clave, la necesitarás en el siguiente paso.
+Copie esta clave para su uso posterior.
 
 ---
 
 ## 🤖 Instalación del Bot de Telegram
 
-### Paso 1: Crear Bot en Telegram
+### Paso 1: Creación del Bot en Telegram
+1. Inicie Telegram y contacte a [@BotFather](https://t.me/BotFather).
+2. Envía el comando `/newbot`.
+3. Siga las instrucciones para asignar un nombre y un nombre de usuario único.
+4. **Registre el token proporcionado** (formato: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`).
 
-1. Abre Telegram y busca [@BotFather](https://t.me/BotFather)
-2. Envía el comando `/newbot`
-3. Sigue las instrucciones para asignar nombre y username
-4. **Guarda el token** que te proporciona (formato: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+### Paso 2: Obtención del ID de Usuario de Telegram
+1. Contacte al bot [@userinfobot](https://t.me/userinfobot) en Telegram.
+2. Envía el comando `/start`.
+3. **Registre su ID numérico** (formato: `123456789`).
 
-### Paso 2: Obtener tu ID de Telegram
-
-1. Busca el bot [@userinfobot](https://t.me/userinfobot) en Telegram
-2. Envía `/start`
-3. **Guarda tu ID** (formato numérico: `123456789`)
-
-### Paso 3: Instalar Node.js 18+
+### Paso 3: Instalación de Node.js 18 o Superior
+Instale Node.js mediante el repositorio NodeSource:
 
 ```bash
-# Instalar Node.js usando NodeSource
+# Configurar repositorio NodeSource
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+
+# Instalar Node.js
 sudo apt install -y nodejs
 
-# Verificar instalación
-node --version  # Debe ser v18.x o superior
+# Verificar la instalación
+node --version  # Debe mostrar v18.x o superior
 npm --version
 ```
 
-### Paso 4: Instalar dependencias del bot
+### Paso 4: Instalación de Dependencias del Bot
+Navegue al directorio del bot e instale las dependencias:
 
 ```bash
 cd ~/usipipo/bot
 npm install
 ```
 
-Esto instalará las dependencias definidas en `package.json`:
+Esto instalará las bibliotecas especificadas en `package.json`:
+- `telegraf`: Framework para el desarrollo de bots de Telegram.
+- `axios`: Cliente HTTP para integraciones con APIs.
+- `dotenv`: Gestión de variables de entorno.
+- `uuid`: Generación de identificadores únicos.
 
-- `telegraf`: Framework para bots de Telegram
-- `axios`: Cliente HTTP para llamadas API
-- `dotenv`: Gestión de variables de entorno
-- `uuid`: Generación de identificadores únicos
+### Instalación y Configuración del Logger (Winston)
+El proyecto utiliza Winston para logging estructurado con rotación diaria y sanitización de datos sensibles.
+
+#### Paso 1: Instalación de Dependencias de Winston
+Desde el directorio del bot (`~/usipipo/bot`), ejecute:
+
+```bash
+npm install winston winston-daily-rotate-file
+```
+
+Esto instala:
+- `winston`: Librería principal de logging con soporte para múltiples niveles.
+- `winston-daily-rotate-file`: Plugin para rotación automática de logs diarios.
+
+#### Paso 2: Creación del Directorio de Logs
+```bash
+mkdir -p ~/usipipo/logs
+```
+
+#### Paso 3: Configuración del Nivel de Logging (Opcional)
+Agregue la siguiente línea al archivo `.env` (se configurará en detalle más adelante):
+
+```
+LOG_LEVEL=info  # Opciones disponibles: error, warn, info, http, verbose, debug, silly
+```
+
+#### Paso 4: Verificación de Integración
+El módulo `utils/logger.js` está preintegrado en el código y se activará automáticamente al reiniciar el bot. Los logs se almacenarán en:
+
+- `~/usipipo/logs/app-YYYY-MM-DD.log`
+- `~/usipipo/logs/errors-YYYY-MM-DD.log`
 
 ---
 
 ## ⚙️ Configuración de Variables de Entorno
 
-### Paso 1: Crear archivo .env
-
+### Paso 1: Creación del Archivo `.env`
 Desde el directorio raíz del proyecto:
 
 ```bash
@@ -252,43 +277,42 @@ cp example.env .env
 nano .env
 ```
 
-### Paso 2: Completar configuración
+### Paso 2: Completar la Configuración
+Edite el archivo `.env` con los valores obtenidos en pasos previos:
 
-Edita el archivo `.env` con los valores obtenidos anteriormente:
-
-```bash
+```
 # ========== TELEGRAM BOT ==========
 TELEGRAM_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-AUTHORIZED_USERS=123456789  # Tu ID de Telegram (primer usuario será admin)
+AUTHORIZED_USERS=123456789  # ID de Telegram del administrador (primer usuario)
 
 # ========== SERVER CONFIGURATION ==========
-SERVER_IPV4=123.45.67.89  # Tu IP pública del servidor
-SERVER_IPV6=  # Opcional, dejar vacío si no tienes IPv6
-SERVER_IP=123.45.67.89  # Misma que SERVER_IPV4
+SERVER_IPV4=123.45.67.89  # IP pública del servidor
+SERVER_IPV6=  # Opcional; deje vacío si no aplica IPv6
+SERVER_IP=123.45.67.89  # Igual a SERVER_IPV4
 
 # ========== PI-HOLE ==========
-PIHOLE_WEB_PORT=12345  # Puerto mostrado en el script de instalación
-PIHOLE_WEBPASS=abc123xyz456  # Password generado automáticamente
-PIHOLE_DNS=123.45.67.89  # Usar SERVER_IPV4
+PIHOLE_WEB_PORT=12345  # Puerto asignado durante la instalación
+PIHOLE_WEBPASS=abc123xyz456  # Contraseña generada automáticamente
+PIHOLE_DNS=123.45.67.89  # Utilice SERVER_IPV4
 
 # ========== WIREGUARD ==========
-WIREGUARD_PORT=51820  # Puerto mostrado en el script
-WIREGUARD_SERVER_PUBLIC_KEY=ABCDEFGHabcdefgh1234567890...  # Clave extraída anteriormente
-WIREGUARD_ENDPOINT=123.45.67.89:51820  # IP:Puerto
+WIREGUARD_PORT=51820  # Puerto asignado
+WIREGUARD_SERVER_PUBLIC_KEY=ABCDEFGHabcdefgh1234567890...  # Clave extraída
+WIREGUARD_ENDPOINT=123.45.67.89:51820  # IP:puerto
 WIREGUARD_PATH=/config/wg0.conf  # Ruta por defecto
 
 # ========== OUTLINE ==========
 OUTLINE_API_URL=https://123.45.67.89:54321/SECRET123  # URL del Manager Config
-OUTLINE_API_SECRET=SECRET123  # Parte final de la URL
-OUTLINE_API_PORT=54321  # Puerto mostrado en el script
+OUTLINE_API_SECRET=SECRET123  # Secreto de la API (parte final de la URL)
+OUTLINE_API_PORT=54321  # Puerto asignado
 
 # ========== GENERAL ==========
-PRESERVE_CERTS=true  # Mantener certificados SSL entre reinicios
+PRESERVE_CERTS=true  # Preservar certificados SSL entre reinicios
 ```
 
-**Ejemplo completo:**
+**Ejemplo Completo de `.env`:**
 
-```bash
+```
 TELEGRAM_TOKEN=7234567890:AAHdF4G5hJ9kL2mNoPqR6sTuVwXyZ0123AB
 AUTHORIZED_USERS=987654321
 
@@ -303,7 +327,7 @@ PIHOLE_DNS=203.0.113.45
 WIREGUARD_PORT=51820
 WIREGUARD_SERVER_PUBLIC_KEY=8Lq3Nh5TpU7vW9xY0zA1bC2dE3fG4hI5jK6lM7nO8pQ=
 WIREGUARD_ENDPOINT=203.0.113.45:51820
-WIREGUARD_PATH=/config/wg0.conf
+WIREGUARD_PATH=/config/wg_confs/wg0.conf
 
 OUTLINE_API_URL=https://203.0.113.45:34567/ABcDef1234
 OUTLINE_API_SECRET=ABcDef1234
@@ -312,10 +336,10 @@ OUTLINE_API_PORT=34567
 PRESERVE_CERTS=true
 ```
 
-### Paso 3: Validar sintaxis
+### Paso 3: Validación de Sintaxis
+Verifique la integridad del archivo `.env`:
 
 ```bash
-# Verificar que no haya errores de sintaxis
 node -e "require('dotenv').config(); console.log('✅ .env válido')"
 ```
 
@@ -323,23 +347,21 @@ node -e "require('dotenv').config(); console.log('✅ .env válido')"
 
 ## 🚀 Despliegue con PM2
 
-PM2 es un gestor de procesos que mantiene el bot ejecutándose permanentemente, incluso después de reinicios del servidor.
+PM2 es un gestor de procesos robusto que asegura la ejecución continua del bot, incluso tras reinicios del servidor.
 
-### Paso 1: Instalar PM2 globalmente
-
+### Paso 1: Instalación Global de PM2
 ```bash
 sudo npm install -g pm2
 ```
 
-### Paso 2: Crear archivo de configuración PM2
-
+### Paso 2: Creación del Archivo de Configuración de PM2
 Desde el directorio raíz del proyecto:
 
 ```bash
 nano ecosystem.config.js
 ```
 
-Pega el siguiente contenido:
+Inserte el siguiente contenido:
 
 ```javascript
 module.exports = {
@@ -363,56 +385,52 @@ module.exports = {
 };
 ```
 
-**Ajustar ruta si es necesario:** Cambia `/root/usipipo` por la ruta real donde clonaste el repositorio.
+**Ajuste de Ruta:** Modifique `/root/usipipo` según la ubicación real del repositorio.
 
-### Paso 3: Crear directorio de logs
-
+### Paso 3: Creación del Directorio de Logs
 ```bash
 mkdir -p ~/usipipo/logs
 ```
 
-### Paso 4: Iniciar el bot con PM2
-
+### Paso 4: Inicio del Bot con PM2
 ```bash
 cd ~/usipipo
 pm2 start ecosystem.config.js
 ```
 
-### Paso 5: Configurar PM2 para inicio automático
-
+### Paso 5: Configuración para Inicio Automático
 ```bash
-# Guardar configuración actual
+# Guardar la configuración actual
 pm2 save
 
 # Generar script de inicio automático
 pm2 startup systemd
 
-# Ejecutar el comando que PM2 te muestre (será similar a):
+# Ejecutar el comando generado por PM2 (ejemplo aproximado):
 sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u $USER --hp $HOME
 ```
 
-### Paso 6: Comandos útiles de PM2
-
+### Paso 6: Comandos Útiles de PM2
 ```bash
-# Ver estado del bot
+# Estado del proceso
 pm2 status
 
-# Ver logs en tiempo real
+# Logs en tiempo real
 pm2 logs usipipo
 
-# Ver logs de errores únicamente
+# Logs de errores
 pm2 logs usipipo --err
 
-# Reiniciar el bot
+# Reinicio
 pm2 restart usipipo
 
-# Detener el bot
+# Detención
 pm2 stop usipipo
 
-# Eliminar del PM2 (no elimina archivos)
+# Eliminación (sin borrar archivos)
 pm2 delete usipipo
 
-# Monitorear recursos
+# Monitoreo de recursos
 pm2 monit
 ```
 
@@ -420,13 +438,12 @@ pm2 monit
 
 ## ✅ Verificación y Pruebas
 
-### Paso 1: Verificar que el bot está ejecutándose
-
+### Paso 1: Verificación del Estado del Bot
 ```bash
 pm2 status
 ```
 
-Deberías ver algo como:
+Salida esperada:
 
 ```
 ┌─────┬────────────────────┬─────────┬─────────┬─────────┬──────────┐
@@ -436,13 +453,12 @@ Deberías ver algo como:
 └─────┴────────────────────┴─────────┴─────────┴─────────┴──────────┘
 ```
 
-### Paso 2: Verificar logs del bot
-
+### Paso 2: Revisión de Logs del Bot
 ```bash
 pm2 logs usipipo --lines 50
 ```
 
-Deberías ver:
+Salida esperada:
 
 ```
 🚀 uSipipo VPN Bot iniciado exitosamente
@@ -451,24 +467,22 @@ Deberías ver:
 🌍 Servidor: 203.0.113.45:51820
 ```
 
-### Paso 3: Probar el bot en Telegram
-
-1. Abre Telegram y busca tu bot por su username (ejemplo: `@usipipo`)
-2. Envía el comando `/start`
-3. Deberías recibir el menú principal con opciones:
+### Paso 3: Prueba en Telegram
+1. Busque el bot en Telegram por su nombre de usuario (ej.: `@usipipo`).
+2. Envía `/start`.
+3. Verifique la recepción del menú principal con opciones como:
    - 🔐 Crear WireGuard
    - 🌐 Crear Outline
    - 📊 Ver Clientes Activos
    - ℹ️ Estado del Servidor
    - ❓ Ayuda
 
-### Paso 4: Verificar servicios Docker
-
+### Paso 4: Verificación de Servicios Docker
 ```bash
 docker compose ps
 ```
 
-Deberías ver todos los contenedores en estado `Up`:
+Salida esperada (todos en estado `Up`):
 
 ```
 NAME                IMAGE                              STATUS
@@ -477,31 +491,24 @@ pihole              pihole/pihole:latest               Up 5 minutes (healthy)
 wireguard           linuxserver/wireguard:latest       Up 5 minutes
 ```
 
-### Paso 5: Probar creación de configuración VPN
-
-Desde el bot de Telegram:
-
-1. Toca **"🔐 Crear WireGuard"**
-2. Deberías recibir:
-   - Archivo `.conf` descargable
-   - Código QR para escanear
-   - Instrucciones de conexión
-
-3. Toca **"🌐 Crear Outline"**
-4. Deberías recibir:
-   - Enlace de acceso (`ss://...`)
-   - Instrucciones de instalación
+### Paso 5: Prueba de Creación de Configuraciones VPN
+Desde el bot en Telegram:
+1. Seleccione **"🔐 Crear WireGuard"** y verifique la recepción de:
+   - Archivo `.conf` descargable.
+   - Código QR.
+   - Instrucciones de conexión.
+2. Seleccione **"🌐 Crear Outline"** y verifique la recepción de:
+   - Enlace de acceso (`ss://...`).
+   - Instrucciones de instalación.
 
 ---
 
 ## 🛠️ Mantenimiento y Troubleshooting
 
-### Comandos de diagnóstico
-
-**Ver estado general del sistema:**
-
+### Comandos de Diagnóstico
+**Estado General del Sistema:**
 ```bash
-# Estado de servicios Docker
+# Servicios Docker
 docker compose ps
 
 # Estado del bot
@@ -514,105 +521,82 @@ docker compose logs --tail=100
 pm2 logs usipipo --lines 100
 ```
 
-### Problemas comunes
+### Problemas Comunes
 
-#### 🔴 El bot no responde en Telegram
-
+#### 🔴 El Bot No Responde en Telegram
 **Diagnóstico:**
-
 ```bash
 pm2 logs usipipo --err
 ```
 
 **Soluciones:**
-
-1. Verificar que el token sea correcto en `.env`
-2. Verificar conexión a internet del servidor:
+1. Verifique la validez del token en `.env`.
+2. Pruebe la conectividad a la API de Telegram:
    ```bash
    curl -I https://api.telegram.org
    ```
-3. Reiniciar el bot:
+3. Reinície el bot:
    ```bash
    pm2 restart usipipo
    ```
 
 #### 🔴 Error: "WIREGUARD_SERVER_PUBLIC_KEY not found"
-
 **Solución:**
-
 ```bash
-# Extraer la clave correcta
+# Extraer clave correcta
 docker exec wireguard cat /config/server/publickey
 
-# Agregar al .env
-nano ~/usipipo-vpn-bot/.env
-# Pegar la clave en WIREGUARD_SERVER_PUBLIC_KEY=...
+# Editar .env
+nano ~/usipipo/.env
+# Actualice WIREGUARD_SERVER_PUBLIC_KEY=...
 
-# Reiniciar bot
+# Reiniciar
 pm2 restart usipipo
 ```
 
 #### 🔴 Error: "Outline API connection failed"
-
 **Diagnóstico:**
-
 ```bash
 docker logs outline --tail 50
 ```
 
 **Soluciones:**
-
-1. Verificar que el contenedor Outline esté corriendo:
+1. Reinície el contenedor:
    ```bash
    docker compose restart outline
    ```
-
-2. Regenerar certificados SSL:
-   ```bash
-   # Editar .env y cambiar PRESERVE_CERTS a false
-   nano .env
-   # PRESERVE_CERTS=false
-
-   # Reiniciar servicios
-   ./docker.sh
-   # Opción 4: Stop Services
-   # Opción 2: Start Services
-   ```
-
-3. Verificar conectividad al API:
+2. Regenerar certificados:
+   - Edite `.env` y establezca `PRESERVE_CERTS=false`.
+   - Ejecute `./docker.sh` (opciones 4 y luego 2).
+3. Verifique conectividad:
    ```bash
    curl -k https://localhost:${OUTLINE_API_PORT}
    ```
 
-#### 🔴 WireGuard no genera configuraciones
-
+#### 🔴 WireGuard No Genera Configuraciones
 **Diagnóstico:**
-
 ```bash
 docker exec wireguard wg show
 ```
 
 **Soluciones:**
-
-1. Verificar permisos del contenedor:
+1. Reinície el contenedor:
    ```bash
    docker compose restart wireguard
    ```
-
-2. Verificar espacio disponible de IPs:
+2. Verifique rango de IPs:
    ```bash
    docker exec wireguard cat /config/wg0.conf | grep AllowedIPs
    ```
 
-### Actualizar el bot
-
+### Actualización del Bot
 ```bash
-cd ~/usipipo-vpn-bot
+cd ~/usipipo
 
-# Guardar cambios locales (si los hay)
+# Respaldar configuración local
 cp .env .env.backup
 
-# Descargar última versión
+# Actualizar repositorio
 git pull origin main
 
 # Restaurar configuración
@@ -622,19 +606,17 @@ cp .env.backup .env
 cd bot
 npm install
 
-# Reiniciar con PM2
+# Reiniciar
 pm2 restart usipipo
 ```
 
-### Backup de configuración
-
-**Crear backup:**
-
+### Backup de Configuración
+**Creación de Backup:**
 ```bash
-# Crear directorio de backups
+# Crear directorio
 mkdir -p ~/backups
 
-# Backup de configuración
+# Generar backup
 tar -czf ~/backups/usipipo-backup-$(date +%Y%m%d).tar.gz \
   ~/usipipo/.env \
   ~/usipipo/bot/data/authorized_users.json \
@@ -644,44 +626,39 @@ tar -czf ~/backups/usipipo-backup-$(date +%Y%m%d).tar.gz \
 ls -lh ~/backups/
 ```
 
-**Restaurar backup:**
-
+**Restauración de Backup:**
 ```bash
 # Detener servicios
 pm2 stop usipipo
 docker compose down
 
-# Extraer backup
+# Extraer
 tar -xzf ~/backups/usipipo-backup-YYYYMMDD.tar.gz -C ~/
 
-# Reiniciar servicios
+# Reiniciar
 docker compose up -d
 pm2 restart usipipo
 ```
 
-### Monitoreo de recursos
-
+### Monitoreo de Recursos
 ```bash
-# Uso de CPU y RAM por contenedor
+# Estadísticas de contenedores
 docker stats
 
 # Uso de disco
 df -h
 
-# Procesos del sistema
-htop  # Si no está instalado: sudo apt install htop
+# Procesos del sistema (instale htop si es necesario: sudo apt install htop)
+htop
 ```
 
-### Logs importantes
-
-**Ubicaciones de logs:**
-
+### Ubicaciones de Logs
 ```bash
-# Logs del bot (PM2)
+# Logs PM2
 ~/usipipo/logs/pm2-out.log
 ~/usipipo/logs/pm2-error.log
 
-# Logs de Docker
+# Logs Docker
 docker compose logs -f outline
 docker compose logs -f wireguard
 docker compose logs -f pihole
@@ -694,42 +671,29 @@ docker compose logs -f pihole
 
 ## 📞 Soporte
 
-**Documentación adicional:**
+### Documentación Adicional
+- [Telegraf](https://telegrafjs.org/)
+- [WireGuard](https://www.wireguard.com/)
+- [Outline](https://getoutline.org/)
+- [Pi-hole](https://docs.pi-hole.net/)
+- [PM2](https://pm2.keymetrics.io/)
 
-- [Documentación de Telegraf](https://telegrafjs.org/)
-- [Documentación de WireGuard](https://www.wireguard.com/)
-- [Documentación de Outline](https://getoutline.org/)
-- [Documentación de Pi-hole](https://docs.pi-hole.net/)
-- [Documentación de PM2](https://pm2.keymetrics.io/)
-
-**Contacto:**
-
-- Email: usipipo@etlgr.com
-- Issues: [GitHub Issues](https://github.com/mowgliph/usipipo/issues)
+### Contacto
+- Correo electrónico: usipipo@etlgr.com
+- Reporte de incidencias: [GitHub Issues](https://github.com/mowgliph/usipipo/issues)
 
 ---
 
 ## ✨ Siguientes Pasos
 
-Una vez que el bot esté funcionando correctamente:
+Tras la verificación exitosa:
+1. **Agregar Usuarios Autorizados:** Solicite IDs de Telegram a usuarios (usando `/miinfo` en el bot) y ejecute `/agregar [ID] [nombre_opcional]` como administrador.
+2. **Configurar Límites de Datos en Outline:** Edite `bot/config/constants.js` para modificar `OUTLINE_DEFAULT_DATA_LIMIT`.
+3. **Personalizar Mensajes:** Modifique `bot/utils/messages.js` para adaptar textos.
+4. **Monitorear Uso:** Utilice `/stats` o **"📊 Ver Clientes Activos"** para estadísticas.
+5. **Backups Automáticos:** Cree un script crontab para backups diarios:
 
-1. **Agregar más usuarios autorizados:**
-   - Los usuarios deben enviarte su ID de Telegram (comando `/miinfo` en el bot)
-   - Ejecuta `/agregar [ID] [nombre_opcional]` desde tu cuenta de admin
-
-2. **Configurar límites de datos en Outline:**
-   - Edita `bot/config/constants.js` para cambiar `OUTLINE_DEFAULT_DATA_LIMIT`
-
-3. **Personalizar mensajes del bot:**
-   - Edita `bot/utils/messages.js` para cambiar textos
-
-4. **Monitorear uso:**
-   - Usa el comando `/stats` en el bot para ver estadísticas
-   - Comando `📊 Ver Clientes Activos` para ver conexiones
-
-5. **Configurar backups automáticos:**
    ```bash
-   # Crear script de backup diario
    sudo nano /etc/cron.daily/usipipo-backup
    ```
 
@@ -740,11 +704,11 @@ Una vez que el bot esté funcionando correctamente:
      /root/usipipo/.env \
      /root/usipipo/bot/data/authorized_users.json
    
-   # Mantener solo últimos 7 backups
+   # Retener solo últimos 7 días
    find /root/backups -name "usipipo-backup-*.tar.gz" -mtime +7 -delete
    ```
 
-   Dar permisos:
+   Permisos:
    ```bash
    sudo chmod +x /etc/cron.daily/usipipo-backup
    ```
@@ -753,10 +717,10 @@ Una vez que el bot esté funcionando correctamente:
 
 ## 📄 Licencia
 
-Este proyecto está bajo licencia MIT. Ver archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto se distribuye bajo la Licencia MIT. Consulte el archivo [LICENSE](LICENSE) para detalles completos.
 
 ---
 
-**¡Instalación completada!** 🎉
+**¡Instalación completada exitosamente!** 🎉
 
-Ahora tienes un sistema VPN completo gestionado desde Telegram con bloqueo de anuncios integrado. Disfruta de tu nueva infraestructura de privacidad.
+Su sistema VPN gestionado mediante Telegram con bloqueo de anuncios integrado está ahora operativo. Asegúrese de monitorear regularmente su infraestructura para mantener la seguridad y el rendimiento óptimos.
