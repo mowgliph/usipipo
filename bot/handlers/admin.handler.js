@@ -220,9 +220,9 @@ class AdminHandler {
       this.pendingBroadcasts.delete(broadcastId);
 
       await ctx.editMessageText(
-        '❌ Broadcast cancelado.
+        `❌ Broadcast cancelado.
 
-Usa /broadcast para crear uno nuevo.',
+Usa /broadcast para crear uno nuevo.`,
         { parse_mode: 'MarkdownV2' }
       );
 
@@ -230,6 +230,7 @@ Usa /broadcast para crear uno nuevo.',
       logger.error('handleBroadcastCancel', error, { broadcastId });
     }
   }
+
 
   /**
    * Comando: /sms [ID] [mensaje] - Mensaje directo
