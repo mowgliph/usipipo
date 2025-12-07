@@ -568,22 +568,6 @@ EOF
     # Esto es vital para que haya internet.
     log_info "Injecting NAT/Masquerade rules into wg0.conf..."
     
-    $DOCKER_CMD run --rm -v wireguard_config:/config lscr.io/linuxserver/wireguard sh -c "
-        mkdir -p /config/wg_confs
-        cat <<EOF > /config/wg_confs/wg0.conf
-[Interface]
-Address = 10.13.13.1
-ListenPort = ${WIREGUARD_PORT}
-PrivateKey = ${WG_PRIV_KEY}
-PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
-
-# Los clientes se añadirán debajo
-EOF
-        chmod 600 /config/wg_confs/wg0.conf
-        echo '${WG_PUB_KEY}' > /config/server_public_key
-    "
-    log_success "WireGuard Server Configured with NAT rules."
 
     # =========================================================================
     # STEP 7: Start Docker Containers
