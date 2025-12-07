@@ -933,8 +933,12 @@ stop_services() {
         CMD="run_sudo docker compose"
     fi
     
+    local WIREGUARD
+    local OUTLINE 
+    local PIHOLE 
+    
     log_info "Stopping containers..."
-    $CMD down
+    $CMD down WIREGUARD OUTLINE PIHOLE
     
     log_success "All services stopped successfully"
     log_info "Data volumes preserved. Use option 2 to restart services."
