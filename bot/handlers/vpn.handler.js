@@ -14,38 +14,43 @@ class VPNHandler {
    */
   async handleCreateWireGuard(ctx) {
     const userId = ctx.from?.id;
-    const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
+    // Sanitizar username: Solo letras y números, fallback a 'UserID'
+    let safeUserName = (ctx.from?.username || ctx.from?.first_name || `User${userId}`).replace(/[^a-zA-Z0-9]/g, '');
+    if (!safeUserName) safeUserName = `User${userId}`;
 
     await ctx.answerCbQuery();
-    // CORREGIDO: parse_mode a HTML
     await ctx.reply(messages.WIREGUARD_CREATING, { parse_mode: 'HTML' });
 
     try {
       const { config, qr, clientIP } = await WireGuardService.createNewClient();
 
+      // CORRECCIÓN 1: Nombre de archivo estricto (ej: UserName_10-13-13-2.conf)
+      // WireGuard odia espacios y caracteres raros en el nombre del archivo.
+      const ipSuffix = clientIP.split('.').pop(); // Obtiene el último octeto (ej: 2)
+      const safeFilename = `${safeUserName}_WG_${ipSuffix}.conf`;
+
       // Enviar archivo de configuración
       await ctx.replyWithDocument(
         {
           source: Buffer.from(config),
-          filename: `wireguard-${clientIP.replace(/\./g, '-')}.conf`
+          filename: safeFilename
         },
         {
           caption: messages.WIREGUARD_SUCCESS(clientIP),
-          parse_mode: 'HTML' // CORREGIDO: HTML para interpretar <b> y <code>
+          parse_mode: 'HTML'
         }
       );
 
-      // CORREGIDO: El bloque de código ``` no funciona en HTML mode.
-      // Usamos la etiqueta <pre> para bloque de código o <code> para inline.
+      // QR Code
       const qrMessage = `<pre>${qr}</pre>`;
       await ctx.reply(qrMessage, { parse_mode: 'HTML' });
 
       // Enviar instrucciones de conexión
       await ctx.reply(messages.WIREGUARD_INSTRUCTIONS, { parse_mode: 'HTML' });
 
-      logger.success(userId, 'create_wireguard', clientIP, { userName, clientIP });
+      logger.success(userId, 'create_wireguard', clientIP, { userName: safeUserName, clientIP });
     } catch (error) {
-      logger.error('handleCreateWireGuard', error, { userId, userName });
+      logger.error('handleCreateWireGuard', error, { userId, userName: safeUserName });
       await ctx.reply(messages.ERROR_WIREGUARD(error.message), { parse_mode: 'HTML' });
     }
   }
@@ -65,7 +70,7 @@ class VPNHandler {
       const accessKey = await OutlineService.createAccessKey(keyName);
 
       const message = messages.OUTLINE_SUCCESS(accessKey);
-      await ctx.reply(message, { parse_mode: 'HTML' }); // CORREGIDO
+      await ctx.reply(message, { parse_mode: 'HTML' });
 
       logger.success(userId, 'create_outline', accessKey.id, { keyName, accessUrl: accessKey.accessUrl });
     } catch (error) {
@@ -82,7 +87,6 @@ class VPNHandler {
     const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
 
     await ctx.answerCbQuery();
-    // Usar HTML para mantener consistencia, aunque este mensaje sea texto plano
     await ctx.reply('⏳ Consultando clientes activos...', { parse_mode: 'HTML' });
 
     try {
@@ -92,7 +96,7 @@ class VPNHandler {
       ]);
 
       const message = formatters.formatClientsList(wgClients, outlineKeys);
-      await ctx.reply(message, { parse_mode: 'HTML' }); // CORREGIDO
+      await ctx.reply(message, { parse_mode: 'HTML' });
 
       logger.info(userId, 'list_clients', {
         wireguard_clients: wgClients.length,

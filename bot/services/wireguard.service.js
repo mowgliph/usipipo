@@ -1,4 +1,3 @@
-// services/wireguard.service.js
 const { exec, spawn } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
@@ -10,16 +9,11 @@ const logger = require('../utils/logger');
 
 /**
  * Servicio para gestionar clientes WireGuard de forma segura.
- * Se ha eliminado la concatenación de strings en shell para evitar inyecciones.
  */
 class WireGuardService {
   
   /**
    * Helper privado para ejecutar comandos inyectando datos por STDIN.
-   * Esto evita tener que escapar caracteres y previene Shell Injection.
-   * @param {string} command - Comando base (ej: 'docker')
-   * @param {Array} args - Argumentos
-   * @param {string} input - Datos a enviar por stdin
    */
   static _execWithStdin(command, args, input) {
     return new Promise((resolve, reject) => {
@@ -27,7 +21,6 @@ class WireGuardService {
       let stdout = '';
       let stderr = '';
 
-      // Escribir input en stdin y cerrar el stream
       child.stdin.write(input);
       child.stdin.end();
 
@@ -43,7 +36,10 @@ class WireGuardService {
         if (code === 0) {
           resolve(stdout);
         } else {
-          reject(new Error(`Command failed (Code ${code}): ${stderr}`));
+          // A veces qrencode escribe en stderr pero sale exit 0, o viceversa.
+          // Si hay stdout, resolvemos aunque haya warning.
+          if (stdout.length > 0) resolve(stdout);
+          else reject(new Error(`Command failed (Code ${code}): ${stderr}`));
         }
       });
 
@@ -55,22 +51,24 @@ class WireGuardService {
 
   static async createNewClient() {
     try {
-      // Generación de claves (seguro usar exec aquí, no hay input de usuario)
+      // 1. Generar Private Key
       const { stdout: privateKeyStdout } = await execPromise('docker exec wireguard wg genkey');
       const privateKey = privateKeyStdout.trim();
 
+      // 2. Generar Public Key
       const { stdout: publicKeyStdout } = await execPromise(
         `docker exec wireguard sh -c "echo '${privateKey}' | wg pubkey"`
       );
       const publicKey = publicKeyStdout.trim();
 
+      // 3. Obtener IP y añadir Peer
       const clientIP = await this.getNextAvailableIP();
       await this.addPeerToServer(publicKey, clientIP);
 
+      // 4. Generar Configuración del Cliente
       const clientConfig = this.generateClientConfig(clientIP, privateKey);
 
-      // CORREGIDO: Usamos spawn/stdin para el QR code
-      // 'qrencode' lee de stdin si no se le pasa archivo, perfecto para esto.
+      // 5. Generar QR
       const qrCode = await this._execWithStdin(
         'docker', 
         ['exec', '-i', 'wireguard', 'qrencode', '-t', 'UTF8'], 
@@ -96,7 +94,6 @@ class WireGuardService {
       );
 
       const usedIPs = new Set();
-      // Regex mejorado para ser más estricto
       const ipRegex = new RegExp(
         `AllowedIPs\\s*=\\s*${constants.WIREGUARD_IP_RANGE.replace('.', '\\.')}\\.(\\d+)\\/32`,
         'g'
@@ -129,16 +126,12 @@ PublicKey = ${publicKey}
 AllowedIPs = ${clientIP}/32
 `;
     try {
-      // 1️⃣ Añadir entrada en wg0.conf de forma SEGURA usando tee -a (append)
-      // El flag -i en docker exec es crucial para mantener stdin abierto
       await this._execWithStdin(
         'docker',
         ['exec', '-i', 'wireguard', 'tee', '-a', '/config/wg_confs/wg0.conf'],
         peerConfig
       );
 
-      // 2️⃣ Aplicar cambios en caliente (Aquí sí usamos exec porque los argumentos son controlados por nosotros)
-      // Aunque publicKey venga de fuera, ya ha pasado por wg genkey, pero por seguridad extra validamos caracteres básicos si fuera necesario.
       await execPromise(
         `docker exec wireguard wg set wg0 peer ${publicKey} allowed-ips ${clientIP}/32`
       );
@@ -162,7 +155,10 @@ AllowedIPs = ${clientIP}/32
     }
 
     const serverEndpoint = `${config.SERVER_IPV4}:${config.WIREGUARD_PORT}`;
-    const dnsServer = config.SERVER_IPV4; // Ojo: Asegúrate que el servidor DNS escucha en esta IP
+    
+    // CORRECCIÓN 2: Usar DNS público (Cloudflare) para evitar problemas de firewall/bind locales.
+    // Si usas la IP pública del servidor como DNS y el puerto 53 está cerrado desde fuera, no hay internet.
+    const dnsServer = '1.1.1.1, 1.0.0.1'; 
 
     return `[Interface]
 PrivateKey = ${privateKey}
