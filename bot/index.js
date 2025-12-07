@@ -2,11 +2,9 @@
 
 require('dotenv').config();
 
-const bot = require('./bot/bot.instance');
+// 1. CORREGIDO: Importamos bot y el servicio compartido
+const { bot, notificationService } = require('./bot/bot.instance');
 const config = require('./config/environment');
-
-// Importamos el servicio de notificaciones para usarlo en el arranque
-const NotificationService = require('./services/notification.service');
 
 // Iniciar bot
 bot
@@ -54,8 +52,8 @@ bot
       console.error('⚠️ Error al actualizar el menú de comandos:', error);
     }
 
-    // Instanciar el servicio de notificación para el mensaje de bienvenida
-    const notificationService = new NotificationService(bot);
+    // 2. CORREGIDO: Ya no instanciamos NotificationService aquí.
+    // Usamos la instancia importada 'notificationService' que comparte estado con los handlers.
 
     // Esperar 2 segundos para asegurar que la conexión a Telegram esté estable
     setTimeout(() => {

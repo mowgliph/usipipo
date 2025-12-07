@@ -1,32 +1,15 @@
-// middleware/auth.middleware.js
 const userManager = require('../services/userManager.service');
 const messages = require('../utils/messages');
 const logger = require('../utils/logger');
 
-/**
- * Verifica si un usuario está autorizado.
- * @param {number|string} userId - ID del usuario.
- * @returns {boolean}
- */
 function isAuthorized(userId) {
   return userManager.isAuthorized(userId);
 }
 
-/**
- * Verifica si un usuario es administrador.
- * @param {number|string} userId - ID del usuario.
- * @returns {boolean}
- */
 function isAdmin(userId) {
   return userManager.isAdmin(userId);
 }
 
-/**
- * Middleware: Requiere autorización de usuario.
- * Si el usuario no está autorizado, detiene el flujo y responde con ACCESS_DENIED.
- * @param {import('telegraf').Context} ctx
- * @param {Function} next
- */
 async function requireAuth(ctx, next) {
   const userId = ctx.from?.id;
   const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
@@ -34,7 +17,8 @@ async function requireAuth(ctx, next) {
   try {
     if (!isAuthorized(userId)) {
       logger.warn('Access denied', { userId, userName });
-      await ctx.reply(messages.ACCESS_DENIED, { parse_mode: 'MarkdownV2' });
+      // CORREGIDO: HTML
+      await ctx.reply(messages.ACCESS_DENIED, { parse_mode: 'HTML' });
       return;
     }
 
@@ -46,12 +30,6 @@ async function requireAuth(ctx, next) {
   }
 }
 
-/**
- * Middleware: Requiere permisos de administrador.
- * Si el usuario no es admin, detiene el flujo y responde con ADMIN_ONLY.
- * @param {import('telegraf').Context} ctx
- * @param {Function} next
- */
 async function requireAdmin(ctx, next) {
   const userId = ctx.from?.id;
   const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
@@ -59,7 +37,8 @@ async function requireAdmin(ctx, next) {
   try {
     if (!isAdmin(userId)) {
       logger.warn('Admin access denied', { userId, userName });
-      await ctx.reply(messages.ADMIN_ONLY, { parse_mode: 'MarkdownV2' });
+      // CORREGIDO: HTML
+      await ctx.reply(messages.ADMIN_ONLY, { parse_mode: 'HTML' });
       return;
     }
 
@@ -71,12 +50,6 @@ async function requireAdmin(ctx, next) {
   }
 }
 
-/**
- * Middleware global de logging contextualizado.
- * Registra ID, nombre, rol y tipo de acción (ctx.type).
- * @param {import('telegraf').Context} ctx
- * @param {Function} next
- */
 async function logUserAction(ctx, next) {
   const userId = ctx.from?.id;
   const firstName = ctx.from?.first_name || 'Unknown';

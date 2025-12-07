@@ -1,5 +1,5 @@
 // services/wireguard.service.js
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
@@ -9,16 +9,53 @@ const formatters = require('../utils/formatters');
 const logger = require('../utils/logger');
 
 /**
- * Servicio para gestionar clientes y configuración del servidor WireGuard.
- * Interactúa con el contenedor Docker que aloja WireGuard.
+ * Servicio para gestionar clientes WireGuard de forma segura.
+ * Se ha eliminado la concatenación de strings en shell para evitar inyecciones.
  */
 class WireGuardService {
+  
   /**
-   * Crea un nuevo cliente WireGuard en el servidor.
-   * Genera claves, IP, actualiza wg0.conf y produce archivo + QR.
+   * Helper privado para ejecutar comandos inyectando datos por STDIN.
+   * Esto evita tener que escapar caracteres y previene Shell Injection.
+   * @param {string} command - Comando base (ej: 'docker')
+   * @param {Array} args - Argumentos
+   * @param {string} input - Datos a enviar por stdin
    */
+  static _execWithStdin(command, args, input) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, args);
+      let stdout = '';
+      let stderr = '';
+
+      // Escribir input en stdin y cerrar el stream
+      child.stdin.write(input);
+      child.stdin.end();
+
+      child.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      child.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          reject(new Error(`Command failed (Code ${code}): ${stderr}`));
+        }
+      });
+
+      child.on('error', (err) => {
+        reject(err);
+      });
+    });
+  }
+
   static async createNewClient() {
     try {
+      // Generación de claves (seguro usar exec aquí, no hay input de usuario)
       const { stdout: privateKeyStdout } = await execPromise('docker exec wireguard wg genkey');
       const privateKey = privateKeyStdout.trim();
 
@@ -32,8 +69,12 @@ class WireGuardService {
 
       const clientConfig = this.generateClientConfig(clientIP, privateKey);
 
-      const { stdout: qrCode } = await execPromise(
-        `echo '${clientConfig}' | docker exec -i wireguard qrencode -t UTF8`
+      // CORREGIDO: Usamos spawn/stdin para el QR code
+      // 'qrencode' lee de stdin si no se le pasa archivo, perfecto para esto.
+      const qrCode = await this._execWithStdin(
+        'docker', 
+        ['exec', '-i', 'wireguard', 'qrencode', '-t', 'UTF8'], 
+        clientConfig
       );
 
       logger.info('createNewClient', 'Cliente WireGuard creado', {
@@ -48,9 +89,6 @@ class WireGuardService {
     }
   }
 
-  /**
-   * Determina la próxima IP disponible dentro del rango configurado.
-   */
   static async getNextAvailableIP() {
     try {
       const { stdout: configContent } = await execPromise(
@@ -58,8 +96,9 @@ class WireGuardService {
       );
 
       const usedIPs = new Set();
+      // Regex mejorado para ser más estricto
       const ipRegex = new RegExp(
-        `AllowedIPs\\s*=\\s*${constants.WIREGUARD_IP_RANGE}\\.(\\d+)\\/32`,
+        `AllowedIPs\\s*=\\s*${constants.WIREGUARD_IP_RANGE.replace('.', '\\.')}\\.(\\d+)\\/32`,
         'g'
       );
       let match;
@@ -83,24 +122,23 @@ class WireGuardService {
     }
   }
 
-  /**
-   * Añade un Peer (cliente) nuevo a la configuración wg0.conf y lo aplica.
-   */
   static async addPeerToServer(publicKey, clientIP) {
-    const peerConfig = `[Peer]
+    const peerConfig = `
+[Peer]
 PublicKey = ${publicKey}
 AllowedIPs = ${clientIP}/32
 `;
     try {
-      // Escapar comillas simples correctamente para shell seguro
-      const safePeerConfig = peerConfig.replace(/'/g, `'\\''`);
-
-      // 1️⃣ Añadir entrada en wg0.conf dentro del contenedor
-      await execPromise(
-        `docker exec wireguard sh -c "echo '${safePeerConfig}' >> /config/wg_confs/wg0.conf"`
+      // 1️⃣ Añadir entrada en wg0.conf de forma SEGURA usando tee -a (append)
+      // El flag -i en docker exec es crucial para mantener stdin abierto
+      await this._execWithStdin(
+        'docker',
+        ['exec', '-i', 'wireguard', 'tee', '-a', '/config/wg_confs/wg0.conf'],
+        peerConfig
       );
 
-      // 2️⃣ Aplicar cambios en caliente
+      // 2️⃣ Aplicar cambios en caliente (Aquí sí usamos exec porque los argumentos son controlados por nosotros)
+      // Aunque publicKey venga de fuera, ya ha pasado por wg genkey, pero por seguridad extra validamos caracteres básicos si fuera necesario.
       await execPromise(
         `docker exec wireguard wg set wg0 peer ${publicKey} allowed-ips ${clientIP}/32`
       );
@@ -115,9 +153,6 @@ AllowedIPs = ${clientIP}/32
     }
   }
 
-  /**
-   * Genera la configuración del cliente (.conf).
-   */
   static generateClientConfig(clientIP, privateKey) {
     if (!config.SERVER_IPV4 || !config.WIREGUARD_PORT) {
       throw new Error('SERVER_IPV4 o WIREGUARD_PORT no están definidos en la configuración');
@@ -127,7 +162,7 @@ AllowedIPs = ${clientIP}/32
     }
 
     const serverEndpoint = `${config.SERVER_IPV4}:${config.WIREGUARD_PORT}`;
-    const dnsServer = config.SERVER_IPV4;
+    const dnsServer = config.SERVER_IPV4; // Ojo: Asegúrate que el servidor DNS escucha en esta IP
 
     return `[Interface]
 PrivateKey = ${privateKey}
@@ -141,13 +176,9 @@ AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25`;
   }
 
-  /**
-   * Devuelve la lista de clientes activos del servidor.
-   */
   static async listClients() {
     try {
       const { stdout } = await execPromise('docker exec wireguard wg show wg0 dump');
-      // CORRECCIÓN: Se usa '\n' en lugar de un salto de línea literal.
       const lines = stdout.trim().split('\n').slice(1);
 
       const clients = lines

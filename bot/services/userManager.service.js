@@ -6,27 +6,22 @@ const logger = require('../utils/logger');
 
 /**
  * Servicio central de gestión de usuarios autorizados.
- * Permite sincronización con .env, persistencia local (JSON)
- * y control de roles (admin / user / suspended).
+ * Soluciona Race Conditions mediante cola de promesas para escritura.
  */
 class UserManager {
   constructor() {
     this.usersFilePath = path.join(__dirname, '../data/authorized_users.json');
     this.users = new Map();
+    // 1. Inicializamos la cola de guardado vacía (Mutex simple)
+    this._savePromise = Promise.resolve();
     this.init();
   }
 
-  /**
-   * Inicialización base con carga y sincronización de Admin.
-   */
   async init() {
     await this.loadUsers();
     await this.syncAdminFromEnv();
   }
 
-  /**
-   * Sincroniza el ADMIN_ID del .env, asegurando consistencia en privilegios.
-   */
   async syncAdminFromEnv() {
     const envAdminId = config.ADMIN_ID;
     if (!envAdminId) {
@@ -37,7 +32,6 @@ class UserManager {
     const adminIdStr = envAdminId.toString();
     let needsSave = false;
 
-    // Caso 1: Admin no existe
     if (!this.users.has(adminIdStr)) {
       this.users.set(adminIdStr, {
         id: adminIdStr,
@@ -51,7 +45,6 @@ class UserManager {
       needsSave = true;
     }
 
-    // Caso 2: Admin existe pero con rol incorrecto
     const adminUser = this.users.get(adminIdStr);
     if (adminUser.role !== 'admin') {
       adminUser.role = 'admin';
@@ -59,7 +52,6 @@ class UserManager {
       needsSave = true;
     }
 
-    // Caso 3: Revocar rol admin a otros usuarios
     for (const [userId, user] of this.users.entries()) {
       if (user.role === 'admin' && userId !== adminIdStr) {
         user.role = 'user';
@@ -74,9 +66,6 @@ class UserManager {
     }
   }
 
-  /**
-   * Carga usuarios desde el archivo JSON local, creando estructura si no existe.
-   */
   async loadUsers() {
     try {
       await fs.mkdir(path.dirname(this.usersFilePath), { recursive: true });
@@ -97,9 +86,6 @@ class UserManager {
     }
   }
 
-  /**
-   * Crea un archivo inicial de usuarios desde AUTHORIZED_USERS + ADMIN_ID del entorno.
-   */
   async initializeFromEnv() {
     const envUsers = config.AUTHORIZED_USERS || [];
     const adminId = config.ADMIN_ID;
@@ -143,40 +129,44 @@ class UserManager {
   }
 
   /**
-   * Guarda usuarios en archivo JSON.
+   * Guarda usuarios en archivo JSON de forma segura (serializada).
+   * Evita corrupción de datos si hay escrituras simultáneas.
    */
   async saveUsers(data = null) {
-    try {
-      const payload = data || {
-        users: Object.fromEntries(this.users),
-        metadata: {
-          lastUpdated: new Date().toISOString(),
-          totalUsers: this.users.size
-        }
-      };
+    // 2. Encadenamos la operación a la promesa anterior
+    this._savePromise = this._savePromise.then(async () => {
+      try {
+        const payload = data || {
+          users: Object.fromEntries(this.users),
+          metadata: {
+            lastUpdated: new Date().toISOString(),
+            totalUsers: this.users.size
+          }
+        };
 
-      await fs.writeFile(this.usersFilePath, JSON.stringify(payload, null, 2), 'utf8');
-      logger.info('Usuarios guardados correctamente', { count: this.users.size });
-      return true;
-    } catch (error) {
-      logger.error('Error guardando usuarios', error);
-      return false;
-    }
+        // Escribimos usando un archivo temporal y rename para atomicidad
+        const tempPath = `${this.usersFilePath}.tmp`;
+        await fs.writeFile(tempPath, JSON.stringify(payload, null, 2), 'utf8');
+        await fs.rename(tempPath, this.usersFilePath);
+
+        logger.info('Usuarios guardados correctamente', { count: this.users.size });
+        return true;
+      } catch (error) {
+        logger.error('Error guardando usuarios', error);
+        return false;
+      }
+    });
+
+    return this._savePromise;
   }
 
   /** ---------------- Funciones de validación ---------------- */
 
-  /**
-   * Comprueba si un usuario está autorizado y activo.
-   */
   isAuthorized(userId) {
     const user = this.users.get(userId.toString());
     return !!(user && user.status === 'active');
   }
 
-  /**
-   * Comprueba si un usuario es administrador activo.
-   */
   isAdmin(userId) {
     const user = this.users.get(userId.toString());
     return !!(user && user.role === 'admin' && user.status === 'active');

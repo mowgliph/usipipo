@@ -27,12 +27,13 @@ const keyboards = require('../utils/keyboards');
 
 // Inicialización del bot con configuración global HTML
 const bot = new Telegraf(config.TELEGRAM_TOKEN, {
-  handlerTimeout: 90_000, // 90s timeout para operaciones largas
+  handlerTimeout: 90_000,
   telegram: {
-    parse_mode: 'HTML' // Default global para todo el proyecto
+    parse_mode: 'HTML'
   }
 });
 
+// 1. Instanciamos el servicio aquí (Centralizado)
 const notificationService = new NotificationService(bot);
 
 const authHandler = new AuthHandler(notificationService);
@@ -43,19 +44,13 @@ const adminHandler = new AdminHandler(notificationService);
 // Middleware global
 bot.use(logUserAction);
 
-// =====================================================
-// COMANDOS DE USUARIO
-// =====================================================
+// --- COMANDOS Y HANDLERS (Igual que antes) ---
 
 bot.command('start', (ctx) => authHandler.handleStart(ctx));
 bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
 bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
 bot.command('help', (ctx) => authHandler.handleHelp(ctx));
 bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx));
-
-// =====================================================
-// COMANDOS DE ADMINISTRACIÓN (Solo Admin)
-// =====================================================
 
 bot.command('add', requireAdmin, (ctx) => adminHandler.handleAddUser(ctx));
 bot.command('rm', requireAdmin, (ctx) => adminHandler.handleRemoveUser(ctx));
@@ -67,32 +62,16 @@ bot.command('broadcast', requireAdmin, (ctx) => adminHandler.handleBroadcast(ctx
 bot.command('sms', requireAdmin, (ctx) => adminHandler.handleDirectMessage(ctx));
 bot.command('templates', requireAdmin, (ctx) => adminHandler.handleTemplates(ctx));
 
-// =====================================================
-// ACCIONES DE AUTENTICACIÓN
-// =====================================================
-
 bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));
 bot.action('request_access', (ctx) => authHandler.handleAccessRequest(ctx));
 bot.action('check_status', (ctx) => authHandler.handleCheckStatus(ctx));
-
-// =====================================================
-// ACCIONES DE VPN (Requiere autorización)
-// =====================================================
 
 bot.action('create_wg', requireAuth, (ctx) => vpnHandler.handleCreateWireGuard(ctx));
 bot.action('create_outline', requireAuth, (ctx) => vpnHandler.handleCreateOutline(ctx));
 bot.action('list_clients', requireAuth, (ctx) => vpnHandler.handleListClients(ctx));
 
-// =====================================================
-// ACCIONES INFORMATIVAS
-// =====================================================
-
 bot.action('server_status', requireAuth, (ctx) => infoHandler.handleServerStatus(ctx));
 bot.action('help', (ctx) => infoHandler.handleHelp(ctx));
-
-// =====================================================
-// ACCIONES DE BROADCAST (Solo Admin)
-// =====================================================
 
 bot.action(/^broadcast_all_(.+)$/, requireAdmin, (ctx) => {
   const broadcastId = ctx.match[1];
@@ -114,10 +93,6 @@ bot.action(/^broadcast_cancel_(.+)$/, requireAdmin, (ctx) => {
   return adminHandler.handleBroadcastCancel(ctx, broadcastId);
 });
 
-// =====================================================
-// HANDLER DE ERRORES GLOBALES
-// =====================================================
-
 bot.catch(async (err, ctx) => {
   const userId = ctx.from?.id;
   const updateType = ctx.updateType;
@@ -130,13 +105,8 @@ bot.catch(async (err, ctx) => {
     logger.warn('Error notificando al admin', { notifyError: notifyError.message });
   }
 
-  // Se asume que messages.ERROR_GENERIC será actualizado a HTML o texto plano
   await ctx.reply(messages.ERROR_GENERIC).catch(() => {});
 });
-
-// =====================================================
-// COMANDO DE EMERGENCIA (Solo Admin .env)
-// =====================================================
 
 bot.command('forceadmin', async (ctx) => {
   const userId = ctx.from.id.toString();
@@ -166,10 +136,6 @@ Prueba ahora: /stats o /users`
   }
 });
 
-// =====================================================
-// HANDLER DE TEXTO LIBRE Y COMANDOS NO RECONOCIDOS
-// =====================================================
-
 bot.on('text', async (ctx) => {
   const userId = ctx.from?.id;
   const userName = ctx.from?.first_name || 'usuario';
@@ -178,11 +144,9 @@ bot.on('text', async (ctx) => {
   try {
     if (messageText.startsWith('/')) {
       const adminStatus = isAdmin(userId);
-      // Eliminado parse_mode explícito, usa global HTML
       await ctx.reply(messages.UNKNOWN_COMMAND(adminStatus));
       logger.verbose('unknown_command', { userId, text: messageText });
     } else {
-      // Eliminado parse_mode explícito, usa global HTML
       await ctx.reply(messages.GENERIC_TEXT_PROMPT(userName), {
         reply_markup: keyboards.vpnSelectionMenu().reply_markup
       });
@@ -193,4 +157,5 @@ bot.on('text', async (ctx) => {
   }
 });
 
-module.exports = bot;
+// 2. EXPORTAMOS AMBOS OBJETOS
+module.exports = { bot, notificationService };
