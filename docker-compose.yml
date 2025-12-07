@@ -1,118 +1,89 @@
-
-name: usipipo-vpn-manager
-
 services:
   # ==========================================
-  # 🛡️ Outline VPN (Shadowbox)
-  # Nota: Outline requiere acceso a puertos en host para su gestión dinámica.
-  # Se deja network_mode: host (documentado en notas).
+  # OUTLINE VPN SERVER
   # ==========================================
   outline:
     image: quay.io/outline/shadowbox:stable
     container_name: outline
     restart: unless-stopped
     network_mode: host
-    environment:
-      - SB_API_SECRET=${OUTLINE_API_SECRET}
-      - SB_API_PORT=${OUTLINE_API_PORT}
-      - SB_ROLLOUT_ID=${OUTLINE_ROLLOUT_ID:-usipipo-$${HOSTNAME}}
     volumes:
-      - outline_data:/opt/outline/persisted-state:rw
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+      - outline_data:/opt/outline/persisted-state
+    environment:
+      - SB_API_PORT=${OUTLINE_API_PORT}
+      - SB_API_PREFIX=${OUTLINE_API_SECRET}
+      - SB_CERTIFICATE_FILE=/opt/outline/persisted-state/shadowbox-selfsigned.crt
+      - SB_PRIVATE_KEY_FILE=/opt/outline/persisted-state/shadowbox-selfsigned.key
+      - SB_METRICS_ENABLED=false
     healthcheck:
-      test: ["CMD-SHELL", "test -f /opt/outline/persisted-state/shadowbox_server_config.json || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
+      test: ["CMD", "wget", "--no-check-certificate", "--spider", "https://127.0.0.1:${OUTLINE_API_PORT}/access-keys"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ==========================================
-  # 🔒 WireGuard VPN (linuxserver)
+  # WIREGUARD VPN SERVER
   # ==========================================
   wireguard:
     image: lscr.io/linuxserver/wireguard:latest
     container_name: wireguard
-    restart: unless-stopped
+    network_mode: host
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=${TZ:-UTC}
+      - TZ=America/Mexico_City
       - SERVERURL=${SERVER_IP}
       - SERVERPORT=${WIREGUARD_PORT}
-      - PEERS=${WIREGUARD_PEERS:-1}
-      - PEERDNS=${PIHOLE_DNS}
-      - INTERNAL_SUBNET=${WIREGUARD_INTERNAL_SUBNET:-10.77.77.0}
+      - PEERS=clients
+      - PEERDNS=${SERVER_IP}
+      - INTERNAL_SUBNET=10.13.13.0
+      - ALLOWEDIPS=0.0.0.0/0,::/0
     volumes:
       - wireguard_config:/config
-      - /lib/modules:/lib/modules:ro
-    ports:
-      # mapea puerto aleatorio del host a 51820/udp dentro del contenedor
-      - "${WIREGUARD_PORT}:51820/udp"
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
-      - net.ipv4.ip_forward=1
-    networks:
-      - vpn_network
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-    healthcheck:
-      test: ["CMD-SHELL", "test -f /config/server/publickey && test -f /config/peer_1/peer_1.conf || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 8
-      start_period: 10s
-    depends_on:
-      outline:
-        condition: service_healthy
+      - /lib/modules:/lib/modules
+    # SECCIÓN ELIMINADA: sysctls no se permite en modo host
+    restart: unless-stopped
 
   # ==========================================
-  # 🎯 Pi-hole (Ad Blocking & DNS)
+  # PI-HOLE (AD BLOCKER)
   # ==========================================
   pihole:
     image: pihole/pihole:latest
     container_name: pihole
     restart: unless-stopped
+    network_mode: host
     environment:
-      - TZ=${TZ:-UTC}
+      - TZ=America/Mexico_City
       - WEBPASSWORD=${PIHOLE_WEBPASS}
+      - FTLCONF_LOCAL_IPV4=${SERVER_IP}
+      - PIHOLE_DNS=1.1.1.1;8.8.8.8
       - DNSMASQ_LISTENING=all
-      - ServerIP=${SERVER_IP}
-      - PIHOLE_DNS=${PIHOLE_DNS:-8.8.8.8;1.1.1.1}
-      - DNS_BOGUS_PRIV=true
-      # Añade PUID/PGID si la imagen o volúmenes lo requieren
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
+      # ESTO ES CRÍTICO: Pi-hole v6 (imagen :latest) usa FTLCONF_webserver_port, no WEB_PORT
+      # Para asegurar compatibilidad con versiones v5 y v6 ponemos ambas:
+      - WEB_PORT=${PIHOLE_WEB_PORT}
+      - FTLCONF_webserver_port=${PIHOLE_WEB_PORT} 
     volumes:
-      - pihole_etc:/etc/pihole
+      - pihole_data:/etc/pihole
       - pihole_dnsmasq:/etc/dnsmasq.d
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-      - "${PIHOLE_WEB_PORT}:80/tcp"
-    networks:
-      - vpn_network
-    depends_on:
-      wireguard:
-        condition: service_started
+    cap_add:
+      - NET_ADMIN
+      # Necesario para que Pi-hole pueda hacer bind en puertos bajos si se requiriera
+      - NET_BIND_SERVICE 
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://127.0.0.1/admin/api.php?action=summary || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+      test: ["CMD", "dig", "+short", "@127.0.0.1", "pi.hole"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   outline_data:
+    name: outline_data
   wireguard_config:
-  pihole_etc:
+    name: wireguard_config
+  pihole_data:
+    name: pihole_data
   pihole_dnsmasq:
-
-networks:
-  vpn_network:
-    driver: bridge
+    name: pihole_dnsmasq
