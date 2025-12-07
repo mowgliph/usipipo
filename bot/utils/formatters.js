@@ -1,5 +1,26 @@
 // utils/formatters.js
-const { escapeMarkdown, bold } = require('./markdown');
+
+// =====================================================
+// UTILIDADES HTML INTERNAS
+// =====================================================
+
+/**
+ * Escapa caracteres especiales de HTML (<, >, &).
+ */
+const escapeHtml = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
+const bold = (text) => `<b>${text}</b>`;
+const code = (text) => `<code>${text}</code>`;
+
+// =====================================================
+// FUNCIONES DE FORMATEO
+// =====================================================
 
 /**
  * Formatea bytes a unidades legibles (B, KB, MB, GB, TB).
@@ -58,7 +79,7 @@ function truncate(text, maxLength = 50) {
 }
 
 /**
- * Formatea lista de clientes WireGuard para Telegram.
+ * Formatea lista de clientes WireGuard para Telegram (HTML).
  * @param {Array<Object>} clients - Lista de clientes
  * @returns {string} Mensaje formateado
  */
@@ -72,13 +93,15 @@ function formatWireGuardClients(clients) {
 `;
 
   clients.forEach((client, index) => {
-    message += `${index + 1}. IP: ${code(client.ip)}
+    // Se asume que client.ip es seguro, pero por si acaso escapamos
+    message += `${index + 1}. IP: ${code(escapeHtml(client.ip))}
 `;
-    message += `   📡 Última conexión: ${escapeMarkdown(client.lastSeen)}
+    // Usamos escapeHtml para datos que podrían venir del exterior
+    message += `   📡 Última conexión: ${escapeHtml(client.lastSeen)}
 `;
-    message += `   📥 Recibido: ${escapeMarkdown(client.dataReceived)}
+    message += `   📥 Recibido: ${escapeHtml(client.dataReceived)}
 `;
-    message += `   📤 Enviado: ${escapeMarkdown(client.dataSent)}
+    message += `   📤 Enviado: ${escapeHtml(client.dataSent)}
 
 `;
   });
@@ -87,7 +110,7 @@ function formatWireGuardClients(clients) {
 }
 
 /**
- * Formatea lista de claves Outline para Telegram.
+ * Formatea lista de claves Outline para Telegram (HTML).
  * @param {Array<Object>} keys - Lista de claves
  * @returns {string} Mensaje formateado
  */
@@ -101,8 +124,9 @@ function formatOutlineKeys(keys) {
 `;
 
   keys.forEach((key, index) => {
-    const keyName = key.name ? escapeMarkdown(key.name) : 'Sin nombre';
-    message += `${index + 1}. ID: ${code(key.id)} - ${keyName}
+    const keyName = key.name ? escapeHtml(key.name) : 'Sin nombre';
+    // key.id suele ser numérico, pero escapamos por seguridad
+    message += `${index + 1}. ID: ${code(escapeHtml(key.id))} - ${keyName}
 `;
   });
 
@@ -110,7 +134,7 @@ function formatOutlineKeys(keys) {
 }
 
 /**
- * Formatea vista combinada de clientes WireGuard + Outline.
+ * Formatea vista combinada de clientes WireGuard + Outline (HTML).
  * @param {Array<Object>} wgClients - Clientes WireGuard
  * @param {Array<Object>} outlineKeys - Claves Outline
  * @returns {string} Mensaje combinado
@@ -130,6 +154,7 @@ function formatClientsList(wgClients, outlineKeys) {
 
 /**
  * Sanitiza entrada removiendo caracteres problemáticos básicos (< >).
+ * Útil para limpiar inputs antes de procesarlos, aunque escapeHtml es preferible para display.
  * @param {string} input - Entrada a sanitizar
  * @returns {string} Input limpio
  */

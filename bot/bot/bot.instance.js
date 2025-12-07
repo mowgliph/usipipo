@@ -25,8 +25,14 @@ const AdminHandler = require('../handlers/admin.handler');
 const messages = require('../utils/messages');
 const keyboards = require('../utils/keyboards');
 
-// Inicialización del bot
-const bot = new Telegraf(config.TELEGRAM_TOKEN);
+// Inicialización del bot con configuración global HTML
+const bot = new Telegraf(config.TELEGRAM_TOKEN, {
+  handlerTimeout: 90_000, // 90s timeout para operaciones largas
+  telegram: {
+    parse_mode: 'HTML' // Default global para todo el proyecto
+  }
+});
+
 const notificationService = new NotificationService(bot);
 
 const authHandler = new AuthHandler(notificationService);
@@ -124,6 +130,7 @@ bot.catch(async (err, ctx) => {
     logger.warn('Error notificando al admin', { notifyError: notifyError.message });
   }
 
+  // Se asume que messages.ERROR_GENERIC será actualizado a HTML o texto plano
   await ctx.reply(messages.ERROR_GENERIC).catch(() => {});
 });
 
@@ -144,13 +151,12 @@ bot.command('forceadmin', async (ctx) => {
     await userManager.syncAdminFromEnv();
 
     await ctx.reply(
-      `✅ **Sincronización forzada completada**
+      `✅ <b>Sincronización forzada completada</b>
 
-🆔 Admin ID: ${envAdminId}
+🆔 Admin ID: <code>${envAdminId}</code>
 👑 Rol: Administrador
 
-Prueba ahora: /stats o /usuarios`,
-      { parse_mode: 'Markdown' }
+Prueba ahora: /stats o /users`
     );
 
     logger.success(userId, 'forceadmin', envAdminId);
@@ -172,13 +178,12 @@ bot.on('text', async (ctx) => {
   try {
     if (messageText.startsWith('/')) {
       const adminStatus = isAdmin(userId);
-      await ctx.reply(messages.UNKNOWN_COMMAND(adminStatus), {
-        parse_mode: 'Markdown'
-      });
+      // Eliminado parse_mode explícito, usa global HTML
+      await ctx.reply(messages.UNKNOWN_COMMAND(adminStatus));
       logger.verbose('unknown_command', { userId, text: messageText });
     } else {
+      // Eliminado parse_mode explícito, usa global HTML
       await ctx.reply(messages.GENERIC_TEXT_PROMPT(userName), {
-        parse_mode: 'Markdown',
         reply_markup: keyboards.vpnSelectionMenu().reply_markup
       });
       logger.verbose('generic_message', { userId, text: messageText });

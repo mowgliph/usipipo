@@ -1,9 +1,32 @@
 // utils/messages.js
 const config = require('../config/environment');
 const constants = require('../config/constants');
-const { escapeMarkdown, bold, italic, code } = require('./markdown');
 
-// Definición de los comandos disponibles (extraídos de bot.instance.js)
+// =====================================================
+// UTILIDADES HTML (Reemplazan a markdown.js)
+// =====================================================
+
+/**
+ * Escapa caracteres especiales de HTML para evitar inyecciones
+ * o errores de parseo (<, >, &).
+ */
+const escapeHtml = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
+const bold = (text) => `<b>${text}</b>`;
+const italic = (text) => `<i>${text}</i>`;
+const code = (text) => `<code>${text}</code>`;
+const pre = (text) => `<pre>${text}</pre>`;
+
+// =====================================================
+// DEFINICIONES DE COMANDOS
+// =====================================================
+
 const USER_COMMANDS = [
   '/start - Iniciar conversación/Ver menú principal',
   '/miinfo - Ver tus datos de Telegram (ID, etc.)',
@@ -20,32 +43,35 @@ const ADMIN_COMMANDS = [
   '/broadcast [mensaje] - Enviar un mensaje a todos los usuarios',
   '/sms [ID] [texto] - Enviar un mensaje directo a un usuario',
   '/templates - Mostrar plantillas de mensaje predefinidas'
-  // Se omite /forceadmin por ser un comando de emergencia/configuración.
 ];
+
+// =====================================================
+// OBJETO DE MENSAJES (HTML)
+// =====================================================
 
 const messages = {
   // Mensajes de bienvenida
-  WELCOME_AUTHORIZED: (userName) => `👋 ¡Hola ${escapeMarkdown(userName)}! Bienvenido a ${bold('uSipipo VPN Manager')}
+  WELCOME_AUTHORIZED: (userName) => `👋 ¡Hola ${escapeHtml(userName)}! Bienvenido a ${bold('uSipipo VPN Manager')}
 
 ✅ Tienes acceso autorizado al sistema.
 
 Selecciona una opción del menú:`,
 
-  WELCOME_UNAUTHORIZED: (userName) => `👋 ¡Hola ${escapeMarkdown(userName)}! Bienvenido a ${bold('uSipipo VPN Manager')}
+  WELCOME_UNAUTHORIZED: (userName) => `👋 ¡Hola ${escapeHtml(userName)}! Bienvenido a ${bold('uSipipo VPN Manager')}
 
 ⚠️ Actualmente ${bold('no tienes acceso autorizado')} a este servicio.
 
 📋 Para solicitar acceso, necesitas enviar tu ${bold('ID de Telegram')} al administrador.
 
 🔍 Usa el comando /miinfo para ver tus datos de Telegram.
-📧 Envía tu ID al administrador: ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}`,
+📧 Envía tu ID al administrador: ${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}`,
 
   // Mensajes de usuario
   USER_INFO: (user, isAuthorized) => {
-    const firstName = escapeMarkdown(user.first_name || 'No disponible');
-    const lastName = escapeMarkdown(user.last_name || 'No disponible');
-    const username = user.username ? `@${escapeMarkdown(user.username)}` : 'No establecido';
-    const languageCode = escapeMarkdown(user.language_code || 'No disponible');
+    const firstName = escapeHtml(user.first_name || 'No disponible');
+    const lastName = escapeHtml(user.last_name || 'No disponible');
+    const username = user.username ? `@${escapeHtml(user.username)}` : 'No establecido';
+    const languageCode = escapeHtml(user.language_code || 'No disponible');
 
     return `👤 ${bold('TUS DATOS DE TELEGRAM')}
 
@@ -58,13 +84,13 @@ Selecciona una opción del menú:`,
 ${isAuthorized ? constants.STATUS.AUTHORIZED : constants.STATUS.UNAUTHORIZED}
 
 📋 ${bold('Para solicitar acceso:')}
-Envía tu ${bold(`ID (${user.id})`)} al administrador en ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}`;
+Envía tu ${bold(`ID (${user.id})`)} al administrador en ${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}`;
   },
 
   // Solicitud de acceso
   ACCESS_REQUEST_SENT: (user) => {
-    const firstName = escapeMarkdown(user.first_name || 'No disponible');
-    const username = user.username ? `@${escapeMarkdown(user.username)}` : 'No disponible';
+    const firstName = escapeHtml(user.first_name || 'No disponible');
+    const username = user.username ? `@${escapeHtml(user.username)}` : 'No disponible';
 
     return `📧 ${bold('Solicitud registrada')}
 
@@ -75,25 +101,25 @@ Tu solicitud de acceso ha sido enviada al administrador.
 👤 Nombre: ${firstName}
 🔗 Username: ${username}
 
-📮 Envía estos datos a: ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}
+📮 Envía estos datos a: ${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}
 
 ⏳ El administrador revisará tu solicitud y te agregará a la lista de usuarios permitidos.`;
   },
 
   ACCESS_REQUEST_ADMIN_NOTIFICATION: (user) => {
-    const firstName = escapeMarkdown(user.first_name || '');
-    const lastName = user.last_name ? escapeMarkdown(user.last_name) : '';
-    const username = user.username ? `@${escapeMarkdown(user.username)}` : 'Sin username';
-    const languageCode = escapeMarkdown(user.language_code || 'N/A');
+    const firstName = escapeHtml(user.first_name || '');
+    const lastName = user.last_name ? escapeHtml(user.last_name) : '';
+    const username = user.username ? `@${escapeHtml(user.username)}` : 'Sin username';
+    const languageCode = escapeHtml(user.language_code || 'N/A');
 
     return `🔔 ${bold('NUEVA SOLICITUD DE ACCESO')}
 
-👤 Usuario: ${firstName}${lastName}
+👤 Usuario: ${firstName} ${lastName}
 🆔 ID: ${code(String(user.id))}
 🔗 Username: ${username}
 🌐 Idioma: ${languageCode}
 
-📝 Para autorizar, agrega este ID a AUTHORIZED_USERS en tu .env:
+📝 Para autorizar, agrega este ID a AUTHORIZED_USERS en tu .env o usa /ad:
 ${code(String(user.id))}`;
   },
 
@@ -165,7 +191,7 @@ ${bold('Pi-hole:')}
 • Protección anti-tracking
 • Integrado en ambas VPNs
 
-💬 ¿Problemas? Contacta: ${escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com')}`,
+💬 ¿Problemas? Contacta: ${escapeHtml(config.ADMIN_EMAIL || 'admin@example.com')}`,
 
   HELP_UNAUTHORIZED: `📚 ${bold('AYUDA - uSipipo VPN')}
 
@@ -173,21 +199,21 @@ ${bold('Pi-hole:')}
 
 📋 ${bold('Pasos para obtener acceso:')}
 1. Usa /miinfo para ver tu ID de Telegram
-2. Envía tu ID al administrador: ${escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com')}
+2. Envía tu ID al administrador: ${escapeHtml(config.ADMIN_EMAIL || 'admin@example.com')}
 3. Espera la confirmación de acceso
 
-💬 ¿Preguntas? Contacta: ${escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com')}`,
+💬 ¿Preguntas? Contacta: ${escapeHtml(config.ADMIN_EMAIL || 'admin@example.com')}`,
 
   // Errores
   ERROR_GENERIC: '⚠️ Ocurrió un error inesperado. Por favor intenta nuevamente.',
-  ERROR_WIREGUARD: (error) => `❌ Error al crear configuración WireGuard: ${escapeMarkdown(String(error))}`,
-  ERROR_OUTLINE: (error) => `❌ Error al crear clave Outline: ${escapeMarkdown(String(error))}`,
+  ERROR_WIREGUARD: (error) => `❌ Error al crear configuración WireGuard: ${escapeHtml(String(error))}`,
+  ERROR_OUTLINE: (error) => `❌ Error al crear clave Outline: ${escapeHtml(String(error))}`,
   ERROR_LIST_CLIENTS: '❌ Error al obtener lista de clientes',
   ERROR_SERVER_STATUS: '⚠️ Algunos servicios podrían no estar respondiendo',
 
   // Mensajes de administración
   USER_APPROVED: (userId, userName) => {
-    const safeName = userName ? escapeMarkdown(userName) : 'No especificado';
+    const safeName = userName ? escapeHtml(userName) : 'No especificado';
 
     return `🎉 ${bold('¡Solicitud aprobada!')}
 
@@ -200,7 +226,7 @@ El usuario recibirá una notificación automática.`;
 
   // Mensajes de comprobación de estado
   STATUS_NOT_REGISTERED: (user) => {
-    const firstName = escapeMarkdown(user.first_name || 'Usuario');
+    const firstName = escapeHtml(user.first_name || 'Usuario');
 
     return `⛔ ${bold('Estado: NO REGISTRADO')}
 
@@ -211,14 +237,14 @@ El usuario recibirá una notificación automática.`;
 
 💡 ${bold('Para solicitar acceso:')}
 1. Presiona el botón "📧 Solicitar acceso"
-2. Envía tu ID al administrador: ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}
+2. Envía tu ID al administrador: ${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}
 3. Espera la aprobación
 
 ⏳ Una vez aprobado, podrás usar todos los servicios del bot.`;
   },
 
   STATUS_ACTIVE: (user, userData) => {
-    const firstName = escapeMarkdown(user.first_name || 'Usuario');
+    const firstName = escapeHtml(user.first_name || 'Usuario');
     const addedDate = new Date(userData.addedAt).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
@@ -232,7 +258,7 @@ El usuario recibirá una notificación automática.`;
 👤 Usuario: ${firstName}
 🆔 ID: ${code(String(user.id))}
 🎭 Rol: ${bold(roleText)}
-📅 Autorizado desde: ${escapeMarkdown(addedDate)}
+📅 Autorizado desde: ${escapeHtml(addedDate)}
 
 ✅ ${bold('Tienes acceso completo a todos los servicios')}
 
@@ -244,7 +270,7 @@ El usuario recibirá una notificación automática.`;
   },
 
   STATUS_SUSPENDED: (user, userData) => {
-    const firstName = escapeMarkdown(user.first_name || 'Usuario');
+    const firstName = escapeHtml(user.first_name || 'Usuario');
     const suspendedDate = userData.suspendedAt
       ? new Date(userData.suspendedAt).toLocaleDateString('es-ES', {
           year: 'numeric',
@@ -257,18 +283,18 @@ El usuario recibirá una notificación automática.`;
 
 👤 Usuario: ${firstName}
 🆔 ID: ${code(String(user.id))}
-📅 Suspendido desde: ${escapeMarkdown(suspendedDate)}
+📅 Suspendido desde: ${escapeHtml(suspendedDate)}
 
 ⚠️ ${bold('Tu acceso ha sido suspendido temporalmente')}
 
 📧 Para más información, contacta al administrador:
-${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}
+${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}
 
 💡 Una vez reactivado, recibirás una notificación automática.`;
   },
 
   STATUS_UNKNOWN: (user) => {
-    const firstName = escapeMarkdown(user.first_name || 'Usuario');
+    const firstName = escapeHtml(user.first_name || 'Usuario');
 
     return `❓ ${bold('Estado: DESCONOCIDO')}
 
@@ -278,7 +304,7 @@ ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}
 ⚠️ ${bold('No se pudo determinar tu estado de acceso')}
 
 📧 Por favor contacta al administrador:
-${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}
+${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}
 
 🔧 Proporciona tu ID de usuario para asistencia.`;
   },
@@ -298,7 +324,7 @@ ${bold(escapeMarkdown(config.ADMIN_EMAIL || 'admin@example.com'))}
     return `🚀 ${bold('SISTEMA INICIADO CORRECTAMENTE')}
 ━━━━━━━━━━━━━━━━━━━━━
 
-📅 ${bold('Fecha:')} ${escapeMarkdown(startTime)}
+📅 ${bold('Fecha:')} ${escapeHtml(startTime)}
 
 🖥️ ${bold('Estado del servidor:')}
 • IP: ${code(serverInfo.ip)}
@@ -331,7 +357,7 @@ ${bold('Opciones de envío:')}
 • 👤 Solo usuarios regulares
 • 👑 Solo administradores
 
-💡 Los mensajes soportan formato Markdown.`,
+💡 Los mensajes soportan formato HTML.`,
 
   BROADCAST_SENT: (successCount, failedCount) => `✅ ${bold('Broadcast enviado')}
 
@@ -352,7 +378,7 @@ ${bold('Comandos de usuario:')}
 
     message += USER_COMMANDS.map(cmd => {
       const [command, description] = cmd.split(' - ');
-      return `${code(command)} - ${escapeMarkdown(description)}
+      return `${code(command)} - ${escapeHtml(description)}
 `;
     }).join('');
 
@@ -362,7 +388,7 @@ ${bold('Comandos de usuario:')}
 `;
       message += ADMIN_COMMANDS.map(cmd => {
         const [command, description] = cmd.split(' - ');
-        return `${code(command)} - ${escapeMarkdown(description)}
+        return `${code(command)} - ${escapeHtml(description)}
 `;
       }).join('');
     }
@@ -382,7 +408,7 @@ ${bold('Comandos de usuario:')}
 `;
     message += USER_COMMANDS.map(cmd => {
       const [command, description] = cmd.split(' - ');
-      return `• ${code(command)}: ${escapeMarkdown(description)}
+      return `• ${code(command)}: ${escapeHtml(description)}
 `;
     }).join('');
 
@@ -393,7 +419,7 @@ ${bold('Comandos de usuario:')}
 `;
       message += ADMIN_COMMANDS.map(cmd => {
         const [command, description] = cmd.split(' - ');
-        return `• ${code(command)}: ${escapeMarkdown(description)}
+        return `• ${code(command)}: ${escapeHtml(description)}
 `;
       }).join('');
     }
@@ -405,7 +431,7 @@ ${bold('Comandos de usuario:')}
 
   // Mensaje para texto genérico (no comando)
   GENERIC_TEXT_PROMPT: (userName) => {
-    const safeName = escapeMarkdown(userName || 'usuario');
+    const safeName = escapeHtml(userName || 'usuario');
 
     return `👋 ${bold('¡Hola')}, ${safeName},
 

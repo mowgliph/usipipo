@@ -2,7 +2,26 @@
 const config = require('../config/environment');
 const messages = require('../utils/messages');
 const userManager = require('./userManager.service');
-const { bold, italic, code, strikethrough, spoiler } = require('../utils/markdown'); // Importar utilidades V2
+
+// =====================================================
+// UTILIDADES HTML INTERNAS
+// =====================================================
+
+const escapeHtml = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
+const bold = (text) => `<b>${text}</b>`;
+const italic = (text) => `<i>${text}</i>`;
+const code = (text) => `<code>${text}</code>`;
+
+// =====================================================
+// CLASE NOTIFICATION SERVICE
+// =====================================================
 
 class NotificationService {
   constructor(bot) {
@@ -16,12 +35,11 @@ class NotificationService {
    */
   async notifyAdminAccessRequest(user) {
     try {
+      // messages.js ya devuelve HTML válido, no necesitamos escapar nada aquí
       const formattedMessage = messages.ACCESS_REQUEST_ADMIN_NOTIFICATION(user);
-      await this.bot.telegram.sendMessage(
-        config.ADMIN_ID,
-        formattedMessage, // Asumir que messages.js ya usa V2; si no, aplicar escapes aquí
-        { parse_mode: 'MarkdownV2' }
-      );
+      
+      await this.bot.telegram.sendMessage(config.ADMIN_ID, formattedMessage);
+      
       console.log(`Notificación enviada al admin sobre solicitud de ${user.id}`);
       return true;
     } catch (error) {
@@ -38,18 +56,17 @@ class NotificationService {
    */
   async notifyAdminError(errorMessage, context = {}) {
     try {
-      const escapedContext = code(JSON.stringify(context, null, 2));
+      // Escapamos el JSON para que no rompa el HTML si contiene < o >
+      const escapedContext = code(escapeHtml(JSON.stringify(context, null, 2)));
+      const safeErrorMessage = escapeHtml(errorMessage);
+
       const message = `${bold('ERROR CRÍTICO EN EL BOT')}\n\n` +
-        `${bold(errorMessage)}\n\n` +
+        `${bold(safeErrorMessage)}\n\n` +
         `${bold('Contexto:')}\n` +
         `${escapedContext}\n\n` +
         `${italic(new Date().toLocaleString())}`;
 
-      await this.bot.telegram.sendMessage(
-        config.ADMIN_ID,
-        message,
-        { parse_mode: 'MarkdownV2' }
-      );
+      await this.bot.telegram.sendMessage(config.ADMIN_ID, message);
       return true;
     } catch (error) {
       console.error('Error al enviar notificación de error:', error.message);
@@ -59,7 +76,7 @@ class NotificationService {
 
   /**
    * Envía mensaje broadcast a todos los usuarios autorizados activos
-   * @param {string} message - Mensaje a enviar (pre-formateado con V2)
+   * @param {string} message - Mensaje a enviar (debe ser HTML válido)
    * @returns {Object} Resultados del envío (success, failed)
    */
   async broadcastToAuthorizedUsers(message) {
@@ -68,7 +85,7 @@ class NotificationService {
 
     for (const user of users) {
       try {
-        await this.bot.telegram.sendMessage(user.id, message, { parse_mode: 'MarkdownV2' });
+        await this.bot.telegram.sendMessage(user.id, message);
         results.success++;
       } catch (error) {
         console.error(`Error enviando mensaje a ${user.id}:`, error.message);
@@ -95,9 +112,11 @@ class NotificationService {
         outlinePort: config.OUTLINE_API_PORT
       };
 
+      // messages.SYSTEM_STARTUP ya retorna HTML
       let message = messages.SYSTEM_STARTUP(serverInfo, stats.admins, stats.total);
-      // Si messages.SYSTEM_STARTUP no usa V2, envolver en bold/italic según necesite
-      message = `\( {bold('INICIO DEL SISTEMA')}:\n\n \){message}`;
+      
+      // Agregamos un prefijo si se desea, asegurando formato HTML
+      message = `${bold('INICIO DEL SISTEMA')}:\n\n${message}`;
 
       console.log(`Enviando notificación de inicio a ${admins.length} administradores...`);
 
@@ -105,7 +124,7 @@ class NotificationService {
 
       for (const admin of admins) {
         try {
-          await this.bot.telegram.sendMessage(admin.id, message, { parse_mode: 'MarkdownV2' });
+          await this.bot.telegram.sendMessage(admin.id, message);
           results.success++;
         } catch (error) {
           console.error(`Error notificando inicio al admin ${admin.id}:`, error.message);
@@ -113,7 +132,7 @@ class NotificationService {
         }
       }
 
-      console.log(`Notificación de inicio completada: \( {results.success} enviados, \){results.failed} fallidos.`);
+      console.log(`Notificación de inicio completada: ${results.success} enviados, ${results.failed} fallidos.`);
       return results;
 
     } catch (error) {
@@ -124,7 +143,7 @@ class NotificationService {
 
   /**
    * Envía un mensaje broadcast a una lista de usuarios
-   * @param {string} message - Mensaje base a enviar
+   * @param {string} message - Mensaje base a enviar (ya viene sanitizado desde admin.handler)
    * @param {Array} recipients - Lista de usuarios destinatarios
    * @param {Object} options - Opciones (delay, includeHeader)
    * @returns {Object} Resultados del envío (success, failed, errors)
@@ -134,19 +153,16 @@ class NotificationService {
 
     const { delay = 50, includeHeader = true } = options;
 
-    // Formatear con V2: usar bold para header
+    // Formatear con HTML
     const formattedMessage = includeHeader
-      ? `\( {bold('ANUNCIO')}\n━━━━━━━━━━━━━━━━━━━━\n\n \){message}\n\n━━━━━━━━━━━━━━━━━━━━\n${italic('🤖 uSipipo VPN Bot')}`
+      ? `${bold('ANUNCIO')}\n━━━━━━━━━━━━━━━━━━━━\n\n${message}\n\n━━━━━━━━━━━━━━━━━━━━\n${italic('🤖 uSipipo VPN Bot')}`
       : message;
 
     for (const user of recipients) {
       try {
-        await this.bot.telegram.sendMessage(
-          user.id,
-          formattedMessage,
-          { parse_mode: 'MarkdownV2' }
-        );
+        await this.bot.telegram.sendMessage(user.id, formattedMessage);
         results.success++;
+        
         if (delay > 0) {
           await this.sleep(delay);
         }
@@ -157,13 +173,13 @@ class NotificationService {
       }
     }
 
-    console.log(`Broadcast completado: \( {results.success} exitosos, \){results.failed} fallidos`);
+    console.log(`Broadcast completado: ${results.success} exitosos, ${results.failed} fallidos`);
     return results;
   }
 
   /**
    * Envía broadcast con imagen
-   * @param {string} message - Mensaje/caption
+   * @param {string} message - Mensaje/caption (Sanitizado)
    * @param {string} photoUrl - URL de la imagen
    * @param {Array} recipients - Lista de usuarios
    * @returns {Object} Resultados del envío (success, failed, errors)
@@ -177,8 +193,8 @@ class NotificationService {
           user.id,
           photoUrl,
           {
-            caption: `\( {bold('ANUNCIO')}\n\n \){message}`,
-            parse_mode: 'MarkdownV2'
+            caption: `${bold('ANUNCIO')}\n\n${message}`,
+            parse_mode: 'HTML' // En sendPhoto sí es bueno ser explícito a veces, pero el global debería cubrirlo
           }
         );
         results.success++;

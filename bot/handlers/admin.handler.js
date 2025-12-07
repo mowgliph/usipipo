@@ -1,7 +1,26 @@
 // handlers/admin.handler.js
+const { Markup } = require('telegraf'); // Movido al top level para mejor performance
 const userManager = require('../services/userManager.service');
 const logger = require('../utils/logger');
-const { bold, code, escapeMarkdown } = require('../utils/markdown');
+
+// =====================================================
+// UTILIDADES HTML INTERNAS
+// =====================================================
+
+const escapeHtml = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
+const bold = (text) => `<b>${text}</b>`;
+const code = (text) => `<code>${text}</code>`;
+
+// =====================================================
+// CLASE ADMIN HANDLER
+// =====================================================
 
 class AdminHandler {
   constructor(notificationService) {
@@ -18,7 +37,8 @@ class AdminHandler {
       logger.info(adminId, 'handleAddUser', { args });
 
       const result = await this.#processAddUser(args);
-      await ctx.reply(result.message, { parse_mode: 'MarkdownV2' });
+      // parse_mode global es HTML, no necesitamos especificarlo
+      await ctx.reply(result.message);
 
       await this.#notifyUserApproved(result.userId, result.userName);
       logger.success(adminId, 'Usuario agregado', result.userId);
@@ -44,8 +64,7 @@ class AdminHandler {
           '🗑️ Usuario removido',
           `🆔 ID: ${code(userId)}`,
           'El usuario ya no tiene acceso al bot'
-        ),
-        { parse_mode: 'MarkdownV2' }
+        )
       );
 
       await this.#notifyUserRemoved(userId);
@@ -65,10 +84,7 @@ class AdminHandler {
       logger.info(adminId, 'handleSuspendUser', { args });
 
       if (args.length === 0) {
-        return ctx.reply(
-          this.#formatUsageError('sus', '/sus [ID]'),
-          { parse_mode: 'MarkdownV2' }
-        );
+        return ctx.reply(this.#formatUsageError('sus', '/sus [ID]'));
       }
 
       const user = await userManager.suspendUser(args[0]);
@@ -77,8 +93,7 @@ class AdminHandler {
           `⏸️ Usuario suspendido`,
           `🆔 ID: ${code(user.id)}`,
           `Para reactivar usa: ${code(`/react ${user.id}`)}`
-        ),
-        { parse_mode: 'MarkdownV2' }
+        )
       );
 
       logger.success(adminId, 'Usuario suspendido', user.id);
@@ -97,10 +112,7 @@ class AdminHandler {
       logger.info(adminId, 'handleReactivateUser', { args });
 
       if (args.length === 0) {
-        return ctx.reply(
-          this.#formatUsageError('react', '/react [ID]'),
-          { parse_mode: 'MarkdownV2' }
-        );
+        return ctx.reply(this.#formatUsageError('react', '/react [ID]'));
       }
 
       const user = await userManager.reactivateUser(args[0]);
@@ -109,8 +121,7 @@ class AdminHandler {
           '▶️ Usuario reactivado',
           `🆔 ID: ${code(user.id)}`,
           'El usuario puede usar el bot nuevamente'
-        ),
-        { parse_mode: 'MarkdownV2' }
+        )
       );
 
       await this.#notifyUserReactivated(user.id);
@@ -133,11 +144,11 @@ class AdminHandler {
       const stats = userManager.getUserStats();
 
       if (users.length === 0) {
-        return ctx.reply('📭 No hay usuarios registrados', { parse_mode: 'MarkdownV2' });
+        return ctx.reply('📭 No hay usuarios registrados');
       }
 
       const message = this.#formatUserList(users, stats);
-      await ctx.reply(message, { parse_mode: 'MarkdownV2' });
+      await ctx.reply(message);
 
       logger.success(adminId, 'Lista de usuarios enviada', { total: users.length });
 
@@ -160,7 +171,7 @@ class AdminHandler {
       const recentUsers = users.filter(u => new Date(u.addedAt) > oneDayAgo);
 
       const message = this.#formatStatsMessage(stats, recentUsers.length);
-      await ctx.reply(message, { parse_mode: 'MarkdownV2' });
+      await ctx.reply(message);
 
       logger.success(adminId, 'Estadísticas enviadas');
 
@@ -169,7 +180,7 @@ class AdminHandler {
     }
   }
 
-    /**
+  /**
    * Comando: /broadcast [mensaje] - Broadcast con confirmación
    */
   async handleBroadcast(ctx) {
@@ -180,7 +191,7 @@ class AdminHandler {
       const messageText = ctx.message.text.replace(/^\/broadcasts?\s*/, '').trim();
       
       if (!messageText) {
-        return ctx.reply(this.#formatBroadcastHelp(), { parse_mode: 'MarkdownV2' });
+        return ctx.reply(this.#formatBroadcastHelp());
       }
 
       await this.#processBroadcast(ctx, adminId, messageText);
@@ -189,7 +200,6 @@ class AdminHandler {
       this.#handleError(ctx, error, 'handleBroadcast');
     }
   }
-
 
   /**
    * Confirma y envía broadcast
@@ -204,7 +214,7 @@ class AdminHandler {
       
     } catch (error) {
       this.#handleError(ctx, error, 'handleBroadcastConfirm');
-      await ctx.answerCbQuery('Error procesando broadcast');
+      await ctx.answerCbQuery('Error procesando broadcast').catch(() => {});
     }
   }
 
@@ -222,15 +232,13 @@ class AdminHandler {
       await ctx.editMessageText(
         `❌ Broadcast cancelado.
 
-Usa /broadcast para crear uno nuevo.`,
-        { parse_mode: 'MarkdownV2' }
+Usa /broadcast para crear uno nuevo.`
       );
 
     } catch (error) {
       logger.error('handleBroadcastCancel', error, { broadcastId });
     }
   }
-
 
   /**
    * Comando: /sms [ID] [mensaje] - Mensaje directo
@@ -241,7 +249,7 @@ Usa /broadcast para crear uno nuevo.`,
       logger.info(adminId, 'handleDirectMessage', { args });
 
       if (args.length < 2) {
-        return ctx.reply(this.#formatDirectMessageHelp(), { parse_mode: 'MarkdownV2' });
+        return ctx.reply(this.#formatDirectMessageHelp());
       }
 
       const [targetUserId, ...messageParts] = args;
@@ -250,21 +258,19 @@ Usa /broadcast para crear uno nuevo.`,
       const targetUser = userManager.getUser(targetUserId);
       if (!targetUser) {
         return ctx.reply(
-          `❌ Usuario ${code(targetUserId)} no encontrado en la base de datos.`,
-          { parse_mode: 'MarkdownV2' }
+          `❌ Usuario ${code(targetUserId)} no encontrado en la base de datos.`
         );
       }
 
       await this.#sendDirectMessage(targetUserId, messageText);
       
-      const userName = targetUser.name ? escapeMarkdown(targetUser.name) : 'Sin nombre';
+      const userName = targetUser.name ? escapeHtml(targetUser.name) : 'Sin nombre';
       await ctx.reply(
         this.#formatSuccessMessage(
           '✅ Mensaje enviado',
           `👤 Destinatario: ${userName}`,
           `🆔 ID: ${code(targetUserId)}`
-        ),
-        { parse_mode: 'MarkdownV2' }
+        )
       );
 
       logger.success(adminId, 'Mensaje directo enviado', targetUserId);
@@ -282,7 +288,7 @@ Usa /broadcast para crear uno nuevo.`,
       const adminId = ctx.from.id;
       logger.info(adminId, 'handleTemplates');
 
-      await ctx.reply(this.#formatTemplatesMessage(), { parse_mode: 'MarkdownV2' });
+      await ctx.reply(this.#formatTemplatesMessage());
 
     } catch (error) {
       this.#handleError(ctx, error, 'handleTemplates');
@@ -303,7 +309,7 @@ Usa /broadcast para crear uno nuevo.`,
     }
 
     const userId = args[0];
-    if (!/^d+$/.test(userId)) {
+    if (!/^\d+$/.test(userId)) {
       throw new Error('El ID debe ser numérico');
     }
 
@@ -314,7 +320,7 @@ Usa /broadcast para crear uno nuevo.`,
       message: this.#formatSuccessMessage(
         '✅ Usuario agregado exitosamente',
         `🆔 ID: ${code(userId)}`,
-        `👤 Nombre: ${newUser.name ? escapeMarkdown(newUser.name) : 'No especificado'}`,
+        `👤 Nombre: ${newUser.name ? escapeHtml(newUser.name) : 'No especificado'}`,
         `📅 Agregado: ${new Date(newUser.addedAt).toLocaleString('es-ES')}`
       ),
       userId,
@@ -322,14 +328,13 @@ Usa /broadcast para crear uno nuevo.`,
     };
   }
 
-    #formatSuccessMessage(title, ...lines) {
+  #formatSuccessMessage(title, ...lines) {
     let message = `${title}
 
 `;
     message += lines.map(line => `• ${line}`).join('\n');
     return message;
   }
-
 
   #formatUsageError(command, format) {
     return `⚠️ ${bold('Uso incorrecto')}
@@ -361,7 +366,7 @@ Usa /broadcast para crear uno nuevo.`,
     users.forEach((user, index) => {
       const statusIcon = user.status === 'active' ? '✅' : '⏸️';
       const roleIcon = user.role === 'admin' ? '👑' : '👤';
-      const safeName = user.name ? escapeMarkdown(user.name) : '';
+      const safeName = user.name ? escapeHtml(user.name) : '';
 
       message += `${index + 1}. ${statusIcon} ${roleIcon} ${code(user.id)}
 `;
@@ -419,9 +424,12 @@ Usa /broadcast para crear uno nuevo.`,
     const userCount = activeUsers.filter(u => u.role === 'user').length;
     const adminCount = activeUsers.filter(u => u.role === 'admin').length;
 
+    // Escapamos el mensaje para que sea HTML seguro al previsualizar y enviar
+    const safeMessage = escapeHtml(messageText);
+
     const broadcastId = Date.now().toString();
     this.pendingBroadcasts.set(broadcastId, {
-      message: messageText,
+      message: safeMessage, // Guardamos la versión segura
       adminId,
       createdAt: new Date(),
       targetCount: activeUsers.length
@@ -435,7 +443,7 @@ Usa /broadcast para crear uno nuevo.`,
 ` +
       `${bold('Mensaje:')}
 ━━━━━━━━━━━━━━━━━━━━
-${messageText}
+${safeMessage}
 ━━━━━━━━━━━━━━━━━━━━
 
 ` +
@@ -446,15 +454,11 @@ ${messageText}
       `• 📊 Total: ${activeUsers.length}
 
 ⚠️ ${bold('¿Confirmas el envío?')}`,
-      {
-        parse_mode: 'MarkdownV2',
-        ...this.#getBroadcastKeyboard(broadcastId)
-      }
+      this.#getBroadcastKeyboard(broadcastId)
     );
   }
 
   #getBroadcastKeyboard(broadcastId) {
-    const { Markup } = require('telegraf');
     return Markup.inlineKeyboard([
       [Markup.button.callback('✅ Enviar a TODOS', `broadcast_all_${broadcastId}`)],
       [
@@ -483,16 +487,19 @@ ${messageText}
     await ctx.editMessageText(
       `📤 ${bold('Enviando broadcast...')}
 
-⏳ Enviando a ${recipients.length} usuarios...`,
-      { parse_mode: 'MarkdownV2' }
+⏳ Enviando a ${recipients.length} usuarios...`
     );
 
+    // NotificationService enviará usando HTML global, así que pasamos el mensaje ya saneado
     const results = await this.notificationService.sendBroadcast(
       broadcast.message,
       recipients
     );
 
-        const successRate = ((results.success / recipients.length) * 100).toFixed(1);
+    const successRate = recipients.length > 0 
+        ? ((results.success / recipients.length) * 100).toFixed(1) 
+        : '0.0';
+
     await ctx.editMessageText(
       `📢 ${bold('BROADCAST COMPLETADO')}
 
@@ -505,11 +512,9 @@ ${messageText}
 
 ` +
       `${bold('Hora:')} ${new Date().toLocaleString('es-ES')}` +
-      (results.failed > 0 ? '\n\n⚠️ Algunos usuarios bloquearon el bot.' : ''),
-      { parse_mode: 'MarkdownV2' }
+      (results.failed > 0 ? '\n\n⚠️ Algunos usuarios bloquearon el bot.' : '')
     );
   }
-
 
   #getBroadcastRecipients(users, target) {
     switch (target) {
@@ -550,17 +555,18 @@ ${code('/broadcast 🎁 PROMOCIÓN: [BENEFICIO] hasta [FECHA]')}
   }
 
   async #sendDirectMessage(userId, messageText) {
+    // Sanitizamos el mensaje directo también
+    const safeText = escapeHtml(messageText);
+
     const formattedMessage = `💬 ${bold('Mensaje del Administrador')}
 ━━━━━━━━━━━━━━━━━━━━
 
-${messageText}
+${safeText}
 
 ━━━━━━━━━━━━━━━━━━━━
 📅 ${new Date().toLocaleString('es-ES')}`;
 
-    await this.notificationService.bot.telegram.sendMessage(userId, formattedMessage, {
-      parse_mode: 'MarkdownV2'
-    });
+    await this.notificationService.bot.telegram.sendMessage(userId, formattedMessage);
   }
 
   async #notifyUserApproved(userId, userName) {
@@ -574,11 +580,9 @@ ${messageText}
                      `Ahora puedes usar /start para el menú principal.
 
 ` +
-                     `¡Bienvenido${userName ? ` ${userName}` : ''}\\! 🚀`;
+                     `¡Bienvenido${userName ? ` ${escapeHtml(userName)}` : ''}! 🚀`;
 
-      await this.notificationService.bot.telegram.sendMessage(userId, message, {
-        parse_mode: 'MarkdownV2'
-      });
+      await this.notificationService.bot.telegram.sendMessage(userId, message);
     } catch (error) {
       logger.error(`notifyUserApproved ${userId}`, error);
     }
@@ -594,9 +598,7 @@ ${messageText}
 ` +
                      `Contacta al administrador si crees que es un error.`;
 
-      await this.notificationService.bot.telegram.sendMessage(userId, message, {
-        parse_mode: 'MarkdownV2'
-      });
+      await this.notificationService.bot.telegram.sendMessage(userId, message);
     } catch (error) {
       logger.error(`notifyUserRemoved ${userId}`, error);
     }
@@ -612,9 +614,7 @@ ${messageText}
 ` +
                      `Usa /start para continuar.`;
 
-      await this.notificationService.bot.telegram.sendMessage(userId, message, {
-        parse_mode: 'MarkdownV2'
-      });
+      await this.notificationService.bot.telegram.sendMessage(userId, message);
     } catch (error) {
       logger.error(`notifyUserReactivated ${userId}`, error);
     }
@@ -635,11 +635,11 @@ ${messageText}
     
     logger.error(method, error, { adminId, errorMessage });
     
-    ctx.reply(`❌ Error: ${escapeMarkdown(errorMessage)}`, { parse_mode: 'MarkdownV2' });
+    ctx.reply(`❌ Error: ${escapeHtml(errorMessage)}`);
   }
 
   #getAdminId() {
-    return this.#parseCommand({ from: { id: 'system' } }).adminId;
+    return this.#parseCommand({ from: { id: 'system' } }).adminId; // Mock para uso interno si fuera necesario
   }
 }
 
