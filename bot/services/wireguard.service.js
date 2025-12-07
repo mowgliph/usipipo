@@ -155,13 +155,13 @@ AllowedIPs = ${clientIP}/32
     const { SERVER_IPV4, WIREGUARD_PORT, WIREGUARD_PUBLIC_KEY } = config;
 
     if (!SERVER_IPV4 || !WIREGUARD_PORT || !WIREGUARD_PUBLIC_KEY) {
-      throw new Error('WireGuard environment variables missing');
+        throw new Error('WireGuard environment variables missing');
     }
 
     const endpoint = `${SERVER_IPV4}:${WIREGUARD_PORT}`;
 
-    // DNS recomendado
-    const dns = '1.1.1.1, 1.0.0.1';
+    // DNS recomendado (mejor compatibilidad)
+    const dns = SERVER_IPV4;
 
     return `[Interface]
 PrivateKey = ${privateKey}
@@ -173,7 +173,7 @@ PublicKey = ${WIREGUARD_PUBLIC_KEY}
 Endpoint = ${endpoint}
 AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25`;
-  }
+}
 
   // --------------------------------------------------
   // LIST CLIENTS

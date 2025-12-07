@@ -567,6 +567,37 @@ EOF
     # Creamos el archivo wg0.conf con las reglas de IPTABLES (PostUp/PostDown)
     # Esto es vital para que haya internet.
     log_info "Injecting NAT/Masquerade rules into wg0.conf..."
+
+    # Detect real network interface (eth0, ens3, enp1s0, etc)
+    WG_INTERFACE=$(ip route get 1.1.1.1 | awk '{print $5; exit}')
+    SUBNET="10.13.13.0/24"
+
+    log_success "Detected host interface for NAT: ${WG_INTERFACE}"
+
+    # Build a clean wg0.conf with correct NAT, PostUp/PostDown and interface
+    run_sudo bash -c "cat > /tmp/wg0.conf.usipipo <<EOF
+[Interface]
+Address = 10.13.13.1
+ListenPort = ${WIREGUARD_PORT}
+PrivateKey = \$(docker exec wireguard cat /config/server/privatekey)
+
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; \
+         iptables -A FORWARD -o %i -m state --state RELATED,ESTABLISHED -j ACCEPT; \
+         iptables -t nat -A POSTROUTING -s ${SUBNET} -o ${WG_INTERFACE} -j MASQUERADE
+
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; \
+           iptables -D FORWARD -o %i -m state --state RELATED,ESTABLISHED -j ACCEPT; \
+           iptables -t nat -D POSTROUTING -s ${SUBNET} -o ${WG_INTERFACE} -j MASQUERADE
+EOF"
+
+    # Append existing peers to the new config
+    docker exec wireguard cat /config/wg_confs/wg0.conf | grep -A5 "^\[Peer\]" >> /tmp/wg0.conf.usipipo 2>/dev/null || true
+
+    # Apply new configuration inside container
+    docker cp /tmp/wg0.conf.usipipo wireguard:/config/wg_confs/wg0.conf
+    rm /tmp/wg0.conf.usipipo
+
+    log_success "WireGuard configuration rebuilt successfully"
     
 
     # =========================================================================
