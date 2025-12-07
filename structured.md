@@ -30,16 +30,11 @@
 ├── docker-compose.yml
 ├── docker.sh
 ├── example.env
-├── install.sh
 ├── issues.txt
 ├── logs
-├── modules
-│   ├── docker.sh
-│   ├── outline.sh
-│   ├── utils.sh
-│   └── wireguard.sh
+│   └── install_20251207.log
 ├── package.json
 ├── pm2.config.js
 └── structured.md
 
-11 directories, 32 files
+10 directories, 28 files

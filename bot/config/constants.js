@@ -1,41 +1,46 @@
 // config/constants.js
 
 /**
- * Constantes globales para la aplicación uSipipo VPN Bot.
- * Incluye límites, URLs, estados y emojis reutilizables.
- * @module constants
- * @exports {Object} - Objeto con todas las constantes
+ * Constantes globales del sistema uSipipo VPN Bot.
+ * Diseñado para ser inmutable y modular.
  */
-module.exports = {
-  /**
-   * Límites de recursos
-   */
-  OUTLINE_DEFAULT_DATA_LIMIT: 10 * 1024 * 1024 * 1024, // 10 GB en bytes
-  WIREGUARD_IP_RANGE: '10.13.13',
-  WIREGUARD_IP_START: 2,
-  WIREGUARD_IP_END: 254,
 
-  /**
-   * URLs de descarga y recursos externos
-   */
-  URLS: {
+const constants = Object.freeze({
+
+  // =====================================================
+  // 📦 Límites, rangos y configuración interna
+  // =====================================================
+  LIMITS: Object.freeze({
+    OUTLINE_DEFAULT_DATA_LIMIT: 10 * 1024 * 1024 * 1024 // 10 GB
+  }),
+
+  NETWORK: Object.freeze({
+    WIREGUARD_IP_RANGE: '10.13.13',
+    WIREGUARD_IP_START: 2,
+    WIREGUARD_IP_END: 254
+  }),
+
+  // =====================================================
+  // 🔗 URLs externas (descargas y recursos)
+  // =====================================================
+  URLS: Object.freeze({
     WIREGUARD_DOWNLOAD: 'https://wireguard.com/install',
     OUTLINE_DOWNLOAD: 'https://getoutline.org/get-started'
-  },
+  }),
 
-  /**
-   * Mensajes de estado para notificaciones
-   */
-  STATUS: {
+  // =====================================================
+  // 🧩 Estados y mensajes de estado del usuario
+  // =====================================================
+  STATUS: Object.freeze({
     AUTHORIZED: '✅ Autorizado',
     UNAUTHORIZED: '⛔ Sin autorización',
     PENDING: '⏳ Pendiente'
-  },
+  }),
 
-  /**
-   * Emojis reutilizables para consistencia visual
-   */
-  EMOJI: {
+  // =====================================================
+  // 🎨 Emojis globales para consistencia visual
+  // =====================================================
+  EMOJI: Object.freeze({
     SUCCESS: '✅',
     ERROR: '❌',
     WARNING: '⚠️',
@@ -45,5 +50,7 @@ module.exports = {
     SERVER: '🖥️',
     USER: '👤',
     ADMIN: '👑'
-  }
-};
+  })
+});
+
+module.exports = constants;

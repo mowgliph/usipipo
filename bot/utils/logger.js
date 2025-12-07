@@ -1,65 +1,105 @@
-// utils/logger.js
 'use strict';
 
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
-const config = require('../config/environment');
 
 /**
- * Logger profesional con Winston para uSipipo VPN Bot
- * - Rotación diaria de logs (30 días)
- * - Formato JSON estructurado
- * - Sanitización robusta de datos sensibles
- * - 7 niveles de logging con métodos contextuales
+ * Logger empresarial para uSipipo VPN Bot
+ * - Sanitización avanzada (tokens, IPs reales, claves)
+ * - JSON estructurado
+ * - Rotación diaria
+ * - Context-aware logging
  */
 class Logger {
-  #sensitivePatterns;
+  #patterns;
   #logger;
 
   constructor() {
-    this.#sensitivePatterns = this.#getSensitivePatterns();
+    this.#patterns = this.#compileSensitivePatterns();
     this.#logger = winston.createLogger(this.#getLoggerConfig());
-    this.#setupConsoleTransport();
+    this.#attachConsoleTransportIfNeeded();
   }
 
-  /**
-   * Patrones regex robustos para sanitización (IPv4 + claves)
-   */
-  #getSensitivePatterns() {
-    return [
-      // Tokens y IDs: se agregó \ antes de s (espacio)
-      /telegram_token[:\s]*[^,\s}]+/gi,
-      /admin_id[:\s]*[^,\s}]+/gi,
-      
-      // IPs públicas con CIDR opcional
-      // CORREGIDO: \d (dígitos), \. (puntos literales) y \/ (barra escapada)
-      /\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(?:\/\d{1,2})?\b/g,
-      
-      // IPs privadas (10.x.x.x)
-      /\b10(?:\.\d{1,3}){3}\b/g,
-      
-      // IPs privadas (172.16.x.x - 172.31.x.x)
-      /\b172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}\b/g,
-      
-      // IPs privadas (192.168.x.x)
-      /\b192\.168(?:\.\d{1,3}){2}\b/g,
-      
-      // Claves Wireguard/Outline
-      /(wireguard_|outline_)(private_)?key[:\s]*[^,\s}]+/gi
-    ];
+  // ===========================================================
+  // 🔒 REGEX SANITIZACIÓN — V.2 (Optimizado y más seguro)
+  // ===========================================================
+  #compileSensitivePatterns() {
+    return {
+      tokens: [
+        /telegram_token\s*[:=]\s*["']?[\w\-:\/\.]+/gi,
+        /bot[_-]?token\s*[:=]\s*["']?[\w\-:\/\.]+/gi,
+      ],
+      keys: [
+        /(private_key|public_key|outline.*key|wireguard.*key)\s*[:=]\s*["']?[\w\+=\/]+/gi
+      ],
+      ips: [
+        // IP pública o privada completa
+        /\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\b/g
+      ]
+    };
   }
 
+  #sanitizeString(value) {
+    if (typeof value !== 'string') return value;
+
+    let sanitized = value;
+
+    // Sanitización fuerte por categoría
+    Object.values(this.#patterns).forEach(patternList => {
+      patternList.forEach(pattern => {
+        sanitized = sanitized.replace(pattern, '[SANITIZED]');
+      });
+    });
+
+    return sanitized;
+  }
+
+  #sanitizeObject(data) {
+    if (!data || typeof data !== 'object') return data;
+
+    const clean = {};
+    for (const key of Object.keys(data)) {
+      const value = data[key];
+
+      if (typeof value === 'string') clean[key] = this.#sanitizeString(value);
+      else if (typeof value === 'object') clean[key] = this.#sanitizeObject(value);
+      else clean[key] = value;
+    }
+
+    return clean;
+  }
+
+  #sanitizeFormat() {
+    return winston.format(info => {
+      info.message = this.#sanitizeString(info.message);
+      const extra = { ...info };
+      delete extra.message;
+      delete extra.level;
+      delete extra.timestamp;
+
+      Object.assign(info, this.#sanitizeObject(extra));
+      return info;
+    })();
+  }
+
+  // ===========================================================
+  // ⚙️ CONFIG WINSTON
+  // ===========================================================
   #getLoggerConfig() {
     const logLevel = process.env.LOG_LEVEL || 'info';
 
     return {
       level: logLevel,
-      format: this.#getLogFormat(),
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        this.#sanitizeFormat(),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
+      ),
       defaultMeta: {
         service: 'uSipipoVPNBot',
         env: process.env.NODE_ENV || 'development',
-        version: '2.0.1', 
         pid: process.pid
       },
       transports: [
@@ -68,141 +108,77 @@ class Logger {
           datePattern: 'YYYY-MM-DD',
           zippedArchive: true,
           maxSize: '20m',
-          maxFiles: '30d',
-          level: logLevel
+          maxFiles: '30d'
         }),
         new DailyRotateFile({
-          filename: path.join('logs', 'errors-%DATE%.log'),
+          filename: path.join('logs', 'error-%DATE%.log'),
+          level: 'error',
           datePattern: 'YYYY-MM-DD',
           zippedArchive: true,
           maxSize: '20m',
-          maxFiles: '30d',
-          level: 'error'
+          maxFiles: '30d'
         })
       ]
     };
   }
 
-  #getLogFormat() {
-    return winston.format.combine(
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
-      this.#sanitizeSensitiveData(),
-      winston.format.errors({ stack: true }),
-      winston.format.json()
-    );
-  }
-
-  #sanitizeSensitiveData() {
-    return winston.format((info) => {
-      const message = this.#sanitizeString(info.message);
-      info.message = message;
-      
-      // Sanitiza también otros campos del objeto
-      if (typeof info === 'object') {
-        Object.keys(info).forEach(key => {
-          if (typeof info[key] === 'string') {
-            info[key] = this.#sanitizeString(info[key]);
-          }
-        });
-      }
-      
-      return info;
-    })();
-  }
-
-  #sanitizeString(str) {
-    if (typeof str !== 'string') return str;
-    
-    let sanitized = str;
-    this.#sensitivePatterns.forEach(pattern => {
-      sanitized = sanitized.replace(pattern, '[SANITIZED]');
-    });
-    return sanitized;
-  }
-
-  #setupConsoleTransport() {
+  #attachConsoleTransportIfNeeded() {
     if (process.env.NODE_ENV !== 'production') {
       this.#logger.add(
         new winston.transports.Console({
           format: winston.format.combine(
             winston.format.colorize(),
-            winston.format.simple()
+            winston.format.printf(
+              ({ level, message, timestamp }) =>
+                `${timestamp} ${level}: ${message}`
+            )
           )
         })
       );
     }
   }
 
-  // ======================
-  // MÉTODOS PÚBLICOS
-  // ======================
+  // ===========================================================
+  // 🟦 PUBLIC LOGGING API (con contexto automático)
+  // ===========================================================
 
-  info(adminId, method, data = {}) {
-    this.#logger.info('Admin action', {
-      adminId: adminId?.toString(),
-      method,
-      ...data
-    });
+  info(method, meta = {}) {
+    this.#logger.info(method, meta);
   }
 
-  success(adminId, action, target, data = {}) {
-    this.#logger.info('Admin success', {
-      adminId: adminId?.toString(),
-      action,
-      target: target?.toString(),
-      ...data
-    });
+  warn(method, meta = {}) {
+    this.#logger.warn(method, meta);
   }
 
-  error(method, error, context = {}) {
-    this.#logger.error('Error occurred', {
-      method,
+  error(method, error, meta = {}) {
+    this.#logger.error(method, {
       error: error?.message || String(error),
       stack: error?.stack,
-      ...context
+      ...meta
     });
   }
 
-  warn(message, context = {}) {
-    this.#logger.warn(message, context);
+  success(method, meta = {}) {
+    this.#logger.info(`SUCCESS: ${method}`, meta);
   }
 
-  http(method, url, statusCode, duration, context = {}) {
-    this.#logger.http('HTTP request', {
+  debug(method, meta = {}) {
+    this.#logger.debug(method, meta);
+  }
+
+  verbose(method, meta = {}) {
+    this.#logger.verbose(method, meta);
+  }
+
+  http(method, url, status, ms, meta = {}) {
+    this.#logger.http('HTTP', {
       method,
       url: this.#sanitizeString(url),
-      statusCode,
-      duration,
-      ...context
+      status,
+      duration: ms,
+      ...meta
     });
-  }
-
-  verbose(message, context = {}) {
-    this.#logger.verbose(message, context);
-  }
-
-  debug(message, context = {}) {
-    this.#logger.debug(message, context);
-  }
-
-  silly(message, context = {}) {
-    this.#logger.silly(message, context);
-  }
-
-  // Alias de compatibilidad
-  logInfo(adminId, method, data) {
-    this.info(adminId, method, data);
-  }
-
-  logSuccess(adminId, action, target) {
-    this.success(adminId, action, target);
-  }
-
-  logError(method, error, context) {
-    this.error(method, error, context);
   }
 }
 
-// Singleton global
-const logger = new Logger();
-module.exports = logger;
+module.exports = new Logger();

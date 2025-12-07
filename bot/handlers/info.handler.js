@@ -4,54 +4,57 @@ const { isAuthorized, isAdmin } = require('../middleware/auth.middleware');
 const logger = require('../utils/logger');
 
 class InfoHandler {
+  /**
+   * Estado del servidor (WireGuard + Outline)
+   */
   async handleServerStatus(ctx) {
     const userId = ctx.from?.id;
-    await ctx.answerCbQuery?.();
+
+    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
 
     try {
       const outlineInfo = await OutlineService.getServerInfo();
-      // CORREGIDO: HTML
-      await ctx.reply(messages.SERVER_STATUS(outlineInfo), {
-        parse_mode: 'HTML'
-      });
+      await ctx.reply(messages.SERVER_STATUS(outlineInfo));
 
-      logger.info(userId, 'handleServerStatus', { status: 'success' });
-    } catch (error) {
-      logger.error('InfoHandler.handleServerStatus', error, { userId });
-      await ctx.reply(messages.ERROR_SERVER_STATUS, { parse_mode: 'HTML' });
+      logger.info(userId, 'server_status', { ok: true });
+    } catch (err) {
+      logger.error('server_status', err, { userId });
+      await ctx.reply(messages.ERROR_SERVER_STATUS);
     }
   }
 
+  /**
+   * /help — Ayuda según usuario autorizado o no
+   */
   async handleHelp(ctx) {
-    await ctx.answerCbQuery?.();
-
     const userId = ctx.from?.id?.toString();
-    const message = isAuthorized(userId)
-      ? messages.HELP_AUTHORIZED
-      : messages.HELP_UNAUTHORIZED;
+
+    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
+
+    const authorized = isAuthorized(userId);
+    const msg = authorized ? messages.HELP_AUTHORIZED : messages.HELP_UNAUTHORIZED;
 
     try {
-      // CORREGIDO: HTML
-      await ctx.reply(message, { parse_mode: 'HTML' });
-      logger.info(userId, 'handleHelp', { authorized: isAuthorized(userId) });
-    } catch (error) {
-      logger.error('InfoHandler.handleHelp', error, { userId });
+      await ctx.reply(msg);
+      logger.info(userId, 'help', { authorized });
+    } catch (err) {
+      logger.error('help', err, { userId });
     }
   }
 
+  /**
+   * /commands — Lista compacta de comandos
+   */
   async handleCommandList(ctx) {
     const userId = ctx.from?.id;
 
     try {
-      const isUserAdmin = isAdmin(userId);
-      // CORREGIDO: HTML
-      await ctx.reply(messages.COMMANDS_LIST(isUserAdmin), {
-        parse_mode: 'HTML'
-      });
+      const admin = isAdmin(userId);
+      await ctx.reply(messages.COMMANDS_LIST(admin));
 
-      logger.info(userId, 'handleCommandList', { isAdmin: isUserAdmin });
-    } catch (error) {
-      logger.error('InfoHandler.handleCommandList', error, { userId });
+      logger.info(userId, 'command_list', { admin });
+    } catch (err) {
+      logger.error('command_list', err, { userId });
       await ctx.reply('⚠️ Error al mostrar los comandos.');
     }
   }

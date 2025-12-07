@@ -1,460 +1,314 @@
-// utils/messages.js
 const config = require('../config/environment');
 const constants = require('../config/constants');
 
-// =====================================================
-// UTILIDADES HTML (Reemplazan a markdown.js)
-// =====================================================
+// ========== HTML UTILS ==========
+const escapeHtml = (text) =>
+  text ? String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
 
-/**
- * Escapa caracteres especiales de HTML para evitar inyecciones
- * o errores de parseo (<, >, &).
- */
-const escapeHtml = (text) => {
-  if (!text) return '';
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-};
+const bold = (txt) => `<b>${txt}</b>`;
+const italic = (txt) => `<i>${txt}</i>`;
+const code = (txt) => `<code>${txt}</code>`;
 
-const bold = (text) => `<b>${text}</b>`;
-const italic = (text) => `<i>${text}</i>`;
-const code = (text) => `<code>${text}</code>`;
-const pre = (text) => `<pre>${text}</pre>`;
-
-// =====================================================
-// DEFINICIONES DE COMANDOS
-// =====================================================
-
+// ========== COMANDOS ==========
 const USER_COMMANDS = [
-  '/start - Iniciar conversación/Ver menú principal',
-  '/miinfo - Ver tus datos de Telegram (ID, etc.)',
-  '/status - Comprobar tu estado de acceso y rol'
+  '/start - Menú principal',
+  '/miinfo - Ver tus datos',
+  '/status - Ver tu estado'
 ];
 
 const ADMIN_COMMANDS = [
-  '/ad [ID] [nombre] - Autorizar un nuevo usuario',
-  '/rm [ID] - Quitar acceso a un usuario',
-  '/sus [ID] - Suspender temporalmente el acceso',
-  '/react [ID] - Reactivar un usuario suspendido',
-  '/users - Listar todos los usuarios en el sistema',
-  '/stats - Ver estadísticas de WireGuard y Outline',
-  '/broadcast [mensaje] - Enviar un mensaje a todos los usuarios',
-  '/sms [ID] [texto] - Enviar un mensaje directo a un usuario',
-  '/templates - Mostrar plantillas de mensaje predefinidas'
+  '/ad [ID] [nombre] - Autorizar usuario',
+  '/rm [ID] - Quitar acceso',
+  '/sus [ID] - Suspender usuario',
+  '/react [ID] - Reactivar usuario',
+  '/users - Listar usuarios',
+  '/stats - Estadísticas',
+  '/broadcast [msg] - Enviar mensaje masivo',
+  '/sms [ID] [txt] - Mensaje directo',
+  '/templates - Plantillas'
 ];
 
-// =====================================================
-// OBJETO DE MENSAJES (HTML)
-// =====================================================
-
+// ========== MENSAJES ==========
 const messages = {
-  // Mensajes de bienvenida
-  WELCOME_AUTHORIZED: (userName) => `👋 ¡Hola ${escapeHtml(userName)}! Bienvenido a ${bold('uSipipo VPN Manager')}
+  // ——— Bienvenida ———
+  WELCOME_AUTHORIZED: (name) =>
+    `👋 Hola ${escapeHtml(name)}
 
-✅ Tienes acceso autorizado al sistema.
+${bold('Acceso autorizado')}
+Selecciona una opción del menú.`,
 
-Selecciona una opción del menú:`,
+  WELCOME_UNAUTHORIZED: (name) =>
+    `👋 Hola ${escapeHtml(name)}
 
-  WELCOME_UNAUTHORIZED: (userName) => `👋 ¡Hola ${escapeHtml(userName)}! Bienvenido a ${bold('uSipipo VPN Manager')}
+${bold('No tienes acceso autorizado.')}
 
-⚠️ Actualmente ${bold('no tienes acceso autorizado')} a este servicio.
+Usa /miinfo y envía tu ID al admin:
+${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}`,
 
-📋 Para solicitar acceso, necesitas enviar tu ${bold('ID de Telegram')} al administrador.
+  // ——— Info de usuario ———
+  USER_INFO: (user, isAuth) => {
+    const username = user.username ? '@' + escapeHtml(user.username) : 'No disponible';
 
-🔍 Usa el comando /miinfo para ver tus datos de Telegram.
-📧 Envía tu ID al administrador: ${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}`,
+    return `👤 ${bold('Datos de Telegram')}
 
-  // Mensajes de usuario
-  USER_INFO: (user, isAuthorized) => {
-    const firstName = escapeHtml(user.first_name || 'No disponible');
-    const lastName = escapeHtml(user.last_name || 'No disponible');
-    const username = user.username ? `@${escapeHtml(user.username)}` : 'No establecido';
-    const languageCode = escapeHtml(user.language_code || 'No disponible');
+ID: ${code(user.id)}
+Nombre: ${escapeHtml(user.first_name || '')}
+Username: ${username}
 
-    return `👤 ${bold('TUS DATOS DE TELEGRAM')}
-
-🆔 ${bold('ID:')} ${code(String(user.id))}
-📝 ${bold('Nombre:')} ${firstName}
-📝 ${bold('Apellido:')} ${lastName}
-🔗 ${bold('Username:')} ${username}
-🌐 ${bold('Idioma:')} ${languageCode}
-
-${isAuthorized ? constants.STATUS.AUTHORIZED : constants.STATUS.UNAUTHORIZED}
-
-📋 ${bold('Para solicitar acceso:')}
-Envía tu ${bold(`ID (${user.id})`)} al administrador en ${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}`;
+${isAuth ? constants.STATUS.AUTHORIZED : constants.STATUS.UNAUTHORIZED}`;
   },
 
-  // Solicitud de acceso
-  ACCESS_REQUEST_SENT: (user) => {
-    const firstName = escapeHtml(user.first_name || 'No disponible');
-    const username = user.username ? `@${escapeHtml(user.username)}` : 'No disponible';
+  // ——— Solicitud de acceso ———
+  ACCESS_REQUEST_SENT: (user) =>
+    `📧 ${bold('Solicitud enviada')}
 
-    return `📧 ${bold('Solicitud registrada')}
+ID: ${code(user.id)}
+Nombre: ${escapeHtml(user.first_name || '')}
 
-Tu solicitud de acceso ha sido enviada al administrador.
-
-📋 ${bold('Datos a compartir:')}
-🆔 ID: ${code(String(user.id))}
-👤 Nombre: ${firstName}
-🔗 Username: ${username}
-
-📮 Envía estos datos a: ${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}
-
-⏳ El administrador revisará tu solicitud y te agregará a la lista de usuarios permitidos.`;
-  },
+Envía estos datos al admin:
+${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}`,
 
   ACCESS_REQUEST_ADMIN_NOTIFICATION: (user) => {
-    const firstName = escapeHtml(user.first_name || '');
-    const lastName = user.last_name ? escapeHtml(user.last_name) : '';
-    const username = user.username ? `@${escapeHtml(user.username)}` : 'Sin username';
-    const languageCode = escapeHtml(user.language_code || 'N/A');
+    const name = escapeHtml(user.first_name || '');
+    const username = user.username ? '@' + escapeHtml(user.username) : 'Sin username';
 
-    return `🔔 ${bold('NUEVA SOLICITUD DE ACCESO')}
+    return `🔔 ${bold('Nueva solicitud')}
 
-👤 Usuario: ${firstName} ${lastName}
-🆔 ID: ${code(String(user.id))}
-🔗 Username: ${username}
-🌐 Idioma: ${languageCode}
+Usuario: ${name}
+ID: ${code(user.id)}
+Username: ${username}
 
-📝 Para autorizar, agrega este ID a AUTHORIZED_USERS en tu .env o usa /ad:
-${code(String(user.id))}`;
+Para autorizar usa:
+${code('/ad ' + user.id)}`;
   },
 
-  // Mensajes de acceso denegado
   ACCESS_DENIED: `⛔ ${bold('Acceso denegado')}
+No tienes permisos para esta acción.`,
 
-No tienes permisos para usar esta función.
+  ADMIN_ONLY: `⛔ ${bold('Solo administradores')}`,
 
-Usa /miinfo para ver tu ID y solicitar acceso al administrador.`,
+  // ——— WireGuard ———
+  WIREGUARD_CREATING: '⏳ Generando configuración WireGuard...',
 
-  ADMIN_ONLY: '⛔ Este comando es solo para administradores.',
+  WIREGUARD_SUCCESS: (ip) =>
+    `✅ ${bold('WireGuard creado')}
 
-  // VPN - WireGuard
-  WIREGUARD_CREATING: '⏳ Generando configuración WireGuard, por favor espera...',
+IP: ${code(ip)}
+Endpoint: ${code(`${config.SERVER_IPV4}:${config.WIREGUARD_PORT}`)}
 
-  WIREGUARD_SUCCESS: (clientIP) => `✅ ${bold('Configuración WireGuard creada')}
+Escanea el QR para conectarte.`,
 
-📍 IP asignada: ${code(clientIP)}
-🔗 Endpoint: ${code(`${config.SERVER_IPV4}:${config.WIREGUARD_PORT}`)}
+  WIREGUARD_INSTRUCTIONS: `${bold('Instrucciones:')}
+• Móvil: Abrir app → "+" → Escanear QR
+• PC: Importar archivo .conf
 
-📱 Usa el QR code a continuación para configuración rápida en móvil.`,
+Descarga: ${constants.URLS.WIREGUARD_DOWNLOAD}`,
 
-  WIREGUARD_INSTRUCTIONS: `📖 ${bold('Instrucciones de conexión:')}
+  // ——— Outline ———
+  OUTLINE_CREATING: '⏳ Generando clave Outline...',
 
-${bold('En móvil:')} Abre WireGuard app → "+" → Escanear QR
-${bold('En PC:')} Importa el archivo .conf en WireGuard client
+  OUTLINE_SUCCESS: (key) =>
+    `✅ ${bold('Outline creado')}
 
-🔗 Descargas: ${constants.URLS.WIREGUARD_DOWNLOAD}`,
+ID: ${code(key.id)}
+Enlace:
+${code(key.accessUrl)}
 
-  // VPN - Outline
-  OUTLINE_CREATING: '⏳ Generando clave de acceso Outline...',
+DNS con bloqueo activo
+Descarga Outline: ${constants.URLS.OUTLINE_DOWNLOAD}`,
 
-  OUTLINE_SUCCESS: (accessKey) => `✅ ${bold('Clave Outline creada exitosamente')}
+  // ——— Estado del servidor ———
+  SERVER_STATUS: () =>
+    `🖥️ ${bold('Estado del servidor')}
 
-🔑 ID: ${code(accessKey.id)}
-📱 Copia el siguiente enlace en tu app Outline:
+IP: ${code(config.SERVER_IPV4)}
+WG: ${code(config.WIREGUARD_PORT)}
+Outline: ${code(config.OUTLINE_API_PORT)}
+DNS: ${code(config.PIHOLE_DNS)}
 
-${code(accessKey.accessUrl)}
+Servicios operativos.`,
 
-🛡️ DNS con bloqueo de anuncios activado
-📊 Límite de datos: 10GB/mes
-🔗 Descarga Outline: ${constants.URLS.OUTLINE_DOWNLOAD}`,
+  // ——— Ayuda ———
+  HELP_AUTHORIZED: `📚 ${bold('Guía rápida')}
 
-  // Estado del servidor
-  SERVER_STATUS: (outlineInfo) => `🖥️ ${bold('ESTADO DEL SERVIDOR uSipipo')}
+${bold('WireGuard:')} rápido y estable
+${bold('Outline:')} fácil para móviles
+${bold('Pi-hole:')} bloqueo de ads
 
-📍 IP Pública: ${code(config.SERVER_IPV4)}
-🔐 WireGuard Port: ${code(String(config.WIREGUARD_PORT))}
-🌐 Outline Port: ${code(String(config.OUTLINE_API_PORT))}
-🛡️ Pi-hole DNS: ${code(config.PIHOLE_DNS)}
+Soporte: ${escapeHtml(config.ADMIN_EMAIL || 'admin@example.com')}`,
 
-✅ Todos los servicios operativos`,
+  HELP_UNAUTHORIZED: `📚 ${bold('Ayuda')}
 
-  // Ayuda
-  HELP_AUTHORIZED: `📚 ${bold('GUÍA DE USO - uSipipo VPN')}
+1) Usa /miinfo
+2) Envía tu ID al admin
+3) Espera confirmación
 
-${bold('WireGuard:')}
-• VPN de alto rendimiento
-• Ideal para uso general
-• Requiere app específica
+Contacto: ${escapeHtml(config.ADMIN_EMAIL)}`,
 
-${bold('Outline:')}
-• Fácil configuración
-• Mejor para móviles
-• Un clic para conectar
+  // ——— Errores ———
+  ERROR_GENERIC: '⚠️ Ocurrió un error. Intenta de nuevo.',
+  ERROR_WIREGUARD: (e) => `❌ Error WG: ${escapeHtml(String(e))}`,
+  ERROR_OUTLINE: (e) => `❌ Error Outline: ${escapeHtml(String(e))}`,
+  ERROR_LIST_CLIENTS: '❌ No se pudo obtener la lista.',
+  ERROR_SERVER_STATUS: '⚠️ Algunos servicios no responden.',
 
-${bold('Pi-hole:')}
-• Bloqueo automático de ads
-• Protección anti-tracking
-• Integrado en ambas VPNs
+  // ——— Admin (nuevas plantillas centralizadas) ———
 
-💬 ¿Problemas? Contacta: ${escapeHtml(config.ADMIN_EMAIL || 'admin@example.com')}`,
+  // Respuesta cuando un admin agrega un usuario
+  ADMIN_USER_ADDED: (userId, userName, addedAt) =>
+    `✅ ${bold('Usuario autorizado')}
 
-  HELP_UNAUTHORIZED: `📚 ${bold('AYUDA - uSipipo VPN')}
+ID: ${code(userId)}
+Nombre: ${escapeHtml(userName || 'No especificado')}
+Desde: ${escapeHtml(addedAt)}`,
 
-⚠️ No tienes acceso autorizado aún.
+  // Usuario removido
+  ADMIN_USER_REMOVED: (userId) =>
+    `🗑️ ${bold('Usuario removido')}
 
-📋 ${bold('Pasos para obtener acceso:')}
-1. Usa /miinfo para ver tu ID de Telegram
-2. Envía tu ID al administrador: ${escapeHtml(config.ADMIN_EMAIL || 'admin@example.com')}
-3. Espera la confirmación de acceso
+ID: ${code(userId)}
+El acceso ha sido revocado.`,
 
-💬 ¿Preguntas? Contacta: ${escapeHtml(config.ADMIN_EMAIL || 'admin@example.com')}`,
+  // Usuario suspendido
+  ADMIN_USER_SUSPENDED: (userId) =>
+    `⏸️ ${bold('Usuario suspendido')}
 
-  // Errores
-  ERROR_GENERIC: '⚠️ Ocurrió un error inesperado. Por favor intenta nuevamente.',
-  ERROR_WIREGUARD: (error) => `❌ Error al crear configuración WireGuard: ${escapeHtml(String(error))}`,
-  ERROR_OUTLINE: (error) => `❌ Error al crear clave Outline: ${escapeHtml(String(error))}`,
-  ERROR_LIST_CLIENTS: '❌ Error al obtener lista de clientes',
-  ERROR_SERVER_STATUS: '⚠️ Algunos servicios podrían no estar respondiendo',
+ID: ${code(userId)}
+Para reactivar: ${code(`/react ${userId}`)}`,
 
-  // Mensajes de administración
-  USER_APPROVED: (userId, userName) => {
-    const safeName = userName ? escapeHtml(userName) : 'No especificado';
+  // Usuario reactivado
+  ADMIN_USER_REACTIVATED: (userId) =>
+    `▶️ ${bold('Usuario reactivado')}
 
-    return `🎉 ${bold('¡Solicitud aprobada!')}
+ID: ${code(userId)}
+Ya puede usar el bot.`,
 
-✅ El usuario ha sido autorizado:
-🆔 ID: ${code(String(userId))}
-👤 Nombre: ${safeName}
-
-El usuario recibirá una notificación automática.`;
+  // Lista compacta de usuarios (se recibe arreglo y stats)
+  ADMIN_USER_LIST: (users, stats) => {
+    const header = `👥 ${bold('USUARIOS')} • Total: ${stats.total} • Activos: ${stats.active}\n\n`;
+    const rows = users.map((u, i) => {
+      const status = u.status === 'active' ? '✅' : '⏸️';
+      const role = u.role === 'admin' ? '👑' : '👤';
+      const name = escapeHtml(u.name || 'Sin nombre');
+      return `${i + 1}. ${status} ${role} ${code(u.id)} • ${name}`;
+    }).join('\n');
+    return header + (rows || '<i>No hay usuarios</i>');
   },
 
-  // Mensajes de comprobación de estado
-  STATUS_NOT_REGISTERED: (user) => {
-    const firstName = escapeHtml(user.first_name || 'Usuario');
+  // Estadísticas compactas
+  ADMIN_STATS: (stats, recentCount) =>
+    `📊 ${bold('ESTADÍSTICAS')}
 
-    return `⛔ ${bold('Estado: NO REGISTRADO')}
+Total: ${stats.total}
+Activos: ${stats.active}
+Suspendidos: ${stats.suspended}
+Admins: ${stats.admins}
 
-👤 Usuario: ${firstName}
-🆔 ID: ${code(String(user.id))}
+Nuevos (24h): ${recentCount}`,
 
-📋 ${bold('No se encontró ninguna solicitud de acceso')}
+  // Broadcast - vista previa antes de confirmar
+  BROADCAST_PREVIEW: (broadcastId, safeMessage, userCount, adminCount, total) =>
+    `📢 ${bold('CONFIRMAR BROADCAST')}
 
-💡 ${bold('Para solicitar acceso:')}
-1. Presiona el botón "📧 Solicitar acceso"
-2. Envía tu ID al administrador: ${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}
-3. Espera la aprobación
+Mensaje:
+${safeMessage}
 
-⏳ Una vez aprobado, podrás usar todos los servicios del bot.`;
-  },
+Destinatarios:
+• Usuarios: ${userCount}
+• Admins: ${adminCount}
+• Total: ${total}
 
-  STATUS_ACTIVE: (user, userData) => {
-    const firstName = escapeHtml(user.first_name || 'Usuario');
-    const addedDate = new Date(userData.addedAt).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    const roleIcon = userData.role === 'admin' ? '👑' : '✅';
-    const roleText = userData.role === 'admin' ? 'Administrador' : 'Usuario autorizado';
+ID: ${broadcastId}`,
 
-    return `${roleIcon} ${bold('Estado: ACTIVO')}
+  // Resultado del broadcast
+  BROADCAST_RESULT: (success, failed) =>
+    `📢 ${bold('BROADCAST COMPLETADO')}
 
-👤 Usuario: ${firstName}
-🆔 ID: ${code(String(user.id))}
-🎭 Rol: ${bold(roleText)}
-📅 Autorizado desde: ${escapeHtml(addedDate)}
+✅ Enviados: ${success}
+❌ Fallidos: ${failed}`,
 
-✅ ${bold('Tienes acceso completo a todos los servicios')}
+  // Ayuda de broadcast (compacta)
+  BROADCAST_HELP: `📢 ${bold('Broadcast')}
 
-🔐 Puedes crear configuraciones VPN
-📊 Ver estadísticas del servidor
-🛠️ Gestionar tus clientes activos
+Uso: ${code('/broadcast [mensaje]')}
+Opciones: /sms, /templates`,
 
-💡 Usa el menú principal para comenzar.`;
-  },
+  // Mensaje directo enviado (confirmación)
+  ADMIN_DIRECT_MSG_SENT: (targetId, targetName) =>
+    `✅ ${bold('Mensaje enviado')}
 
-  STATUS_SUSPENDED: (user, userData) => {
-    const firstName = escapeHtml(user.first_name || 'Usuario');
-    const suspendedDate = userData.suspendedAt
-      ? new Date(userData.suspendedAt).toLocaleDateString('es-ES', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        })
-      : 'No disponible';
+ID: ${code(targetId)}
+Para: ${escapeHtml(targetName || 'Sin nombre')}`,
 
-    return `⏸️ ${bold('Estado: SUSPENDIDO')}
+  // Plantillas compactas
+  ADMIN_TEMPLATES: () =>
+    `📋 ${bold('PLANTILLAS')}
+1) ${code('/broadcast 🎉 Bienvenida')}
+2) ${code('/broadcast ⚠️ Mantenimiento [FECHA]')}
+3) ${code('/broadcast 🎁 PROMO: ...')}`,
 
-👤 Usuario: ${firstName}
-🆔 ID: ${code(String(user.id))}
-📅 Suspendido desde: ${escapeHtml(suspendedDate)}
+  // Notificaciones push simples (para sendDirectMessage / notify)
+  NOTIFY_USER_APPROVED: (userName) =>
+    `🎉 ${bold('¡Acceso aprobado!')}
 
-⚠️ ${bold('Tu acceso ha sido suspendido temporalmente')}
+Ahora puedes usar /start. Bienvenido${userName ? ` ${escapeHtml(userName)}` : ''}.`,
 
-📧 Para más información, contacta al administrador:
-${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}
+  NOTIFY_USER_REMOVED: () =>
+    `⚠️ ${bold('Acceso revocado')}
+Tu acceso ha sido removido. Contacta al admin si es un error.`,
 
-💡 Una vez reactivado, recibirás una notificación automática.`;
-  },
+  NOTIFY_USER_REACTIVATED: () =>
+    `✅ ${bold('Acceso reactivado')}
+Tu acceso ha sido restaurado. Usa /start para continuar.`,
 
-  STATUS_UNKNOWN: (user) => {
-    const firstName = escapeHtml(user.first_name || 'Usuario');
-
-    return `❓ ${bold('Estado: DESCONOCIDO')}
-
-👤 Usuario: ${firstName}
-🆔 ID: ${code(String(user.id))}
-
-⚠️ ${bold('No se pudo determinar tu estado de acceso')}
-
-📧 Por favor contacta al administrador:
-${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}
-
-🔧 Proporciona tu ID de usuario para asistencia.`;
-  },
-
-  // Mensaje de Inicio del Sistema
-  SYSTEM_STARTUP: (serverInfo, adminCount, userCount) => {
-    const startTime = new Date().toLocaleString('es-ES', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-
-    return `🚀 ${bold('SISTEMA INICIADO CORRECTAMENTE')}
-━━━━━━━━━━━━━━━━━━━━━
-
-📅 ${bold('Fecha:')} ${escapeHtml(startTime)}
-
-🖥️ ${bold('Estado del servidor:')}
-• IP: ${code(serverInfo.ip)}
-• Puerto WG: ${code(String(serverInfo.wgPort))}
-• Puerto Outline: ${code(String(serverInfo.outlinePort))}
-
-👥 ${bold('Base de usuarios:')}
-• Administradores: ${adminCount}
-• Usuarios totales: ${userCount}
-
-✅ ${bold('Bot operativo y escuchando peticiones.')}`;
-  },
-
-  // Mensajes de Broadcast
-  BROADCAST_HELP: `📢 ${bold('SISTEMA DE BROADCAST')}
-
-${bold('Comandos disponibles:')}
-
-• ${code('/broadcast [mensaje]')}
-  Envía mensaje a todos los usuarios
-
-• ${code('/sms [ID] [texto]')}
-  Mensaje directo a un usuario
-
-• ${code('/templates')}
-  Muestra plantillas predefinidas
-
-${bold('Opciones de envío:')}
-• 📤 Todos los usuarios activos
-• 👤 Solo usuarios regulares
-• 👑 Solo administradores
-
-💡 Los mensajes soportan formato HTML.`,
-
-  BROADCAST_SENT: (successCount, failedCount) => `✅ ${bold('Broadcast enviado')}
-
-📊 Resultados:
-• Exitosos: ${successCount}
-• Fallidos: ${failedCount}`,
-
-  BROADCAST_CANCELLED: '❌ Broadcast cancelado.',
-
-  // Mensaje para comandos no reconocidos
-  UNKNOWN_COMMAND: (isUserAdmin) => {
-    let message = `⚠️ ${bold('Comando no reconocido')}
-
-El comando que has enviado no se encuentra en la lista de comandos disponibles. Por favor, revisa la sintaxis.
-
-${bold('Comandos de usuario:')}
-`;
-
-    message += USER_COMMANDS.map(cmd => {
-      const [command, description] = cmd.split(' - ');
-      return `${code(command)} - ${escapeHtml(description)}
-`;
+  // ——— Comandos y utilidades ———
+  UNKNOWN_COMMAND: (isAdmin) => {
+    let msg = `⚠️ ${bold('Comando no válido')}\n\n${bold('Usuario:')}\n`;
+    msg += USER_COMMANDS.map((cmd) => {
+      const [c, d] = cmd.split(' - ');
+      return `${code(c)} - ${escapeHtml(d)}\n`;
     }).join('');
-
-    if (isUserAdmin) {
-      message += `
-👑 ${bold('Comandos de administrador:')}
-`;
-      message += ADMIN_COMMANDS.map(cmd => {
-        const [command, description] = cmd.split(' - ');
-        return `${code(command)} - ${escapeHtml(description)}
-`;
+    if (isAdmin) {
+      msg += `\n👑 ${bold('Admin:')}\n`;
+      msg += ADMIN_COMMANDS.map((cmd) => {
+        const [c, d] = cmd.split(' - ');
+        return `${code(c)} - ${escapeHtml(d)}\n`;
       }).join('');
     }
-
-    message += `
-💡 Para más ayuda, usa el comando ${code('/start')}.`;
-    return message;
+    return msg + `\nUsa ${code('/start')}`;
   },
 
-  // Nueva función para listar comandos
-  COMMANDS_LIST: (isUserAdmin) => {
-    let message = `📋 ${bold('LISTA DE COMANDOS DISPONIBLES')}
-`;
-
-    // Comandos de usuario
-    message += `👤 ${bold('Usuario regular:')}
-`;
-    message += USER_COMMANDS.map(cmd => {
-      const [command, description] = cmd.split(' - ');
-      return `• ${code(command)}: ${escapeHtml(description)}
-`;
+  COMMANDS_LIST: (isAdmin) => {
+    let msg = `📋 ${bold('Comandos disponibles')}\n\n`;
+    msg += `👤 ${bold('Usuario:')}\n`;
+    msg += USER_COMMANDS.map((cmd) => {
+      const [c, d] = cmd.split(' - ');
+      return `• ${code(c)}: ${escapeHtml(d)}\n`;
     }).join('');
-
-    // Comandos de admin (solo si es admin)
-    if (isUserAdmin) {
-      message += `
-👑 ${bold('Administrador:')}
-`;
-      message += ADMIN_COMMANDS.map(cmd => {
-        const [command, description] = cmd.split(' - ');
-        return `• ${code(command)}: ${escapeHtml(description)}
-`;
+    if (isAdmin) {
+      msg += `\n👑 ${bold('Admin:')}\n`;
+      msg += ADMIN_COMMANDS.map((cmd) => {
+        const [c, d] = cmd.split(' - ');
+        return `• ${code(c)}: ${escapeHtml(d)}\n`;
       }).join('');
     }
-
-    message += `
-💡 ${italic('Toca cualquier comando para ejecutarlo.')}`;
-    return message;
+    return msg;
   },
 
-  // Mensaje para texto genérico (no comando)
-  GENERIC_TEXT_PROMPT: (userName) => {
-    const safeName = escapeHtml(userName || 'usuario');
+  GENERIC_TEXT_PROMPT: (name) =>
+    `👋 Hola ${escapeHtml(name)}
 
-    return `👋 ${bold('¡Hola')}, ${safeName},
+Crea tu VPN:
+• WireGuard
+• Outline`,
 
-Soy ${bold('uSipipo VPN Bot')}, tu asistente de autogestión VPN.
-
-¿Aún no tienes una configuración VPN?
-Selecciona el tipo de servicio que deseas crear a continuación (WireGuard o Outline).`;
-  },
-
-  // Mensaje de ayuda para admin (unificado con ADMIN_COMMANDS)
-  ADMIN_HELP: `👑 ${bold('COMANDOS DE ADMINISTRADOR')}
-
-${bold('Gestión de usuarios:')}
-• ${code('/ad [ID] [nombre]')} - Autorizar usuario
-• ${code('/rm [ID]')} - Quitar acceso
-• ${code('/sus [ID]')} - Suspender temporalmente
-• ${code('/react [ID]')} - Reactivar usuario
-
-${bold('Información:')}
-• ${code('/users')} - Lista completa
-• ${code('/stats')} - Estadísticas del sistema
-
-💡 El ID se obtiene con /miinfo`
+  // Export helper utilities if alguien las necesita (opcional)
+  _helpers: {
+    escapeHtml,
+    bold,
+    code,
+    italic
+  }
 };
 
 module.exports = messages;

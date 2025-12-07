@@ -1,19 +1,10 @@
-// handlers/auth.handler.js
 const { isAuthorized, isAdmin } = require('../middleware/auth.middleware');
 const userManager = require('../services/userManager.service');
 const messages = require('../utils/messages');
 const keyboards = require('../utils/keyboards');
 
-// Nota: No necesitamos importar markdown helpers aquí porque messages.js ya devuelve HTML listo
-// Si handleListUsers necesita escapar datos manuales, usaremos una función helper simple local.
-
-const escapeHtml = (text) => {
-  if (!text) return '';
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-};
+const escapeHtml = (text) =>
+  text ? String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
 
 class AuthHandler {
   constructor(notificationService) {
@@ -21,136 +12,114 @@ class AuthHandler {
   }
 
   /**
-   * Manejador del comando /start
-   * @param {Object} ctx - Contexto de Telegraf
-   * @returns {Promise<void>}
+   * /start — Menú principal según estado del usuario
    */
   async handleStart(ctx) {
     const userId = ctx.from.id.toString();
-    const userName = ctx.from.first_name || 'Usuario';
+    const name = ctx.from.first_name || 'Usuario';
 
-    if (isAuthorized(userId)) {
-      return ctx.reply(
-        messages.WELCOME_AUTHORIZED(userName),
-        keyboards.mainMenuAuthorized() // parse_mode es HTML por default global
-      );
-    }
+    const msg = isAuthorized(userId)
+      ? messages.WELCOME_AUTHORIZED(name)
+      : messages.WELCOME_UNAUTHORIZED(name);
 
-    return ctx.reply(
-      messages.WELCOME_UNAUTHORIZED(userName),
-      keyboards.mainMenuUnauthorized()
-    );
+    const keyboard = isAuthorized(userId)
+      ? keyboards.mainMenuAuthorized()
+      : keyboards.mainMenuUnauthorized();
+
+    return ctx.reply(msg, keyboard);
   }
 
   /**
-   * Muestra información del usuario
-   * @param {Object} ctx - Contexto de Telegraf
-   * @returns {Promise<void>}
+   * /miinfo — Muestra datos del usuario
    */
   async handleUserInfo(ctx) {
     const user = ctx.from;
-    const userId = user.id.toString();
-    const authorized = isAuthorized(userId);
-
-    // messages.USER_INFO ya devuelve HTML válido
+    const authorized = isAuthorized(user.id.toString());
     return ctx.reply(messages.USER_INFO(user, authorized));
   }
 
   /**
-   * Procesa solicitud de acceso
-   * @param {Object} ctx - Contexto de Telegraf
-   * @returns {Promise<void>}
+   * Botón "Solicitar acceso"
    */
   async handleAccessRequest(ctx) {
-    await ctx.answerCbQuery().catch(() => {}); // Evitar errores si no es callback
+    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
     const user = ctx.from;
 
-    // Mensaje para el usuario
     await ctx.reply(messages.ACCESS_REQUEST_SENT(user));
-
-    // Notificar al administrador
     await this.notificationService.notifyAdminAccessRequest(user);
   }
 
   /**
-   * Lista usuarios autorizados (solo admin)
-   * @param {Object} ctx - Contexto de Telegraf
-   * @returns {Promise<void>}
+   * /users — Lista usuarios activos (admin)
    */
   async handleListUsers(ctx) {
     const userId = ctx.from.id.toString();
-
     if (!isAdmin(userId)) {
       return ctx.reply(messages.ADMIN_ONLY);
     }
 
-    const activeUsers = userManager.getAllUsers().filter(u => u.status === 'active');
-    
-    // Construcción del mensaje en HTML
-    let formattedMessage = `👥 <b>USUARIOS AUTORIZADOS</b>\n\n`;
+    const active = userManager.getAllUsers().filter(u => u.status === 'active');
 
-    if (activeUsers.length === 0) {
-        formattedMessage += '<i>No hay usuarios activos.</i>';
-    } else {
-        const listaUsuarios = activeUsers.map((user, index) => {
-            const roleTag = user.role === 'admin' ? '👑 (Admin)' : '';
-            const safeName = escapeHtml(user.name || 'Sin nombre');
-            // Formato: 1. ID: 123456 - Nombre 👑
-            return `${index + 1}. ID: <code>${user.id}</code> ${roleTag} - ${safeName}`;
-        }).join('\n');
-        
-        formattedMessage += listaUsuarios;
-        formattedMessage += `\n\n📝 <b>Total:</b> ${activeUsers.length} usuarios`;
+    if (active.length === 0) {
+      return ctx.reply('👥 <b>USUARIOS AUTORIZADOS</b>\n\n<i>No hay usuarios activos.</i>');
     }
 
-    return ctx.reply(formattedMessage);
+    const list = active
+      .map((u, i) => {
+        const role = u.role === 'admin' ? '👑' : '';
+        const name = escapeHtml(u.name || 'Sin nombre');
+        return `${i + 1}. ID: <code>${u.id}</code> ${role} - ${name}`;
+      })
+      .join('\n');
+
+    const msg =
+      `👥 <b>USUARIOS AUTORIZADOS</b>\n\n` +
+      list +
+      `\n\n📝 <b>Total:</b> ${active.length}`;
+
+    return ctx.reply(msg);
   }
 
   /**
-   * Comprueba el estado de acceso del usuario
-   * @param {Object} ctx - Contexto de Telegraf
-   * @returns {Promise<void>}
+   * /status — Verifica estado de acceso del usuario
    */
   async handleCheckStatus(ctx) {
-    if (ctx.callbackQuery) {
-      await ctx.answerCbQuery().catch(() => {});
-    }
+    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
 
-    const userId = ctx.from.id.toString();
     const user = ctx.from;
+    const userId = user.id.toString();
+    const info = userManager.getUser(userId);
 
-    // Verificar si el usuario está en la base de datos
-    const userData = userManager.getUser(userId);
-
-    if (!userData) {
-      // Usuario no registrado
+    // No registrado en DB
+    if (!info) {
       return ctx.reply(
         messages.STATUS_NOT_REGISTERED(user),
         keyboards.mainMenuUnauthorized()
       );
     }
 
-    // Usuario existe, verificar estado
-    if (userData.status === 'active') {
-      return ctx.reply(
-        messages.STATUS_ACTIVE(user, userData),
-        keyboards.mainMenuAuthorized()
-      );
-    } else if (userData.status === 'suspended') {
-      return ctx.reply(messages.STATUS_SUSPENDED(user, userData));
-    } else {
-      // Estado desconocido
-      return ctx.reply(messages.STATUS_UNKNOWN(user));
+    // Registrado → verificar estado
+    switch (info.status) {
+      case 'active':
+        return ctx.reply(
+          messages.STATUS_ACTIVE(user, info),
+          keyboards.mainMenuAuthorized()
+        );
+      case 'suspended':
+        return ctx.reply(messages.STATUS_SUSPENDED(user, info));
+      default:
+        return ctx.reply(messages.STATUS_UNKNOWN(user));
     }
   }
 
-  // Agregado handleHelp que faltaba según bot.instance.js
+  /**
+   * /help — Ayuda según estado del usuario
+   */
   async handleHelp(ctx) {
-      const userId = ctx.from.id.toString();
-      if (isAuthorized(userId)) {
-          return ctx.reply(messages.HELP_AUTHORIZED);
-      }
-      return ctx.reply(messages.HELP_UNAUTHORIZED);
+    const authorized = isAuthorized(ctx.from.id.toString());
+    return ctx.reply(
+      authorized ? messages.HELP_AUTHORIZED : messages.HELP_UNAUTHORIZED
+    );
   }
 }
 

@@ -4,102 +4,74 @@ const path = require('path');
 const config = require('../config/environment');
 const logger = require('../utils/logger');
 
-/**
- * Servicio central de gestión de usuarios autorizados.
- * Soluciona Race Conditions mediante cola de promesas para escritura.
- */
 class UserManager {
   constructor() {
     this.usersFilePath = path.join(__dirname, '../data/authorized_users.json');
     this.users = new Map();
-    // 1. Inicializamos la cola de guardado vacía (Mutex simple)
     this._savePromise = Promise.resolve();
+
     this.init();
   }
 
+  // ------------------------------------------------------
+  // INIT
+  // ------------------------------------------------------
   async init() {
     await this.loadUsers();
     await this.syncAdminFromEnv();
   }
 
-  async syncAdminFromEnv() {
-    const envAdminId = config.ADMIN_ID;
-    if (!envAdminId) {
-      logger.warn('ADMIN_ID no definido en .env — se omite sincronización de Admin');
-      return;
-    }
-
-    const adminIdStr = envAdminId.toString();
-    let needsSave = false;
-
-    if (!this.users.has(adminIdStr)) {
-      this.users.set(adminIdStr, {
-        id: adminIdStr,
-        name: 'Admin Principal',
-        addedAt: new Date().toISOString(),
-        addedBy: 'system',
-        status: 'active',
-        role: 'admin'
-      });
-      logger.info('Admin agregado desde .env', { adminId: adminIdStr });
-      needsSave = true;
-    }
-
-    const adminUser = this.users.get(adminIdStr);
-    if (adminUser.role !== 'admin') {
-      adminUser.role = 'admin';
-      logger.info('Rol corregido a admin para usuario .env', { adminId: adminIdStr });
-      needsSave = true;
-    }
-
-    for (const [userId, user] of this.users.entries()) {
-      if (user.role === 'admin' && userId !== adminIdStr) {
-        user.role = 'user';
-        logger.warn('Revocado rol admin a usuario no autorizado', { userId });
-        needsSave = true;
-      }
-    }
-
-    if (needsSave) {
-      await this.saveUsers();
-      logger.info('Sincronización de roles administrativos completada');
-    }
+  // ------------------------------------------------------
+  // HELPERS
+  // ------------------------------------------------------
+  toStr(id) {
+    return String(id);
   }
 
+  getUser(id) {
+    return this.users.get(this.toStr(id)) || null;
+  }
+
+  ensureExists(id) {
+    const user = this.getUser(id);
+    if (!user) throw new Error('Usuario no encontrado');
+    return user;
+  }
+
+  ensureNotAdmin(user) {
+    if (user.role === 'admin') throw new Error('No se puede eliminar/modificar a un administrador');
+  }
+
+  // ------------------------------------------------------
+  // LOAD / SAVE
+  // ------------------------------------------------------
   async loadUsers() {
     try {
       await fs.mkdir(path.dirname(this.usersFilePath), { recursive: true });
-      const data = await fs.readFile(this.usersFilePath, 'utf8');
+      const raw = await fs.readFile(this.usersFilePath, 'utf8');
+      const parsed = JSON.parse(raw);
 
-      const parsed = JSON.parse(data);
       this.users = new Map(Object.entries(parsed.users));
-
-      logger.info('Usuarios autorizados cargados', { count: this.users.size });
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        logger.warn('Archivo de usuarios no encontrado, se inicializa desde entorno');
+      logger.info('Usuarios cargados', { count: this.users.size });
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        logger.warn('Sin archivo de usuarios, inicializando desde entorno');
         await this.initializeFromEnv();
       } else {
-        logger.error('Error cargando archivo de usuarios', error);
+        logger.error('Error cargando usuarios', err);
         this.users = new Map();
       }
     }
   }
 
   async initializeFromEnv() {
-    const envUsers = config.AUTHORIZED_USERS || [];
-    const adminId = config.ADMIN_ID;
+    const data = {};
+    const adminId = this.toStr(config.ADMIN_ID);
+    const extraUsers = config.AUTHORIZED_USERS || [];
 
-    const initialData = {
-      users: {},
-      metadata: {
-        created: new Date().toISOString(),
-        lastUpdated: new Date().toISOString()
-      }
-    };
-
+    // Admin principal
     if (adminId) {
-      initialData.users[adminId] = {
+      data[adminId] = {
         id: adminId,
         name: 'Admin Principal',
         addedAt: new Date().toISOString(),
@@ -107,33 +79,30 @@ class UserManager {
         status: 'active',
         role: 'admin'
       };
-      this.users.set(adminId, initialData.users[adminId]);
+      this.users.set(adminId, data[adminId]);
     }
 
-    for (const userId of envUsers) {
-      if (userId !== adminId && !this.users.has(userId)) {
+    // Usuarios adicionales
+    for (const u of extraUsers) {
+      const id = this.toStr(u);
+      if (id !== adminId && !this.users.has(id)) {
         const entry = {
-          id: userId,
+          id,
           addedAt: new Date().toISOString(),
           addedBy: 'system',
           status: 'active',
           role: 'user'
         };
-        this.users.set(userId, entry);
-        initialData.users[userId] = entry;
+        this.users.set(id, entry);
+        data[id] = entry;
       }
     }
 
-    await this.saveUsers(initialData);
-    logger.info('Archivo de usuarios inicializado', { count: this.users.size });
+    await this.saveUsers({ users: data });
+    logger.info('Usuarios inicializados desde entorno', { count: this.users.size });
   }
 
-  /**
-   * Guarda usuarios en archivo JSON de forma segura (serializada).
-   * Evita corrupción de datos si hay escrituras simultáneas.
-   */
   async saveUsers(data = null) {
-    // 2. Encadenamos la operación a la promesa anterior
     this._savePromise = this._savePromise.then(async () => {
       try {
         const payload = data || {
@@ -144,15 +113,14 @@ class UserManager {
           }
         };
 
-        // Escribimos usando un archivo temporal y rename para atomicidad
-        const tempPath = `${this.usersFilePath}.tmp`;
-        await fs.writeFile(tempPath, JSON.stringify(payload, null, 2), 'utf8');
-        await fs.rename(tempPath, this.usersFilePath);
+        const tmp = `${this.usersFilePath}.tmp`;
+        await fs.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf8');
+        await fs.rename(tmp, this.usersFilePath);
 
-        logger.info('Usuarios guardados correctamente', { count: this.users.size });
+        logger.info('Usuarios guardados', { count: this.users.size });
         return true;
-      } catch (error) {
-        logger.error('Error guardando usuarios', error);
+      } catch (err) {
+        logger.error('Error guardando usuarios', err);
         return false;
       }
     });
@@ -160,94 +128,124 @@ class UserManager {
     return this._savePromise;
   }
 
-  /** ---------------- Funciones de validación ---------------- */
+  // ------------------------------------------------------
+  // ADMIN SYNC
+  // ------------------------------------------------------
+  async syncAdminFromEnv() {
+    const envAdminId = this.toStr(config.ADMIN_ID);
+    if (!envAdminId) return;
 
-  isAuthorized(userId) {
-    const user = this.users.get(userId.toString());
-    return !!(user && user.status === 'active');
-  }
+    let changed = false;
 
-  isAdmin(userId) {
-    const user = this.users.get(userId.toString());
-    return !!(user && user.role === 'admin' && user.status === 'active');
-  }
-
-  /** ---------------- CRUD de Usuarios ---------------- */
-
-  async addUser(userId, addedByUserId, userName = null) {
-    const userIdStr = userId.toString();
-
-    if (this.users.has(userIdStr)) {
-      throw new Error('Usuario ya existe en la lista');
+    // Garantizar que admin exista
+    if (!this.users.has(envAdminId)) {
+      this.users.set(envAdminId, {
+        id: envAdminId,
+        name: 'Admin Principal',
+        addedAt: new Date().toISOString(),
+        addedBy: 'system',
+        status: 'active',
+        role: 'admin'
+      });
+      changed = true;
+      logger.info('Admin creado desde ENV');
     }
 
-    const newUser = {
-      id: userIdStr,
-      name: userName,
+    // Forzar rol admin en este usuario
+    const admin = this.users.get(envAdminId);
+    if (admin.role !== 'admin') {
+      admin.role = 'admin';
+      changed = true;
+      logger.info('Rol admin corregido para ADMIN_ID');
+    }
+
+    // Revocar roles admin a cualquier otro
+    for (const [id, user] of this.users.entries()) {
+      if (id !== envAdminId && user.role === 'admin') {
+        user.role = 'user';
+        changed = true;
+        logger.warn('Revocado rol admin no autorizado', { id });
+      }
+    }
+
+    if (changed) await this.saveUsers();
+  }
+
+  // ------------------------------------------------------
+  // AUTH
+  // ------------------------------------------------------
+  isAuthorized(id) {
+    const u = this.getUser(id);
+    return !!(u && u.status === 'active');
+  }
+
+  isAdmin(id) {
+    const u = this.getUser(id);
+    return !!(u && u.role === 'admin' && u.status === 'active');
+  }
+
+  // ------------------------------------------------------
+  // CRUD
+  // ------------------------------------------------------
+  async addUser(userId, addedBy, name = null) {
+    const id = this.toStr(userId);
+
+    if (this.users.has(id)) {
+      throw new Error('Usuario ya registrado');
+    }
+
+    const entry = {
+      id,
+      name,
       addedAt: new Date().toISOString(),
-      addedBy: addedByUserId.toString(),
+      addedBy: this.toStr(addedBy),
       status: 'active',
       role: 'user'
     };
 
-    this.users.set(userIdStr, newUser);
+    this.users.set(id, entry);
     await this.saveUsers();
 
-    logger.info('Usuario agregado', { userId: userIdStr, addedBy: addedByUserId });
-    return newUser;
+    logger.info('Usuario agregado', { id, addedBy });
+    return entry;
   }
 
   async removeUser(userId) {
-    const userIdStr = userId.toString();
+    const user = this.ensureExists(userId);
+    this.ensureNotAdmin(user);
 
-    if (!this.users.has(userIdStr)) throw new Error('Usuario no encontrado');
-
-    const user = this.users.get(userIdStr);
-    if (user.role === 'admin') throw new Error('No se puede eliminar a un administrador');
-
-    this.users.delete(userIdStr);
+    this.users.delete(this.toStr(userId));
     await this.saveUsers();
 
-    logger.info('Usuario eliminado', { userId: userIdStr });
+    logger.info('Usuario eliminado', { userId });
     return true;
   }
 
   async suspendUser(userId) {
-    const userIdStr = userId.toString();
-    const user = this.users.get(userIdStr);
-
-    if (!user) throw new Error('Usuario no encontrado');
-
+    const user = this.ensureExists(userId);
     user.status = 'suspended';
     user.suspendedAt = new Date().toISOString();
 
     await this.saveUsers();
-    logger.warn('Usuario suspendido', { userId: userIdStr });
+    logger.warn('Usuario suspendido', { userId });
     return user;
   }
 
   async reactivateUser(userId) {
-    const userIdStr = userId.toString();
-    const user = this.users.get(userIdStr);
-
-    if (!user) throw new Error('Usuario no encontrado');
-
+    const user = this.ensureExists(userId);
     user.status = 'active';
     delete user.suspendedAt;
 
     await this.saveUsers();
-    logger.info('Usuario reactivado', { userId: userIdStr });
+    logger.info('Usuario reactivado', { userId });
     return user;
   }
 
-  /** ---------------- Consultas agregadas ---------------- */
-
+  // ------------------------------------------------------
+  // STATS
+  // ------------------------------------------------------
   getAllUsers() {
     return Array.from(this.users.values());
-  }
-
-  getUser(userId) {
-    return this.users.get(userId.toString()) || null;
   }
 
   getUserStats() {
@@ -259,11 +257,11 @@ class UserManager {
       users: 0
     };
 
-    for (const user of this.users.values()) {
-      if (user.status === 'active') stats.active++;
-      if (user.status === 'suspended') stats.suspended++;
-      if (user.role === 'admin') stats.admins++;
-      if (user.role === 'user') stats.users++;
+    for (const u of this.users.values()) {
+      if (u.status === 'active') stats.active++;
+      if (u.status === 'suspended') stats.suspended++;
+      if (u.role === 'admin') stats.admins++;
+      if (u.role === 'user') stats.users++;
     }
 
     return stats;

@@ -4,107 +4,106 @@ const messages = require('../utils/messages');
 const formatters = require('../utils/formatters');
 const logger = require('../utils/logger');
 
-/**
- * Handler para operaciones VPN (WireGuard / Outline).
- * Gestiona la creación, consulta y visualización de clientes VPN.
- */
 class VPNHandler {
   /**
-   * Crea un nuevo cliente WireGuard.
+   * Crear cliente WireGuard
    */
   async handleCreateWireGuard(ctx) {
     const userId = ctx.from?.id;
-    // Sanitizar username: Solo letras y números, fallback a 'UserID'
-    let safeUserName = (ctx.from?.username || ctx.from?.first_name || `User${userId}`).replace(/[^a-zA-Z0-9]/g, '');
-    if (!safeUserName) safeUserName = `User${userId}`;
+    let safeUser = (ctx.from?.username || ctx.from?.first_name || `User${userId}`)
+      .replace(/[^a-zA-Z0-9]/g, '');
+    if (!safeUser) safeUser = `User${userId}`;
 
-    await ctx.answerCbQuery();
-    await ctx.reply(messages.WIREGUARD_CREATING, { parse_mode: 'HTML' });
+    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
+    await ctx.reply(messages.WIREGUARD_CREATING);
 
     try {
       const { config, qr, clientIP } = await WireGuardService.createNewClient();
 
-      // CORRECCIÓN 1: Nombre de archivo estricto (ej: UserName_10-13-13-2.conf)
-      // WireGuard odia espacios y caracteres raros en el nombre del archivo.
-      const ipSuffix = clientIP.split('.').pop(); // Obtiene el último octeto (ej: 2)
-      const safeFilename = `${safeUserName}_WG_${ipSuffix}.conf`;
+      // Nombre de archivo seguro (Ej: User_WG_23.conf)
+      const ipSuffix = clientIP.split('.').pop();
+      const fileName = `${safeUser}_WG_${ipSuffix}.conf`;
 
-      // Enviar archivo de configuración
+      // Archivo de configuración
       await ctx.replyWithDocument(
         {
           source: Buffer.from(config),
-          filename: safeFilename
+          filename: fileName
         },
         {
-          caption: messages.WIREGUARD_SUCCESS(clientIP),
-          parse_mode: 'HTML'
+          caption: messages.WIREGUARD_SUCCESS(clientIP)
         }
       );
 
-      // QR Code
-      const qrMessage = `<pre>${qr}</pre>`;
-      await ctx.reply(qrMessage, { parse_mode: 'HTML' });
+      // QR
+      await ctx.reply(`<pre>${qr}</pre>`);
 
-      // Enviar instrucciones de conexión
-      await ctx.reply(messages.WIREGUARD_INSTRUCTIONS, { parse_mode: 'HTML' });
+      // Instrucciones compactas
+      await ctx.reply(messages.WIREGUARD_INSTRUCTIONS);
 
-      logger.success(userId, 'create_wireguard', clientIP, { userName: safeUserName, clientIP });
-    } catch (error) {
-      logger.error('handleCreateWireGuard', error, { userId, userName: safeUserName });
-      await ctx.reply(messages.ERROR_WIREGUARD(error.message), { parse_mode: 'HTML' });
+      logger.success(userId, 'create_wireguard', clientIP, {
+        userName: safeUser,
+        clientIP
+      });
+    } catch (err) {
+      logger.error('handleCreateWireGuard', err, { userId, safeUser });
+      await ctx.reply(messages.ERROR_WIREGUARD(err.message));
     }
   }
 
   /**
-   * Crea una nueva clave Outline.
+   * Crear clave Outline
    */
   async handleCreateOutline(ctx) {
     const userId = ctx.from?.id;
-    const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
+    const safeName =
+      (ctx.from?.username || ctx.from?.first_name || `User${userId}`).replace(/[^a-zA-Z0-9]/g, '') ||
+      `User${userId}`;
 
-    await ctx.answerCbQuery();
-    await ctx.reply(messages.OUTLINE_CREATING, { parse_mode: 'HTML' });
+    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
+    await ctx.reply(messages.OUTLINE_CREATING);
 
     try {
-      const keyName = `TG-${userName}-${Date.now()}`;
+      const keyName = `TG-${safeName}-${Date.now()}`;
       const accessKey = await OutlineService.createAccessKey(keyName);
 
-      const message = messages.OUTLINE_SUCCESS(accessKey);
-      await ctx.reply(message, { parse_mode: 'HTML' });
+      await ctx.reply(messages.OUTLINE_SUCCESS(accessKey));
 
-      logger.success(userId, 'create_outline', accessKey.id, { keyName, accessUrl: accessKey.accessUrl });
-    } catch (error) {
-      logger.error('handleCreateOutline', error, { userId, userName });
-      await ctx.reply(messages.ERROR_OUTLINE(error.message), { parse_mode: 'HTML' });
+      logger.success(userId, 'create_outline', accessKey.id, {
+        keyName,
+        accessUrl: accessKey.accessUrl
+      });
+    } catch (err) {
+      logger.error('handleCreateOutline', err, { userId, safeName });
+      await ctx.reply(messages.ERROR_OUTLINE(err.message));
     }
   }
 
   /**
-   * Lista todos los clientes activos.
+   * Lista clientes activos (WireGuard + Outline)
    */
   async handleListClients(ctx) {
     const userId = ctx.from?.id;
-    const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
 
-    await ctx.answerCbQuery();
-    await ctx.reply('⏳ Consultando clientes activos...', { parse_mode: 'HTML' });
+    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
+    await ctx.reply('⏳ Consultando...', { parse_mode: 'HTML' });
 
     try {
-      const [wgClients, outlineKeys] = await Promise.all([
+      const [wg, outline] = await Promise.all([
         WireGuardService.listClients(),
         OutlineService.listAccessKeys()
       ]);
 
-      const message = formatters.formatClientsList(wgClients, outlineKeys);
-      await ctx.reply(message, { parse_mode: 'HTML' });
+      const msg = formatters.formatClientsList(wg, outline);
+      await ctx.reply(msg);
 
       logger.info(userId, 'list_clients', {
-        wireguard_clients: wgClients.length,
-        outline_keys: outlineKeys.length
+        wireguard_clients: wg.length,
+        outline_keys: outline.length
       });
-    } catch (error) {
-      logger.error('handleListClients', error, { userId, userName });
-      await ctx.reply(messages.ERROR_LIST_CLIENTS, { parse_mode: 'HTML' });
+    } catch (err) {
+      logger.error('handleListClients', err, { userId });
+      await ctx.reply(messages.ERROR_LIST_CLIENTS);
     }
   }
 }

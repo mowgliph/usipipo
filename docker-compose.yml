@@ -1,26 +1,34 @@
+
 name: usipipo-vpn-manager
 
 services:
   # ==========================================
   # 🛡️ Outline VPN (Shadowbox)
+  # Nota: Outline requiere acceso a puertos en host para su gestión dinámica.
+  # Se deja network_mode: host (documentado en notas).
   # ==========================================
   outline:
     image: quay.io/outline/shadowbox:stable
     container_name: outline
     restart: unless-stopped
-    # MODO HOST: Crítico para que Outline gestione sus puertos dinámicos correctamente
     network_mode: host
     environment:
       - SB_API_SECRET=${OUTLINE_API_SECRET}
       - SB_API_PORT=${OUTLINE_API_PORT}
-      # Outline detectará la IP pública automáticamente o la forzaremos en el config
+      - SB_ROLLOUT_ID=${OUTLINE_ROLLOUT_ID:-usipipo-$${HOSTNAME}}
     volumes:
-      - outline_data:/opt/outline/persisted-state
+      - outline_data:/opt/outline/persisted-state:rw
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /opt/outline/persisted-state/shadowbox_server_config.json || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   # ==========================================
-  # 🔒 WireGuard VPN
+  # 🔒 WireGuard VPN (linuxserver)
   # ==========================================
   wireguard:
     image: lscr.io/linuxserver/wireguard:latest
@@ -28,26 +36,38 @@ services:
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
-      - SYS_MODULE # Requerido para módulos del kernel
+      - SYS_MODULE
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=UTC
+      - TZ=${TZ:-UTC}
       - SERVERURL=${SERVER_IP}
       - SERVERPORT=${WIREGUARD_PORT}
-      - PEERS=1
-      - PEERDNS=${PIHOLE_DNS} # Se inyectará desde el .env
-      - INTERNAL_SUBNET=10.77.77.0
+      - PEERS=${WIREGUARD_PEERS:-1}
+      - PEERDNS=${PIHOLE_DNS}
+      - INTERNAL_SUBNET=${WIREGUARD_INTERNAL_SUBNET:-10.77.77.0}
     volumes:
       - wireguard_config:/config
-      - /lib/modules:/lib/modules
+      - /lib/modules:/lib/modules:ro
     ports:
+      # mapea puerto aleatorio del host a 51820/udp dentro del contenedor
       - "${WIREGUARD_PORT}:51820/udp"
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
     networks:
       - vpn_network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /config/server/publickey && test -f /config/peer_1/peer_1.conf || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+    depends_on:
+      outline:
+        condition: service_healthy
 
   # ==========================================
   # 🎯 Pi-hole (Ad Blocking & DNS)
@@ -57,10 +77,15 @@ services:
     container_name: pihole
     restart: unless-stopped
     environment:
-      - TZ=UTC
+      - TZ=${TZ:-UTC}
       - WEBPASSWORD=${PIHOLE_WEBPASS}
-      # DNS Upstream (Google/Cloudflare) para que Pi-hole resuelva lo que no bloquea
-      - PIHOLE_DNS=8.8.8.8;1.1.1.1 
+      - DNSMASQ_LISTENING=all
+      - ServerIP=${SERVER_IP}
+      - PIHOLE_DNS=${PIHOLE_DNS:-8.8.8.8;1.1.1.1}
+      - DNS_BOGUS_PRIV=true
+      # Añade PUID/PGID si la imagen o volúmenes lo requieren
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
     volumes:
       - pihole_etc:/etc/pihole
       - pihole_dnsmasq:/etc/dnsmasq.d
@@ -71,7 +96,16 @@ services:
     networks:
       - vpn_network
     depends_on:
-      - wireguard
+      wireguard:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://127.0.0.1/admin/api.php?action=summary || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
 volumes:
   outline_data:

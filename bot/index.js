@@ -2,76 +2,97 @@
 
 require('dotenv').config();
 
-// 1. CORREGIDO: Importamos bot y el servicio compartido
 const { bot, notificationService } = require('./bot/bot.instance');
 const config = require('./config/environment');
 
-// Iniciar bot
-bot
-  .launch()
-  .then(async () => {
-    console.log('🚀 uSipipo VPN Bot iniciado exitosamente');
-    console.log(`📡 Admin ID: ${config.ADMIN_ID}`);
-    // Usamos ( || []) para prevenir errores si la lista está vacía o indefinida
-    console.log(`👥 Usuarios autorizados: ${(config.AUTHORIZED_USERS || []).length}`);
-    console.log(`🌍 Servidor: ${config.SERVER_IPV4}`);
+// ===============================================================
+// 🟢 STARTUP FUNCTIONS
+// ===============================================================
 
-    // 1. Definir comandos para USUARIOS NORMALES
-    const userCommands = [
-      { command: 'start', description: '🏠 Menú Principal' },
-      { command: 'miinfo', description: '👤 Ver mis datos e ID' },
-      { command: 'status', description: '✅ Comprobar estado de acceso' },
-      { command: 'commands', description: '📋 Lista de comandos' },
-      { command: 'help', description: '❓ Ayuda y soporte' }
-    ];
+// Construcción de comandos
+const buildCommands = () => {
+  const userCommands = [
+    { command: 'start', description: '🏠 Menú Principal' },
+    { command: 'miinfo', description: '👤 Ver mis datos e ID' },
+    { command: 'status', description: '✅ Comprobar estado de acceso' },
+    { command: 'commands', description: '📋 Lista de comandos' },
+    { command: 'help', description: '❓ Ayuda y soporte' }
+  ];
 
-    // 2. Definir comandos para ADMINISTRADOR (Incluye los de usuario + gestión)
-    const adminCommands = [
-      ...userCommands, // Hereda los comandos de usuario
-      { command: 'users', description: '👥 Listar usuarios' },
-      { command: 'add', description: '➕ Autorizar usuario (uso: /add ID Nombre)' },
-      { command: 'rm', description: '➖ Remover usuario (uso: /rm ID)' },
-      { command: 'sus', description: '⏸️ Suspender usuario' },
-      { command: 'react', description: '▶️ Reactivar usuario' },
-      { command: 'stats', description: '📊 Estadísticas del servidor' },
-      { command: 'broadcast', description: '📢 Enviar mensaje a todos' }
-    ];
+  const adminCommands = [
+    ...userCommands,
+    { command: 'users', description: '👥 Listar usuarios' },
+    { command: 'add', description: '➕ Autorizar usuario (uso: /add ID Nombre)' },
+    { command: 'rm', description: '➖ Remover usuario (uso: /rm ID)' },
+    { command: 'sus', description: '⏸️ Suspender usuario' },
+    { command: 'react', description: '▶️ Reactivar usuario' },
+    { command: 'stats', description: '📊 Estadísticas del servidor' },
+    { command: 'broadcast', description: '📢 Enviar mensaje a todos' }
+  ];
 
-    try {
-      // A. Establecer comandos por defecto (para todos)
-      await bot.telegram.setMyCommands(userCommands);
+  return { userCommands, adminCommands };
+};
 
-      // B. Establecer comandos específicos SOLO para el Admin
-      // Esto hace que en tu chat privado veas las opciones extra
-      await bot.telegram.setMyCommands(adminCommands, {
-        scope: { type: 'chat', chat_id: config.ADMIN_ID }
-      });
+// Establecer comandos en Telegram
+const configureTelegramCommands = async () => {
+  const { userCommands, adminCommands } = buildCommands();
 
-      console.log('✅ Menú de comandos actualizado en Telegram');
-    } catch (error) {
-      console.error('⚠️ Error al actualizar el menú de comandos:', error);
-    }
+  await bot.telegram.setMyCommands(userCommands);
 
-    // 2. CORREGIDO: Ya no instanciamos NotificationService aquí.
-    // Usamos la instancia importada 'notificationService' que comparte estado con los handlers.
+  // Comandos exclusivos para Admin en su chat privado
+  if (config.ADMIN_ID) {
+    await bot.telegram.setMyCommands(adminCommands, {
+      scope: { type: 'chat', chat_id: config.ADMIN_ID }
+    });
+  }
 
-    // Esperar 2 segundos para asegurar que la conexión a Telegram esté estable
-    setTimeout(() => {
-      // Se envía la notificación de arranque al admin
-      notificationService.notifyAdminsSystemStartup().catch((err) => {
-        console.error('⚠️ No se pudo enviar la notificación de arranque:', err.message);
-      });
-    }, 2000);
-  })
-  .catch((error) => {
+  console.log('✅ Comandos de Telegram configurados');
+};
+
+// Notificación de arranque
+const notifyStartup = async () => {
+  try {
+    await notificationService.notifyAdminsSystemStartup();
+    console.log('📨 Notificación de arranque enviada al Admin');
+  } catch (err) {
+    console.error('⚠️ No se pudo enviar la notificación de arranque:', err.message);
+  }
+};
+
+// Mostrar información de entorno
+const logStartupInfo = () => {
+  console.log('🚀 uSipipo VPN Bot iniciado');
+  console.log(`📡 Admin ID: ${config.ADMIN_ID || 'no definido'}`);
+  console.log(`👥 Usuarios autorizados: ${(config.AUTHORIZED_USERS || []).length}`);
+  console.log(`🌍 Servidor IPv4: ${config.SERVER_IPV4}`);
+};
+
+// ===============================================================
+// 🔵 LAUNCH BOT
+// ===============================================================
+
+(async () => {
+  try {
+    await bot.launch();
+
+    logStartupInfo();
+    await configureTelegramCommands();
+
+    // Delay para evitar "Too Many Requests" al iniciar
+    setTimeout(notifyStartup, 2000);
+
+  } catch (error) {
     console.error('❌ Error al iniciar el bot:', error);
     process.exit(1);
-  });
+  }
+})();
 
-// Graceful shutdown
+// ===============================================================
+// 🔴 SHUTDOWN & FATAL ERRORS
+// ===============================================================
+
 const shutdownHandler = (signal) => {
-  console.log(`
-📴 Recibida señal ${signal}. Cerrando bot...`);
+  console.log(`\n📴 Señal recibida (${signal}). Cerrando bot...`);
   bot.stop(signal);
   process.exit(0);
 };
@@ -79,8 +100,7 @@ const shutdownHandler = (signal) => {
 process.once('SIGINT', () => shutdownHandler('SIGINT'));
 process.once('SIGTERM', () => shutdownHandler('SIGTERM'));
 
-// Manejo de errores no capturados
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason) => {
   console.error('❌ Unhandled Rejection:', reason);
 });
 

@@ -1,41 +1,35 @@
-// utils/keyboards.js
 const { Markup } = require('telegraf');
 
 /**
- * Colección de menús inline para el bot.
- * Todos los teclados están pensados para usarse con ctx.reply(...) o ctx.editMessageText(...).
- * @module keyboards
- * @exports {Object}
+ * Colección de menús inline del bot.
+ * Botones optimizados para estilo compacto y profesional.
  */
+
 const keyboards = {
   /**
-   * Menú principal para usuarios autorizados.
-   * @returns {Object} Teclado inline
+   * Menú principal (usuario autorizado)
    */
   mainMenuAuthorized: () =>
     Markup.inlineKeyboard([
-      [Markup.button.callback('🔐 Crear WireGuard', 'create_wg')],
-      [Markup.button.callback('🌐 Crear Outline', 'create_outline')],
-      [Markup.button.callback('📊 Ver clientes activos', 'list_clients')],
-      [Markup.button.callback('ℹ️ Estado del servidor', 'server_status')],
+      [Markup.button.callback('🔐 WireGuard', 'create_wg')],
+      [Markup.button.callback('🌐 Outline', 'create_outline')],
+      [Markup.button.callback('📊 Clientes', 'list_clients')],
+      [Markup.button.callback('ℹ️ Servidor', 'server_status')],
       [Markup.button.callback('❓ Ayuda', 'help')]
     ]),
 
   /**
-   * Menú principal para usuarios no autorizados.
-   * @returns {Object} Teclado inline
+   * Menú principal (usuario no autorizado)
    */
   mainMenuUnauthorized: () =>
     Markup.inlineKeyboard([
-      [Markup.button.callback('👤 Ver mis datos', 'show_my_info')],
+      [Markup.button.callback('👤 Mis datos', 'show_my_info')],
       [Markup.button.callback('📧 Solicitar acceso', 'request_access')],
-      [Markup.button.callback('🔍 Comprobar estado', 'check_status')]
+      [Markup.button.callback('🔍 Ver estado', 'check_status')]
     ]),
 
   /**
-   * Menú genérico de confirmación/cancelación.
-   * @param {string} actionId - ID de la acción a confirmar
-   * @returns {Object} Teclado inline
+   * Menú de confirmación genérico
    */
   confirmationMenu: (actionId) =>
     Markup.inlineKeyboard([
@@ -46,8 +40,7 @@ const keyboards = {
     ]),
 
   /**
-   * Menú rápido de selección de VPN.
-   * @returns {Object} Teclado inline
+   * Menú rápido de selección de VPN
    */
   vpnSelectionMenu: () =>
     Markup.inlineKeyboard([
@@ -56,12 +49,11 @@ const keyboards = {
     ]),
 
   /**
-   * Menú de administración.
-   * @returns {Object} Teclado inline
+   * Menú para administradores
    */
   adminMenu: () =>
     Markup.inlineKeyboard([
-      [Markup.button.callback('👥 Ver usuarios', 'admin_list_users')],
+      [Markup.button.callback('👥 Usuarios', 'admin_list_users')],
       [Markup.button.callback('📊 Estadísticas', 'admin_stats')],
       [Markup.button.callback('🔙 Volver', 'back_to_main')]
     ])

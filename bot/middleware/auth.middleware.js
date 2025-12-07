@@ -2,79 +2,97 @@ const userManager = require('../services/userManager.service');
 const messages = require('../utils/messages');
 const logger = require('../utils/logger');
 
-function isAuthorized(userId) {
-  return userManager.isAuthorized(userId);
+// ======================================================
+// Helpers internos
+// ======================================================
+
+function getUserMeta(ctx) {
+  const userId = ctx.from?.id;
+  const username = ctx.from?.username ? `@${ctx.from.username}` : null;
+  const firstName = ctx.from?.first_name || '';
+  const lastName = ctx.from?.last_name || '';
+  const fullName = (firstName + ' ' + lastName).trim() || username || `User${userId}`;
+
+  return {
+    userId,
+    username,
+    fullName,
+    isAuthorized: userManager.isAuthorized(userId),
+    isAdmin: userManager.isAdmin(userId)
+  };
 }
 
-function isAdmin(userId) {
-  return userManager.isAdmin(userId);
-}
+// ======================================================
+// Middlewares principales
+// ======================================================
 
 async function requireAuth(ctx, next) {
-  const userId = ctx.from?.id;
-  const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
+  const meta = getUserMeta(ctx);
 
   try {
-    if (!isAuthorized(userId)) {
-      logger.warn('Access denied', { userId, userName });
-      // CORREGIDO: HTML
+    if (!meta.isAuthorized) {
+      logger.warn('Access denied (User is NOT authorized)', meta);
       await ctx.reply(messages.ACCESS_DENIED, { parse_mode: 'HTML' });
       return;
     }
 
-    logger.debug('Authorized access', { userId, userName });
+    logger.debug('Authorized access', meta);
     return next();
   } catch (error) {
-    logger.error('requireAuth', error, { userId, userName });
-    await ctx.reply('⚠️ Error de autorización interna.');
+    logger.error('requireAuth', error, meta);
+    await ctx.reply('⚠️ Error interno durante la verificación de acceso.');
   }
 }
 
 async function requireAdmin(ctx, next) {
-  const userId = ctx.from?.id;
-  const userName = ctx.from?.username || ctx.from?.first_name || `User${userId}`;
+  const meta = getUserMeta(ctx);
 
   try {
-    if (!isAdmin(userId)) {
-      logger.warn('Admin access denied', { userId, userName });
-      // CORREGIDO: HTML
+    if (!meta.isAdmin) {
+      logger.warn('Admin access denied', meta);
       await ctx.reply(messages.ADMIN_ONLY, { parse_mode: 'HTML' });
       return;
     }
 
-    logger.debug('Admin access granted', { userId, userName });
+    logger.debug('Admin access granted', meta);
     return next();
   } catch (error) {
-    logger.error('requireAdmin', error, { userId, userName });
-    await ctx.reply('⚠️ Error al verificar permisos de administrador.');
+    logger.error('requireAdmin', error, meta);
+    await ctx.reply('⚠️ Error interno al validar permisos de administrador.');
   }
 }
 
+/**
+ * Logger universal de acciones del usuario.
+ * Registra TODO: comandos, botones, textos, eventos...
+ */
 async function logUserAction(ctx, next) {
-  const userId = ctx.from?.id;
-  const firstName = ctx.from?.first_name || 'Unknown';
-  const lastName = ctx.from?.last_name || '';
-  const username = ctx.from?.username ? `@${ctx.from.username}` : '';
-  const fullName = `${firstName} ${lastName}`.trim() || username || 'Unknown';
-  const action = ctx.updateType || 'unknown';
+  const meta = getUserMeta(ctx);
+  const actionType = ctx.updateType || 'unknown';
+  const messageType = ctx.message?.text || ctx.callbackQuery?.data || null;
 
-  const isAuth = isAuthorized(userId);
-  const isAdminUser = isAdmin(userId);
-  const role = isAdminUser ? 'ADMIN' : isAuth ? 'USER' : 'UNAUTHORIZED';
-
-  logger.http('User action', action, 200, 0, {
-    userId,
-    fullName,
-    role,
-    username
-  });
+  logger.http(
+    'UserAction',
+    actionType,
+    200,
+    0,
+    {
+      ...meta,
+      actionType,
+      message: messageType
+    }
+  );
 
   return next();
 }
 
+// ======================================================
+// Exports
+// ======================================================
+
 module.exports = {
-  isAuthorized,
-  isAdmin,
+  isAuthorized: (id) => userManager.isAuthorized(id),
+  isAdmin: (id) => userManager.isAdmin(id),
   requireAuth,
   requireAdmin,
   logUserAction

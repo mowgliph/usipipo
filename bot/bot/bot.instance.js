@@ -1,10 +1,10 @@
-// bot/bot.instance.js
 'use strict';
 
 const { Telegraf } = require('telegraf');
 const config = require('../config/environment');
 const logger = require('../utils/logger');
 
+// Middlewares
 const {
   requireAuth,
   requireAdmin,
@@ -25,33 +25,42 @@ const AdminHandler = require('../handlers/admin.handler');
 const messages = require('../utils/messages');
 const keyboards = require('../utils/keyboards');
 
-// Inicialización del bot con configuración global HTML
+// ---------------------------------------------------------------------------
+// 🟦 BOT INSTANCE
+// ---------------------------------------------------------------------------
+
 const bot = new Telegraf(config.TELEGRAM_TOKEN, {
   handlerTimeout: 90_000,
-  telegram: {
-    parse_mode: 'HTML'
-  }
+  telegram: { parse_mode: 'HTML' } // Forzar HTML global
 });
 
-// 1. Instanciamos el servicio aquí (Centralizado)
+// Centralizamos NotificationService para que toda la app use una sola instancia
 const notificationService = new NotificationService(bot);
 
+// Handlers instanciados
 const authHandler = new AuthHandler(notificationService);
 const vpnHandler = new VPNHandler();
 const infoHandler = new InfoHandler();
 const adminHandler = new AdminHandler(notificationService);
 
-// Middleware global
+// ---------------------------------------------------------------------------
+// 🟪 GLOBAL MIDDLEWARE
+// ---------------------------------------------------------------------------
+
 bot.use(logUserAction);
 
-// --- COMANDOS Y HANDLERS (Igual que antes) ---
+// ---------------------------------------------------------------------------
+// 🟩 COMMAND HANDLERS
+// ---------------------------------------------------------------------------
 
+// User Commands
 bot.command('start', (ctx) => authHandler.handleStart(ctx));
 bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
 bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
 bot.command('help', (ctx) => authHandler.handleHelp(ctx));
 bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx));
 
+// Admin Commands
 bot.command('add', requireAdmin, (ctx) => adminHandler.handleAddUser(ctx));
 bot.command('rm', requireAdmin, (ctx) => adminHandler.handleRemoveUser(ctx));
 bot.command('sus', requireAdmin, (ctx) => adminHandler.handleSuspendUser(ctx));
@@ -62,6 +71,37 @@ bot.command('broadcast', requireAdmin, (ctx) => adminHandler.handleBroadcast(ctx
 bot.command('sms', requireAdmin, (ctx) => adminHandler.handleDirectMessage(ctx));
 bot.command('templates', requireAdmin, (ctx) => adminHandler.handleTemplates(ctx));
 
+// System-only emergency command
+bot.command('forceadmin', async (ctx) => {
+  const userId = ctx.from.id.toString();
+
+  if (userId !== config.ADMIN_ID) {
+    return ctx.reply('⛔ Solo el Admin configurado en <b>.env</b> puede usar este comando.');
+  }
+
+  try {
+    const userManager = require('../services/userManager.service');
+
+    await userManager.syncAdminFromEnv();
+
+    await ctx.reply(
+      `✅ <b>Sincronización completada</b>\n
+🆔 Admin: <code>${config.ADMIN_ID}</code>\n👑 Rol: Administrador\n
+Ahora puedes usar <b>/stats</b> o <b>/users</b>.`
+    );
+
+    logger.success(userId, 'forceadmin', config.ADMIN_ID);
+  } catch (error) {
+    logger.error('forceadmin', error, { userId });
+    await ctx.reply(`❌ Error: ${error.message}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 🟧 ACTION HANDLERS (Botones Inline)
+// ---------------------------------------------------------------------------
+
+// User actions
 bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));
 bot.action('request_access', (ctx) => authHandler.handleAccessRequest(ctx));
 bot.action('check_status', (ctx) => authHandler.handleCheckStatus(ctx));
@@ -73,25 +113,20 @@ bot.action('list_clients', requireAuth, (ctx) => vpnHandler.handleListClients(ct
 bot.action('server_status', requireAuth, (ctx) => infoHandler.handleServerStatus(ctx));
 bot.action('help', (ctx) => infoHandler.handleHelp(ctx));
 
-bot.action(/^broadcast_all_(.+)$/, requireAdmin, (ctx) => {
-  const broadcastId = ctx.match[1];
-  return adminHandler.handleBroadcastConfirm(ctx, broadcastId, 'all');
-});
-
-bot.action(/^broadcast_users_(.+)$/, requireAdmin, (ctx) => {
-  const broadcastId = ctx.match[1];
-  return adminHandler.handleBroadcastConfirm(ctx, broadcastId, 'users');
-});
-
-bot.action(/^broadcast_admins_(.+)$/, requireAdmin, (ctx) => {
-  const broadcastId = ctx.match[1];
-  return adminHandler.handleBroadcastConfirm(ctx, broadcastId, 'admins');
+// Broadcast dynamic actions
+bot.action(/^broadcast_(all|users|admins)_(.+)$/, requireAdmin, (ctx) => {
+  const [_, scope, id] = ctx.match;
+  return adminHandler.handleBroadcastConfirm(ctx, id, scope);
 });
 
 bot.action(/^broadcast_cancel_(.+)$/, requireAdmin, (ctx) => {
   const broadcastId = ctx.match[1];
   return adminHandler.handleBroadcastCancel(ctx, broadcastId);
 });
+
+// ---------------------------------------------------------------------------
+// 🟥 CATCH-ALL ERROR HANDLER
+// ---------------------------------------------------------------------------
 
 bot.catch(async (err, ctx) => {
   const userId = ctx.from?.id;
@@ -108,54 +143,38 @@ bot.catch(async (err, ctx) => {
   await ctx.reply(messages.ERROR_GENERIC).catch(() => {});
 });
 
-bot.command('forceadmin', async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const envAdminId = config.ADMIN_ID;
-
-  if (userId !== envAdminId) {
-    return ctx.reply('⛔ Solo el Admin configurado en .env puede usar este comando.');
-  }
-
-  try {
-    const userManager = require('../services/userManager.service');
-    await userManager.syncAdminFromEnv();
-
-    await ctx.reply(
-      `✅ <b>Sincronización forzada completada</b>
-
-🆔 Admin ID: <code>${envAdminId}</code>
-👑 Rol: Administrador
-
-Prueba ahora: /stats o /users`
-    );
-
-    logger.success(userId, 'forceadmin', envAdminId);
-  } catch (error) {
-    logger.error('forceadmin', error, { userId });
-    await ctx.reply(`❌ Error: ${error.message}`);
-  }
-});
+// ---------------------------------------------------------------------------
+// 🟨 GENERIC MESSAGE HANDLER
+// ---------------------------------------------------------------------------
 
 bot.on('text', async (ctx) => {
   const userId = ctx.from?.id;
   const userName = ctx.from?.first_name || 'usuario';
-  const messageText = ctx.message.text.trim();
+  const text = ctx.message.text.trim();
 
   try {
-    if (messageText.startsWith('/')) {
+    // Unknown command
+    if (text.startsWith('/')) {
       const adminStatus = isAdmin(userId);
       await ctx.reply(messages.UNKNOWN_COMMAND(adminStatus));
-      logger.verbose('unknown_command', { userId, text: messageText });
-    } else {
-      await ctx.reply(messages.GENERIC_TEXT_PROMPT(userName), {
-        reply_markup: keyboards.vpnSelectionMenu().reply_markup
-      });
-      logger.verbose('generic_message', { userId, text: messageText });
+      logger.verbose('unknown_command', { userId, text });
+      return;
     }
+
+    // Generic text => show menu
+    await ctx.reply(messages.GENERIC_TEXT_PROMPT(userName), {
+      reply_markup: keyboards.vpnSelectionMenu().reply_markup
+    });
+
+    logger.verbose('generic_message', { userId, text });
+
   } catch (err) {
     logger.error('text_handler', err, { userId });
   }
 });
 
-// 2. EXPORTAMOS AMBOS OBJETOS
+// ---------------------------------------------------------------------------
+// EXPORTS
+// ---------------------------------------------------------------------------
+
 module.exports = { bot, notificationService };

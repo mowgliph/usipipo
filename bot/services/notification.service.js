@@ -3,184 +3,163 @@ const config = require('../config/environment');
 const messages = require('../utils/messages');
 const userManager = require('./userManager.service');
 
-// =====================================================
-// UTILIDADES HTML INTERNAS
-// =====================================================
-
-const escapeHtml = (text) => {
-  if (!text) return '';
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-};
-
-const bold = (text) => `<b>${text}</b>`;
-const italic = (text) => `<i>${text}</i>`;
-const code = (text) => `<code>${text}</code>`;
+const { escapeHtml, bold, code, italic } = messages._helpers;
 
 class NotificationService {
   constructor(bot) {
     this.bot = bot;
   }
 
-  // --- MÉTODOS DE ADMIN (Sin cambios mayores, solo optimización) ---
-
+  // ---------------------------------------------------------
+  // NOTIFICACIONES AL ADMIN
+  // ---------------------------------------------------------
   async notifyAdminAccessRequest(user) {
     try {
-      const formattedMessage = messages.ACCESS_REQUEST_ADMIN_NOTIFICATION(user);
-      await this.bot.telegram.sendMessage(config.ADMIN_ID, formattedMessage);
-      console.log(`Notificación enviada al admin sobre solicitud de ${user.id}`);
+      const formatted = messages.ACCESS_REQUEST_ADMIN_NOTIFICATION(user);
+      await this.bot.telegram.sendMessage(config.ADMIN_ID, formatted);
       return true;
-    } catch (error) {
-      console.error('Error al notificar al admin:', error.message);
+    } catch (err) {
+      console.error('Error al notificar solicitud al admin:', err.message);
       return false;
     }
   }
 
   async notifyAdminError(errorMessage, context = {}) {
     try {
-      const escapedContext = code(escapeHtml(JSON.stringify(context, null, 2)));
-      const safeErrorMessage = escapeHtml(errorMessage);
+      const safeError = escapeHtml(errorMessage);
+      const safeContext = code(escapeHtml(JSON.stringify(context, null, 2)));
 
-      const message = `${bold('ERROR CRÍTICO EN EL BOT')}\n\n` +
-        `${bold(safeErrorMessage)}\n\n` +
-        `${bold('Contexto:')}\n` +
-        `${escapedContext}\n\n` +
+      const msg =
+        `${bold('ERROR CRÍTICO EN EL BOT')}\n\n` +
+        `${bold(safeError)}\n\n` +
+        `${bold('Contexto:')}\n${safeContext}\n\n` +
         `${italic(new Date().toLocaleString())}`;
 
-      await this.bot.telegram.sendMessage(config.ADMIN_ID, message);
+      await this.bot.telegram.sendMessage(config.ADMIN_ID, msg);
       return true;
-    } catch (error) {
-      console.error('Error al enviar notificación de error:', error.message);
+    } catch (err) {
+      console.error('Error enviando error crítico al admin:', err.message);
       return false;
     }
   }
 
-  // --- CORRECCIÓN PRINCIPAL: BROADCAST OPTIMIZADO ---
-
-  /**
-   * Envía mensaje a múltiples usuarios procesando por lotes (Batches)
-   * para no bloquear el Event Loop.
-   */
-  async sendBroadcast(message, recipients, options = {}) {
+  // ---------------------------------------------------------
+  // BROADCAST (batch processing optimizado)
+  // ---------------------------------------------------------
+  async sendBroadcast(messageHtml, recipients, options = {}) {
     const { includeHeader = true } = options;
+
+    const finalMessage = includeHeader
+      ? `${bold('ANUNCIO')}\n━━━━━━━━━━━━━━━━━━━━\n\n${messageHtml}\n\n━━━━━━━━━━━━━━━━━━━━\n${italic('🤖 uSipipo VPN Bot')}`
+      : messageHtml;
+
     const results = { success: 0, failed: 0, errors: [] };
-    const BATCH_SIZE = 20; // Enviar 20 mensajes en paralelo
-    const DELAY_BETWEEN_BATCHES = 1000; // Esperar 1s entre lotes (Rate limiting de Telegram)
 
-    const formattedMessage = includeHeader
-      ? `${bold('ANUNCIO')}\n━━━━━━━━━━━━━━━━━━━━\n\n${message}\n\n━━━━━━━━━━━━━━━━━━━━\n${italic('🤖 uSipipo VPN Bot')}`
-      : message;
+    const BATCH_SIZE = 20;
+    const DELAY = 1000;
 
-    // Procesar en lotes
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
       const batch = recipients.slice(i, i + BATCH_SIZE);
-      
-      // Ejecutar lote en paralelo
-      const promises = batch.map(user => 
-        this.bot.telegram.sendMessage(user.id, formattedMessage)
-          .then(() => ({ status: 'fulfilled' }))
-          .catch(err => ({ status: 'rejected', userId: user.id, error: err.message }))
+
+      const tasks = batch.map((u) =>
+        this.bot.telegram.sendMessage(u.id, finalMessage)
+          .then(() => ({ ok: true }))
+          .catch(err => ({ ok: false, userId: u.id, error: err.message }))
       );
 
-      const batchResults = await Promise.all(promises);
+      const batchResults = await Promise.all(tasks);
 
-      // Contabilizar resultados
-      batchResults.forEach(res => {
-        if (res.status === 'fulfilled') {
-          results.success++;
-        } else {
+      batchResults.forEach((r) => {
+        if (r.ok) results.success++;
+        else {
           results.failed++;
-          results.errors.push({ userId: res.userId, error: res.error });
-          console.error(`Error enviando broadcast:`, res.error);
+          results.errors.push({ userId: r.userId, error: r.error });
         }
       });
 
-      // Pequeño descanso si quedan más usuarios, para respetar límites de Telegram
       if (i + BATCH_SIZE < recipients.length) {
-        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+        await new Promise(res => setTimeout(res, DELAY));
       }
     }
 
-    console.log(`Broadcast completado: ${results.success} exitosos, ${results.failed} fallidos`);
+    console.log(`Broadcast: ${results.success} OK, ${results.failed} FAIL`);
     return results;
   }
 
-  /**
-   * Notifica el inicio del sistema (Usa la lógica optimizada si hay muchos admins)
-   */
+  // ---------------------------------------------------------
+  // BROADCAST CON FOTO
+  // ---------------------------------------------------------
+  async sendBroadcastWithPhoto(messageHtml, photoUrl, recipients) {
+    const results = { success: 0, failed: 0, errors: [] };
+
+    const BATCH_SIZE = 15;
+    const DELAY = 1500;
+
+    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+      const batch = recipients.slice(i, i + BATCH_SIZE);
+
+      const tasks = batch.map((u) =>
+        this.bot.telegram.sendPhoto(u.id, photoUrl, {
+          caption: `${bold('ANUNCIO')}\n\n${messageHtml}`,
+          parse_mode: 'HTML'
+        })
+          .then(() => ({ ok: true }))
+          .catch(err => ({ ok: false, userId: u.id, error: err.message }))
+      );
+
+      const batchResults = await Promise.all(tasks);
+
+      batchResults.forEach((r) => {
+        if (r.ok) results.success++;
+        else {
+          results.failed++;
+          results.errors.push({ userId: r.userId, error: r.error });
+        }
+      });
+
+      if (i + BATCH_SIZE < recipients.length) {
+        await new Promise(res => setTimeout(res, DELAY));
+      }
+    }
+
+    return results;
+  }
+
+  // ---------------------------------------------------------
+  // NOTIFICACIÓN DE INICIO DEL SISTEMA
+  // ---------------------------------------------------------
   async notifyAdminsSystemStartup() {
     try {
       const stats = userManager.getUserStats();
-      const allUsers = userManager.getAllUsers();
-      const admins = allUsers.filter(u => u.role === 'admin' && u.status === 'active');
+      const all = userManager.getAllUsers();
+      const admins = all.filter(u => u.role === 'admin' && u.status === 'active');
 
-      const serverInfo = {
+      const info = {
         ip: config.SERVER_IPV4,
         wgPort: config.WIREGUARD_PORT,
         outlinePort: config.OUTLINE_API_PORT
       };
 
-      let message = messages.SYSTEM_STARTUP(serverInfo, stats.admins, stats.total);
-      message = `${bold('INICIO DEL SISTEMA')}:\n\n${message}`;
+      const text = messages.SYSTEM_STARTUP(info, stats.admins, stats.total);
 
-      console.log(`Enviando notificación de inicio a ${admins.length} administradores...`);
+      const final = `${bold('INICIO DEL SISTEMA')}\n\n${text}`;
 
-      // Reutilizamos la lógica de envío simple para admins (suelen ser pocos)
       const results = { success: 0, failed: 0 };
+
       for (const admin of admins) {
         try {
-          await this.bot.telegram.sendMessage(admin.id, message);
+          await this.bot.telegram.sendMessage(admin.id, final);
           results.success++;
-        } catch (error) {
-          console.error(`Error admin ${admin.id}:`, error.message);
+        } catch (err) {
           results.failed++;
         }
       }
-      return results;
 
-    } catch (error) {
-      console.error('Error crítico inicio sistema:', error);
+      return results;
+    } catch (err) {
+      console.error('Error crítico notifyAdminsSystemStartup:', err);
       return { success: 0, failed: 0 };
     }
-  }
-
-  /**
-   * Broadcast con foto optimizado por lotes
-   */
-  async sendBroadcastWithPhoto(message, photoUrl, recipients) {
-    const results = { success: 0, failed: 0, errors: [] };
-    const BATCH_SIZE = 15; // Fotos pesan más, lote más pequeño
-    const DELAY = 1500;
-
-    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-      const batch = recipients.slice(i, i + BATCH_SIZE);
-      
-      const promises = batch.map(user => 
-        this.bot.telegram.sendPhoto(user.id, photoUrl, {
-            caption: `${bold('ANUNCIO')}\n\n${message}`,
-            parse_mode: 'HTML'
-          })
-          .then(() => ({ status: 'fulfilled' }))
-          .catch(err => ({ status: 'rejected', userId: user.id, error: err.message }))
-      );
-
-      const batchResults = await Promise.all(promises);
-
-      batchResults.forEach(res => {
-        if (res.status === 'fulfilled') results.success++;
-        else {
-          results.failed++;
-          results.errors.push({ userId: res.userId, error: res.error });
-        }
-      });
-
-      if (i + BATCH_SIZE < recipients.length) {
-        await new Promise(resolve => setTimeout(resolve, DELAY));
-      }
-    }
-    return results;
   }
 }
 
