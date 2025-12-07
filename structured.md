@@ -23,18 +23,23 @@
 │   │   ├── userManager.service.js
 │   │   └── wireguard.service.js
 │   └── utils
-│       ├── configManager.js
 │       ├── formatters.js
 │       ├── keyboards.js
+│       ├── logger.js
 │       └── messages.js
 ├── docker-compose.yml
 ├── docker.sh
 ├── example.env
-├── example.txt
+├── install.sh
 ├── issues.txt
 ├── logs
+├── modules
+│   ├── docker.sh
+│   ├── outline.sh
+│   ├── utils.sh
+│   └── wireguard.sh
 ├── package.json
 ├── pm2.config.js
 └── structured.md
 
-10 directories, 28 files
+11 directories, 32 files
