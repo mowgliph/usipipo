@@ -920,7 +920,7 @@ edit_env_config() {
 stop_services() {
     log_header "⏹️ STOPPING VPN SERVICES"
     
-    if ! confirm_action "Are you sure you want to stop all services?"; then
+    if ! confirm_action "Are you sure you want to stop VPN services (Outline + WireGuard + Pi-hole) only?"; then
         log_info "Operation cancelled"
         show_menu
         return
@@ -933,16 +933,14 @@ stop_services() {
         CMD="run_sudo docker compose"
     fi
     
-    local WIREGUARD
-    local OUTLINE 
-    local PIHOLE 
-    
-    log_info "Stopping containers..."
-    $CMD down WIREGUARD OUTLINE PIHOLE
-    
-    log_success "All services stopped successfully"
-    log_info "Data volumes preserved. Use option 2 to restart services."
-    
+    VPN_SERVICES=("outline" "wireguard" "pihole")
+
+    log_info "Stopping VPN containers (outline, wireguard, pihole)..."
+    $CMD stop "${VPN_SERVICES[@]}"
+
+    log_success "VPN services stopped successfully"
+    log_info "Other Docker containers remain running"
+
     press_any_key
     show_menu
 }
