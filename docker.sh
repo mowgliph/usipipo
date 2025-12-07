@@ -540,46 +540,121 @@ EOF
     # =========================================================================
     # STEP 6.5: Configure Kernel Networking
     # =========================================================================
-    log_info "Configuring host kernel for WIREGUARD VPN routing..."
-    
-    # Aplicar configuraciones en caliente
-    run_sudo sysctl -w net.ipv4.ip_forward=1 > /dev/null
-    run_sudo sysctl -w net.ipv4.conf.all.src_valid_mark=1 > /dev/null
-    run_sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0 > /dev/null
+    # ========================= SAFER WG + IPTABLES PATCH =========================
+    # Bloque seguro para detectar interfaz, habilitar forwarding (sólo IPv4 si procede),
+    # crear wg0.conf y aplicar reglas iptables de forma idempotente.
+    # Reemplaza la sección antigua que construía /tmp/wg0.conf.usipipo y escribía sysctl.
+    # =============================================================================
 
-    # Hacerlo persistente tras reiniciar
-    echo -e "net.ipv4.ip_forward=1\nnet.ipv4.conf.all.src_valid_mark=1\nnet.ipv6.conf.all.disable_ipv6=0" | \
-        run_sudo tee /etc/sysctl.d/99-vpn-manager.conf > /dev/null
-    
-    run_sudo sysctl -p /etc/sysctl.d/99-vpn-manager.conf > /dev/null
-    
-    log_success "Kernel IP forwarding enabled successfully"
+    log_info "Configuring kernel networking and safe NAT/iptables rules for WireGuard..."
 
+    # Detectar interfaz de salida de forma robusta
+    WG_INTERFACE=""
+    WG_INTERFACE=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}')
+    if [ -z "$WG_INTERFACE" ]; then
+        # Fallback: primera interfaz no-loopback UP con dirección IPv4
+        WG_INTERFACE=$(ip -4 addr show scope global up | awk '/^[0-9]+:/{iface=$2} /inet /{gsub("/.*","",$2); if (iface && $2!="127.0.0.1") {gsub(":$","",iface); print iface; exit}}')
+    fi
 
-    # Hacerlo persistente tras reiniciar
-    sudo tee /etc/sysctl.d/99-vpn-manager.conf > /dev/null <<EOF
-net.ipv4.ip_forward=1
-net.ipv4.conf.all.src_valid_mark=1
-net.ipv6.conf.all.disable_ipv6=0
-EOF
-    sudo sysctl -p /etc/sysctl.d/99-vpn-manager.conf
-    
-    # Creamos el archivo wg0.conf con las reglas de IPTABLES (PostUp/PostDown)
-    # Esto es vital para que haya internet.
-    log_info "Injecting NAT/Masquerade rules into wg0.conf..."
+    if [ -z "$WG_INTERFACE" ]; then
+        log_error "No suitable host interface found for NAT. Aborting NAT setup."
+        WG_INTERFACE="UNKNOWN"
+    else
+        log_success "Detected host interface for NAT: ${WG_INTERFACE}"
+    fi
 
-    # Detect real network interface (eth0, ens3, enp1s0, etc)
-    WG_INTERFACE=$(ip route get 1.1.1.1 | awk '{print $5; exit}')
     SUBNET="10.13.13.0/24"
 
-    log_success "Detected host interface for NAT: ${WG_INTERFACE}"
+    # ========================= Sysctl (persistente y seguro) =====================
+    # Habilitar sólo lo necesario y comprobar soporte IPv6 en la interfaz antes de tocarlo.
+    SYSCTL_FILE="/etc/sysctl.d/99-vpn-manager.conf"
+    TMP_SYSCTL="$(mktemp)"
+    {
+        echo "# uSipipo VPN manager kernel settings - generated on $(date -u)"
+        echo "net.ipv4.ip_forward=1"
+        echo "net.ipv4.conf.all.src_valid_mark=1"
+        # Añadiremos IPv6 sólo si la interfaz tiene direcciones IPv6 globales
+    } > "$TMP_SYSCTL"
 
-    # Build a clean wg0.conf with correct NAT, PostUp/PostDown and interface
-    run_sudo bash -c "cat > /tmp/wg0.conf.usipipo <<EOF
+    # Detectar soporte IPv6 EN LA INTERFAZ (global/inet6 addresses)
+    if [ "$WG_INTERFACE" != "UNKNOWN" ]; then
+        if ip -6 addr show dev "$WG_INTERFACE" scope global 2>/dev/null | grep -q "inet6"; then
+            echo "net.ipv6.conf.all.disable_ipv6=0" >> "$TMP_SYSCTL"
+            log_info "IPv6 appears available on ${WG_INTERFACE}; enabling IPv6 sysctl entry."
+        else
+            log_info "No global IPv6 detected on ${WG_INTERFACE}; skipping IPv6 sysctl changes."
+        fi
+    fi
+
+    # Backup previo seguro y escribir archivo persistente
+    run_sudo cp -f "$SYSCTL_FILE" "${SYSCTL_FILE}.bak" 2>/dev/null || true
+    run_sudo cp -f "$TMP_SYSCTL" "$SYSCTL_FILE"
+    run_sudo sysctl -p "$SYSCTL_FILE" >/dev/null 2>&1 || log_warning "sysctl -p returned non-zero (may be OK on some systems)"
+    rm -f "$TMP_SYSCTL"
+
+    log_success "Kernel sysctl configuration written to ${SYSCTL_FILE}"
+
+    # ========================= IPTABLES: backup + idempotente =====================
+    IPT_BACKUP="/tmp/iptables-backup-$(date +%Y%m%d_%H%M%S).rules"
+    run_sudo iptables-save > "$IPT_BACKUP" 2>/dev/null || log_warning "Could not save current iptables (permission?)"
+    log_info "iptables saved to ${IPT_BACKUP}"
+
+    # Funciones auxiliares para añadir reglas de forma idempotente
+    ipt_add_if_missing() {
+        # $1 -> table (filter|nat)
+        # $2.. -> rule args for iptables
+        local table="$1"; shift
+        if run_sudo iptables -t "$table" -C "$@" >/dev/null 2>&1; then
+            return 0
+        else
+            run_sudo iptables -t "$table" -A "$@"
+            return $?
+        fi
+    }
+
+    # Añadir reglas FORWARD y NAT sólo si interfaz válida
+    if [ "$WG_INTERFACE" != "UNKNOWN" ]; then
+        # Aceptar tráfico del/para la interfaz WG
+        ipt_add_if_missing filter -i wg0 -j ACCEPT
+        ipt_add_if_missing filter -o wg0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+        # Masquerade del SUBNET hacia la interfaz detectada
+        ipt_add_if_missing nat -s "${SUBNET}" -o "${WG_INTERFACE}" -j MASQUERADE
+
+        log_success "Applied host iptables rules for WG NAT and forwarding (idempotent)."
+    else
+        log_warning "Skipped applying host iptables NAT rules because host interface is unknown."
+    fi
+
+    # ========================= Construcción segura de wg0.conf ===================
+    # Esperar clave privada del contenedor (reintentos limitados). Si no aparece,
+    # generar template con marcador para que puedas rellenar manualmente.
+    PRIVATE_KEY=""
+    MAX_KEY_RETRIES=8
+    KEY_WAIT=1
+    COUNT=0
+
+    # Asegurarse que variable DOCKER_CMD esté presente (coincide con resto del script)
+    DOCKER_CMD=${DOCKER_CMD:-docker}
+
+    while [ $COUNT -lt $MAX_KEY_RETRIES ]; do
+        if $DOCKER_CMD exec wireguard cat /config/server/privatekey >/tmp/.wg_privkey.$$ 2>/dev/null; then
+            PRIVATE_KEY=$(tr -d '\n' < /tmp/.wg_privkey.$$ 2>/dev/null)
+            rm -f /tmp/.wg_privkey.$$
+            break
+        fi
+        COUNT=$((COUNT+1))
+        sleep $KEY_WAIT
+    done
+
+    WG_CONF_TMP="/tmp/wg0.conf.usipipo"
+    if [ -n "$PRIVATE_KEY" ]; then
+        log_success "Obtained WireGuard private key from container (used to build wg0.conf)."
+        cat > "$WG_CONF_TMP" <<EOF
 [Interface]
 Address = 10.13.13.1
 ListenPort = ${WIREGUARD_PORT}
-PrivateKey = \$(docker exec wireguard cat /config/server/privatekey)
+PrivateKey = ${PRIVATE_KEY}
 
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; \
          iptables -A FORWARD -o %i -m state --state RELATED,ESTABLISHED -j ACCEPT; \
@@ -588,17 +663,50 @@ PostUp = iptables -A FORWARD -i %i -j ACCEPT; \
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; \
            iptables -D FORWARD -o %i -m state --state RELATED,ESTABLISHED -j ACCEPT; \
            iptables -t nat -D POSTROUTING -s ${SUBNET} -o ${WG_INTERFACE} -j MASQUERADE
-EOF"
+EOF
+    else
+        log_warning "Could NOT read WireGuard private key from container (after ${MAX_KEY_RETRIES} tries). Creating template wg0.conf with placeholder."
+        cat > "$WG_CONF_TMP" <<'EOF'
+[Interface]
+Address = 10.13.13.1
+ListenPort = REPLACE_WITH_WIREGUARD_PORT
+PrivateKey = REPLACE_WITH_SERVER_PRIVATE_KEY  # Replace this line with the real private key
 
-    # Append existing peers to the new config
-    docker exec wireguard cat /config/wg_confs/wg0.conf | grep -A5 "^\[Peer\]" >> /tmp/wg0.conf.usipipo 2>/dev/null || true
+# PostUp/PostDown will be executed by the container's wg-quick if supported.
+# Additionally, host rules were applied idempotently during installation.
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; \
+         iptables -A FORWARD -o %i -m state --state RELATED,ESTABLISHED -j ACCEPT; \
+         iptables -t nat -A POSTROUTING -s 10.13.13.0/24 -o REPLACE_WITH_HOST_IF -j MASQUERADE
 
-    # Apply new configuration inside container
-    docker cp /tmp/wg0.conf.usipipo wireguard:/config/wg_confs/wg0.conf
-    rm /tmp/wg0.conf.usipipo
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; \
+           iptables -D FORWARD -o %i -m state --state RELATED,ESTABLISHED -j ACCEPT; \
+           iptables -t nat -D POSTROUTING -s 10.13.13.0/24 -o REPLACE_WITH_HOST_IF -j MASQUERADE
+EOF
+        # Reemplazos para el template
+        sed -i "s|REPLACE_WITH_WIREGUARD_PORT|${WIREGUARD_PORT}|g" "$WG_CONF_TMP"
+        sed -i "s|REPLACE_WITH_HOST_IF|${WG_INTERFACE}|g" "$WG_CONF_TMP"
+    fi
 
-    log_success "WireGuard configuration rebuilt successfully"
-    
+    # Añadir peers existentes (si existe el contenedor y el fichero)
+    if $DOCKER_CMD exec wireguard test -f /config/wg_confs/wg0.conf 2>/dev/null; then
+        # Extraer sólo bloques [Peer] desde el contenedor antiguo (si hay)
+        $DOCKER_CMD exec wireguard sh -c "grep -n '^\[Peer\]' /config/wg_confs/wg0.conf >/dev/null 2>&1" && \
+            $DOCKER_CMD exec wireguard sh -c "awk '/^\[Peer\]/{p=1} p{print}' /config/wg_confs/wg0.conf" >> "$WG_CONF_TMP" 2>/dev/null || true
+    fi
+
+    # Intentar copiar el archivo al contenedor; si falla dejar en /tmp y avisar
+    if $DOCKER_CMD ps --filter "name=wireguard" --filter "status=running" | grep -q wireguard; then
+        if $DOCKER_CMD cp "$WG_CONF_TMP" wireguard:/config/wg_confs/wg0.conf 2>/dev/null; then
+            log_success "WireGuard configuration rebuilt and copied into container: /config/wg_confs/wg0.conf"
+            rm -f "$WG_CONF_TMP"
+        else
+            log_warning "Failed to copy wg0.conf into container; left at ${WG_CONF_TMP}. You may copy it manually into the container."
+        fi
+    else
+        log_warning "WireGuard container not running. wg0.conf created at: ${WG_CONF_TMP}. Start the container and copy it manually or restart via the menu."
+    fi
+
+    # ========================= FIN DEL BLOQUE SEGURO =============================
 
     # =========================================================================
     # STEP 7: Start Docker Containers
