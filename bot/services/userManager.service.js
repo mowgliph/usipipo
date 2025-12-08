@@ -1,31 +1,52 @@
-// services/userManager.service.js
+'use strict';
+
 const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config/environment');
 const logger = require('../utils/logger');
 
+/**
+ * Servicio centralizado para la gestión de usuarios (ACL).
+ * - Persistencia en JSON transaccional
+ * - Sincronización automática con .env
+ * - Sistema seguro con control de roles
+ * - API consistente para handlers y middlewares
+ */
+
 class UserManager {
   constructor() {
     this.usersFilePath = path.join(__dirname, '../data/authorized_users.json');
+
+    // Mapa interno — mayor performance que objeto plano
     this.users = new Map();
+
+    // Control de guardado secuencial
     this._savePromise = Promise.resolve();
 
+    // Inicialización
     this.init();
   }
 
-  // ------------------------------------------------------
-  // INIT
-  // ------------------------------------------------------
+  // ============================================================================
+  // 🔵 INIT
+  // ============================================================================
+
   async init() {
-    await this.loadUsers();
-    await this.syncAdminFromEnv();
+    try {
+      await this.loadUsers();
+      await this.syncAdminFromEnv();
+      logger.info('UserManager iniciado correctamente', { total: this.users.size });
+    } catch (err) {
+      logger.error('Fallo al inicializar UserManager', err);
+    }
   }
 
-  // ------------------------------------------------------
-  // HELPERS
-  // ------------------------------------------------------
+  // ============================================================================
+  // 🔧 HELPERS
+  // ============================================================================
+
   toStr(id) {
-    return String(id);
+    return String(id).trim();
   }
 
   getUser(id) {
@@ -39,26 +60,32 @@ class UserManager {
   }
 
   ensureNotAdmin(user) {
-    if (user.role === 'admin') throw new Error('No se puede eliminar/modificar a un administrador');
+    if (user.role === 'admin') {
+      throw new Error('No se puede modificar ni eliminar a un administrador');
+    }
   }
 
-  // ------------------------------------------------------
-  // LOAD / SAVE
-  // ------------------------------------------------------
+  // ============================================================================
+  // 📂 LOAD / SAVE
+  // ============================================================================
+
   async loadUsers() {
     try {
       await fs.mkdir(path.dirname(this.usersFilePath), { recursive: true });
+
       const raw = await fs.readFile(this.usersFilePath, 'utf8');
       const parsed = JSON.parse(raw);
 
       this.users = new Map(Object.entries(parsed.users));
-      logger.info('Usuarios cargados', { count: this.users.size });
+
+      logger.info('Usuarios cargados desde archivo', { count: this.users.size });
+
     } catch (err) {
       if (err.code === 'ENOENT') {
-        logger.warn('Sin archivo de usuarios, inicializando desde entorno');
+        logger.warn('No existe archivo de usuarios. Inicializando desde entorno...');
         await this.initializeFromEnv();
       } else {
-        logger.error('Error cargando usuarios', err);
+        logger.error('Error leyendo archivo de usuarios', err);
         this.users = new Map();
       }
     }
@@ -71,7 +98,7 @@ class UserManager {
 
     // Admin principal
     if (adminId) {
-      data[adminId] = {
+      const admin = {
         id: adminId,
         name: 'Admin Principal',
         addedAt: new Date().toISOString(),
@@ -79,15 +106,18 @@ class UserManager {
         status: 'active',
         role: 'admin'
       };
-      this.users.set(adminId, data[adminId]);
+
+      this.users.set(adminId, admin);
+      data[adminId] = admin;
     }
 
-    // Usuarios adicionales
+    // Usuarios extra del .env
     for (const u of extraUsers) {
       const id = this.toStr(u);
       if (id !== adminId && !this.users.has(id)) {
         const entry = {
           id,
+          name: null,
           addedAt: new Date().toISOString(),
           addedBy: 'system',
           status: 'active',
@@ -99,7 +129,7 @@ class UserManager {
     }
 
     await this.saveUsers({ users: data });
-    logger.info('Usuarios inicializados desde entorno', { count: this.users.size });
+    logger.info('Usuarios inicializados desde ENV', { count: this.users.size });
   }
 
   async saveUsers(data = null) {
@@ -114,11 +144,14 @@ class UserManager {
         };
 
         const tmp = `${this.usersFilePath}.tmp`;
+
         await fs.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf8');
         await fs.rename(tmp, this.usersFilePath);
 
-        logger.info('Usuarios guardados', { count: this.users.size });
+        logger.debug('Estado de usuarios persistido', { count: this.users.size });
+
         return true;
+
       } catch (err) {
         logger.error('Error guardando usuarios', err);
         return false;
@@ -128,16 +161,17 @@ class UserManager {
     return this._savePromise;
   }
 
-  // ------------------------------------------------------
-  // ADMIN SYNC
-  // ------------------------------------------------------
+  // ============================================================================
+  // 👑 ADMIN SYNC
+  // ============================================================================
+
   async syncAdminFromEnv() {
     const envAdminId = this.toStr(config.ADMIN_ID);
     if (!envAdminId) return;
 
     let changed = false;
 
-    // Garantizar que admin exista
+    // Crear admin si no existe
     if (!this.users.has(envAdminId)) {
       this.users.set(envAdminId, {
         id: envAdminId,
@@ -147,19 +181,20 @@ class UserManager {
         status: 'active',
         role: 'admin'
       });
+
+      logger.info('Admin creado automáticamente desde ENV');
       changed = true;
-      logger.info('Admin creado desde ENV');
     }
 
-    // Forzar rol admin en este usuario
+    // Forzar rol admin
     const admin = this.users.get(envAdminId);
     if (admin.role !== 'admin') {
       admin.role = 'admin';
       changed = true;
-      logger.info('Rol admin corregido para ADMIN_ID');
+      logger.warn('Corregido rol admin para ADMIN_ID');
     }
 
-    // Revocar roles admin a cualquier otro
+    // Revocar admins no autorizados
     for (const [id, user] of this.users.entries()) {
       if (id !== envAdminId && user.role === 'admin') {
         user.role = 'user';
@@ -171,9 +206,10 @@ class UserManager {
     if (changed) await this.saveUsers();
   }
 
-  // ------------------------------------------------------
-  // AUTH
-  // ------------------------------------------------------
+  // ============================================================================
+  // 🔐 AUTH
+  // ============================================================================
+
   isAuthorized(id) {
     const u = this.getUser(id);
     return !!(u && u.status === 'active');
@@ -184,9 +220,10 @@ class UserManager {
     return !!(u && u.role === 'admin' && u.status === 'active');
   }
 
-  // ------------------------------------------------------
-  // CRUD
-  // ------------------------------------------------------
+  // ============================================================================
+  // ✏️ CRUD
+  // ============================================================================
+
   async addUser(userId, addedBy, name = null) {
     const id = this.toStr(userId);
 
@@ -206,7 +243,7 @@ class UserManager {
     this.users.set(id, entry);
     await this.saveUsers();
 
-    logger.info('Usuario agregado', { id, addedBy });
+    logger.info('Usuario agregado correctamente', { id, addedBy });
     return entry;
   }
 
@@ -217,33 +254,38 @@ class UserManager {
     this.users.delete(this.toStr(userId));
     await this.saveUsers();
 
-    logger.info('Usuario eliminado', { userId });
+    logger.warn('Usuario eliminado', { userId });
     return true;
   }
 
   async suspendUser(userId) {
     const user = this.ensureExists(userId);
+
     user.status = 'suspended';
     user.suspendedAt = new Date().toISOString();
 
     await this.saveUsers();
+
     logger.warn('Usuario suspendido', { userId });
     return user;
   }
 
   async reactivateUser(userId) {
     const user = this.ensureExists(userId);
+
     user.status = 'active';
     delete user.suspendedAt;
 
     await this.saveUsers();
+
     logger.info('Usuario reactivado', { userId });
     return user;
   }
 
-  // ------------------------------------------------------
-  // STATS
-  // ------------------------------------------------------
+  // ============================================================================
+  // 📊 STATS
+  // ============================================================================
+
   getAllUsers() {
     return Array.from(this.users.values());
   }

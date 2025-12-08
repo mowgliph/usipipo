@@ -1,314 +1,273 @@
+'use strict';
+
 const config = require('../config/environment');
 const constants = require('../config/constants');
 
-// ========== HTML UTILS ==========
+// ============================================================================
+// 🧩 HTML UTILITIES
+// ============================================================================
 const escapeHtml = (text) =>
-  text ? String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+  text
+    ? String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+    : '';
 
-const bold = (txt) => `<b>${txt}</b>`;
-const italic = (txt) => `<i>${txt}</i>`;
-const code = (txt) => `<code>${txt}</code>`;
+const bold = (txt) => `<b>${escapeHtml(txt)}</b>`;
+const italic = (txt) => `<i>${escapeHtml(txt)}</i>`;
+const code = (txt) => `<code>${escapeHtml(txt)}</code>`;
 
-// ========== COMANDOS ==========
+// ============================================================================
+// 📋 COMMAND LIST
+// ============================================================================
 const USER_COMMANDS = [
   '/start - Menú principal',
   '/miinfo - Ver tus datos',
-  '/status - Ver tu estado'
+  '/status - Ver estado de acceso',
+  '/commands - Comandos disponibles',
+  '/help - Ayuda'
 ];
 
 const ADMIN_COMMANDS = [
-  '/ad [ID] [nombre] - Autorizar usuario',
-  '/rm [ID] - Quitar acceso',
+  '/add [ID] [nombre] - Autorizar usuario',
+  '/rm [ID] - Remover usuario',
   '/sus [ID] - Suspender usuario',
   '/react [ID] - Reactivar usuario',
   '/users - Listar usuarios',
   '/stats - Estadísticas',
-  '/broadcast [msg] - Enviar mensaje masivo',
+  '/broadcast [msg] - Mensaje masivo',
   '/sms [ID] [txt] - Mensaje directo',
-  '/templates - Plantillas'
+  '/templates - Plantillas rápidas'
 ];
 
-// ========== MENSAJES ==========
+// ============================================================================
+// 💬 MESSAGES — Estilo premium tipo App
+// ============================================================================
 const messages = {
-  // ——— Bienvenida ———
+  // ------------------------------------------------------------------------
+  // 🟢 Bienvenida
+  // ------------------------------------------------------------------------
   WELCOME_AUTHORIZED: (name) =>
-    `👋 Hola ${escapeHtml(name)}
-
-${bold('Acceso autorizado')}
-Selecciona una opción del menú.`,
+    `👋 Hola ${escapeHtml(name)}\n\n` +
+    `${bold('Bienvenido nuevamente')}\n` +
+    `Accede a las opciones desde el menú.`,
 
   WELCOME_UNAUTHORIZED: (name) =>
-    `👋 Hola ${escapeHtml(name)}
+    `👋 Hola ${escapeHtml(name)}\n\n` +
+    `${bold('Tu acceso aún no está autorizado.')}\n\n` +
+    `Usa /miinfo para obtener tus datos y envíalos al administrador:\n` +
+    `${code(config.ADMIN_ID || 'No definido')}`,
 
-${bold('No tienes acceso autorizado.')}
-
-Usa /miinfo y envía tu ID al admin:
-${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}`,
-
-  // ——— Info de usuario ———
+  // ------------------------------------------------------------------------
+  // 👤 Información del usuario
+  // ------------------------------------------------------------------------
   USER_INFO: (user, isAuth) => {
     const username = user.username ? '@' + escapeHtml(user.username) : 'No disponible';
 
-    return `👤 ${bold('Datos de Telegram')}
-
-ID: ${code(user.id)}
-Nombre: ${escapeHtml(user.first_name || '')}
-Username: ${username}
-
-${isAuth ? constants.STATUS.AUTHORIZED : constants.STATUS.UNAUTHORIZED}`;
+    return (
+      `👤 ${bold('Datos de tu cuenta')}\n\n` +
+      `ID: ${code(user.id)}\n` +
+      `Nombre: ${escapeHtml(user.first_name || '')}\n` +
+      `Username: ${username}\n\n` +
+      (isAuth ? constants.STATUS.AUTHORIZED : constants.STATUS.UNAUTHORIZED)
+    );
   },
 
-  // ——— Solicitud de acceso ———
+  // ------------------------------------------------------------------------
+  // 📨 Solicitud de acceso
+  // ------------------------------------------------------------------------
   ACCESS_REQUEST_SENT: (user) =>
-    `📧 ${bold('Solicitud enviada')}
-
-ID: ${code(user.id)}
-Nombre: ${escapeHtml(user.first_name || '')}
-
-Envía estos datos al admin:
-${bold(escapeHtml(config.ADMIN_EMAIL || 'admin@example.com'))}`,
+    `📨 ${bold('Solicitud enviada correctamente')}\n\n` +
+    `ID: ${code(user.id)}\n` +
+    `Nombre: ${escapeHtml(user.first_name || '')}\n\n` +
+    `Envía este ID al administrador para continuar.`,
 
   ACCESS_REQUEST_ADMIN_NOTIFICATION: (user) => {
     const name = escapeHtml(user.first_name || '');
     const username = user.username ? '@' + escapeHtml(user.username) : 'Sin username';
 
-    return `🔔 ${bold('Nueva solicitud')}
-
-Usuario: ${name}
-ID: ${code(user.id)}
-Username: ${username}
-
-Para autorizar usa:
-${code('/ad ' + user.id)}`;
+    return (
+      `🔔 ${bold('Nueva solicitud de acceso')}\n\n` +
+      `👤 Usuario: ${name}\n` +
+      `🆔 ID: ${code(user.id)}\n` +
+      `💬 Username: ${username}\n\n` +
+      `Para autorizar:\n${code('/add ' + user.id)}`
+    );
   },
 
-  ACCESS_DENIED: `⛔ ${bold('Acceso denegado')}
-No tienes permisos para esta acción.`,
-
+  ACCESS_DENIED: `⛔ ${bold('Acceso denegado')}`,
   ADMIN_ONLY: `⛔ ${bold('Solo administradores')}`,
 
-  // ——— WireGuard ———
-  WIREGUARD_CREATING: '⏳ Generando configuración WireGuard...',
+  // ------------------------------------------------------------------------
+  // 🔐 WireGuard
+  // ------------------------------------------------------------------------
+  WIREGUARD_CREATING: '⏳ Generando tu perfil WireGuard...',
 
   WIREGUARD_SUCCESS: (ip) =>
-    `✅ ${bold('WireGuard creado')}
+    `✅ ${bold('WireGuard creado correctamente')}\n\n` +
+    `🖥 IP asignada: ${code(ip)}\n` +
+    `🌐 Endpoint: ${code(`${config.SERVER_IP}:${config.WG_SERVER_PORT}`)}\n\n` +
+    `Descarga el archivo o escanea el código QR.`,
 
-IP: ${code(ip)}
-Endpoint: ${code(`${config.SERVER_IPV4}:${config.WIREGUARD_PORT}`)}
+  WIREGUARD_INSTRUCTIONS:
+    `${bold('Instrucciones de uso')}\n\n` +
+    `📱 *Móvil*: Abrir app → "+" → Escanear QR\n` +
+    `💻 *PC*: Importar archivo .conf\n\n` +
+    `Descargar WireGuard:\n${constants.URLS.WIREGUARD_DOWNLOAD}`,
 
-Escanea el QR para conectarte.`,
+  ERROR_WIREGUARD: (e) => `❌ Error en WireGuard:\n${escapeHtml(String(e))}`,
 
-  WIREGUARD_INSTRUCTIONS: `${bold('Instrucciones:')}
-• Móvil: Abrir app → "+" → Escanear QR
-• PC: Importar archivo .conf
-
-Descarga: ${constants.URLS.WIREGUARD_DOWNLOAD}`,
-
-  // ——— Outline ———
-  OUTLINE_CREATING: '⏳ Generando clave Outline...',
+  // ------------------------------------------------------------------------
+  // 🌐 Outline
+  // ------------------------------------------------------------------------
+  OUTLINE_CREATING: '⏳ Generando acceso Outline...',
 
   OUTLINE_SUCCESS: (key) =>
-    `✅ ${bold('Outline creado')}
+    `✅ ${bold('Acceso Outline generado')}\n\n` +
+    `ID: ${code(key.id)}\n` +
+    `Enlace:\n${code(key.accessUrl)}\n\n` +
+    `Descargar Outline:\n${constants.URLS.OUTLINE_DOWNLOAD}`,
 
-ID: ${code(key.id)}
-Enlace:
-${code(key.accessUrl)}
+  ERROR_OUTLINE: (e) => `❌ Error en Outline:\n${escapeHtml(String(e))}`,
 
-DNS con bloqueo activo
-Descarga Outline: ${constants.URLS.OUTLINE_DOWNLOAD}`,
-
-  // ——— Estado del servidor ———
+  // ------------------------------------------------------------------------
+  // 🖥 Estado del servidor
+  // ------------------------------------------------------------------------
   SERVER_STATUS: () =>
-    `🖥️ ${bold('Estado del servidor')}
+    `🖥️ ${bold('Estado del servidor')}\n\n` +
+    `IPv4: ${code(config.SERVER_IPV4)}\n` +
+    `Puerto WireGuard: ${code(config.WG_SERVER_PORT)}\n` +
+    `Outline API: ${code(config.OUTLINE_API_PORT)}\n` +
+    `DNS (Pi-hole): ${code(config.PIHOLE_DNS || 'N/A')}\n\n` +
+    `Todos los servicios están operativos.`,
 
-IP: ${code(config.SERVER_IPV4)}
-WG: ${code(config.WIREGUARD_PORT)}
-Outline: ${code(config.OUTLINE_API_PORT)}
-DNS: ${code(config.PIHOLE_DNS)}
+  ERROR_SERVER_STATUS: '⚠️ No se pudo consultar el estado del servidor.',
 
-Servicios operativos.`,
+  // ------------------------------------------------------------------------
+  // 📚 Ayuda
+  // ------------------------------------------------------------------------
+  HELP_AUTHORIZED:
+    `📚 ${bold('Guía rápida')}\n\n` +
+    `🔐 ${bold('WireGuard')}: rápido y estable\n` +
+    `🌐 ${bold('Outline')}: ideal para móviles\n` +
+    `🛑 ${bold('Pi-hole')}: bloqueo de anuncios activo\n\n` +
+    `Soporte: ${code(config.ADMIN_ID || 'No definido')}`,
 
-  // ——— Ayuda ———
-  HELP_AUTHORIZED: `📚 ${bold('Guía rápida')}
+  HELP_UNAUTHORIZED:
+    `📚 ${bold('Ayuda')}\n\n` +
+    `1️⃣ Usa /miinfo para obtener tu ID\n` +
+    `2️⃣ Envíalo al administrador\n` +
+    `3️⃣ Espera aprobación\n\n` +
+    `Contacto: ${code(config.ADMIN_ID)}`,
 
-${bold('WireGuard:')} rápido y estable
-${bold('Outline:')} fácil para móviles
-${bold('Pi-hole:')} bloqueo de ads
+  ERROR_LIST_CLIENTS: '❌ No se pudo obtener la lista de clientes.',
 
-Soporte: ${escapeHtml(config.ADMIN_EMAIL || 'admin@example.com')}`,
+  // ------------------------------------------------------------------------
+  // 👑 Administrador
+  // ------------------------------------------------------------------------
+  ADMIN_USER_ADDED: (id, name, addedAt) =>
+    `✅ ${bold('Usuario autorizado')}\n\n` +
+    `ID: ${code(id)}\n` +
+    `Nombre: ${escapeHtml(name)}\n` +
+    `Fecha: ${escapeHtml(addedAt)}`,
 
-  HELP_UNAUTHORIZED: `📚 ${bold('Ayuda')}
+  ADMIN_USER_REMOVED: (id) => `🗑️ ${bold('Usuario eliminado')}\nID: ${code(id)}`,
 
-1) Usa /miinfo
-2) Envía tu ID al admin
-3) Espera confirmación
+  ADMIN_USER_SUSPENDED: (id) =>
+    `⏸️ ${bold('Usuario suspendido')}\nID: ${code(id)}\n` +
+    `Para reactivarlo usa: ${code(`/react ${id}`)}`,
 
-Contacto: ${escapeHtml(config.ADMIN_EMAIL)}`,
+  ADMIN_USER_REACTIVATED: (id) =>
+    `▶️ ${bold('Usuario reactivado')}\nID: ${code(id)}`,
 
-  // ——— Errores ———
-  ERROR_GENERIC: '⚠️ Ocurrió un error. Intenta de nuevo.',
-  ERROR_WIREGUARD: (e) => `❌ Error WG: ${escapeHtml(String(e))}`,
-  ERROR_OUTLINE: (e) => `❌ Error Outline: ${escapeHtml(String(e))}`,
-  ERROR_LIST_CLIENTS: '❌ No se pudo obtener la lista.',
-  ERROR_SERVER_STATUS: '⚠️ Algunos servicios no responden.',
-
-  // ——— Admin (nuevas plantillas centralizadas) ———
-
-  // Respuesta cuando un admin agrega un usuario
-  ADMIN_USER_ADDED: (userId, userName, addedAt) =>
-    `✅ ${bold('Usuario autorizado')}
-
-ID: ${code(userId)}
-Nombre: ${escapeHtml(userName || 'No especificado')}
-Desde: ${escapeHtml(addedAt)}`,
-
-  // Usuario removido
-  ADMIN_USER_REMOVED: (userId) =>
-    `🗑️ ${bold('Usuario removido')}
-
-ID: ${code(userId)}
-El acceso ha sido revocado.`,
-
-  // Usuario suspendido
-  ADMIN_USER_SUSPENDED: (userId) =>
-    `⏸️ ${bold('Usuario suspendido')}
-
-ID: ${code(userId)}
-Para reactivar: ${code(`/react ${userId}`)}`,
-
-  // Usuario reactivado
-  ADMIN_USER_REACTIVATED: (userId) =>
-    `▶️ ${bold('Usuario reactivado')}
-
-ID: ${code(userId)}
-Ya puede usar el bot.`,
-
-  // Lista compacta de usuarios (se recibe arreglo y stats)
   ADMIN_USER_LIST: (users, stats) => {
-    const header = `👥 ${bold('USUARIOS')} • Total: ${stats.total} • Activos: ${stats.active}\n\n`;
-    const rows = users.map((u, i) => {
-      const status = u.status === 'active' ? '✅' : '⏸️';
-      const role = u.role === 'admin' ? '👑' : '👤';
-      const name = escapeHtml(u.name || 'Sin nombre');
-      return `${i + 1}. ${status} ${role} ${code(u.id)} • ${name}`;
-    }).join('\n');
-    return header + (rows || '<i>No hay usuarios</i>');
+    const header =
+      `👥 ${bold('Usuarios registrados')}\n` +
+      `Total: ${stats.total} • Activos: ${stats.active}\n\n`;
+
+    const rows = users
+      .map((u, i) => {
+        const status = u.status === 'active' ? '🟢' : '⛔';
+        const role = u.role === 'admin' ? '👑' : '👤';
+        return `${i + 1}. ${status} ${role} ${code(u.id)} — ${escapeHtml(u.name)}`;
+      })
+      .join('\n');
+
+    return header + (rows || italic('No hay usuarios registrados.'));
   },
 
-  // Estadísticas compactas
-  ADMIN_STATS: (stats, recentCount) =>
-    `📊 ${bold('ESTADÍSTICAS')}
+  ADMIN_STATS: (stats, new24h) =>
+    `📊 ${bold('Estadísticas del sistema')}\n\n` +
+    `Usuarios totales: ${stats.total}\n` +
+    `Activos: ${stats.active}\n` +
+    `Suspendidos: ${stats.suspended}\n` +
+    `Administradores: ${stats.admins}\n\n` +
+    `Nuevos en 24h: ${new24h}`,
 
-Total: ${stats.total}
-Activos: ${stats.active}
-Suspendidos: ${stats.suspended}
-Admins: ${stats.admins}
+  BROADCAST_PREVIEW: (id, msg, u, a, t) =>
+    `📢 ${bold('Confirmar envío')}\n\n` +
+    `${msg}\n\n` +
+    `Destinatarios:\n` +
+    `• Usuarios: ${u}\n` +
+    `• Admins: ${a}\n` +
+    `• Total: ${t}\n\n` +
+    `ID: ${code(id)}`,
 
-Nuevos (24h): ${recentCount}`,
+  BROADCAST_RESULT: (ok, fail) =>
+    `📢 ${bold('Envío completado')}\n\n` +
+    `✅ Enviados: ${ok}\n` +
+    `❌ Fallidos: ${fail}`,
 
-  // Broadcast - vista previa antes de confirmar
-  BROADCAST_PREVIEW: (broadcastId, safeMessage, userCount, adminCount, total) =>
-    `📢 ${bold('CONFIRMAR BROADCAST')}
+  ADMIN_DIRECT_MSG_SENT: (id, name) =>
+    `📨 ${bold('Mensaje enviado')}\nID: ${code(id)}\nUsuario: ${escapeHtml(name)}`,
 
-Mensaje:
-${safeMessage}
-
-Destinatarios:
-• Usuarios: ${userCount}
-• Admins: ${adminCount}
-• Total: ${total}
-
-ID: ${broadcastId}`,
-
-  // Resultado del broadcast
-  BROADCAST_RESULT: (success, failed) =>
-    `📢 ${bold('BROADCAST COMPLETADO')}
-
-✅ Enviados: ${success}
-❌ Fallidos: ${failed}`,
-
-  // Ayuda de broadcast (compacta)
-  BROADCAST_HELP: `📢 ${bold('Broadcast')}
-
-Uso: ${code('/broadcast [mensaje]')}
-Opciones: /sms, /templates`,
-
-  // Mensaje directo enviado (confirmación)
-  ADMIN_DIRECT_MSG_SENT: (targetId, targetName) =>
-    `✅ ${bold('Mensaje enviado')}
-
-ID: ${code(targetId)}
-Para: ${escapeHtml(targetName || 'Sin nombre')}`,
-
-  // Plantillas compactas
   ADMIN_TEMPLATES: () =>
-    `📋 ${bold('PLANTILLAS')}
-1) ${code('/broadcast 🎉 Bienvenida')}
-2) ${code('/broadcast ⚠️ Mantenimiento [FECHA]')}
-3) ${code('/broadcast 🎁 PROMO: ...')}`,
+    `📋 ${bold('Plantillas disponibles')}\n\n` +
+    `1) ${code('/broadcast 🎉 Bienvenido a uSipipo VPN')}\n` +
+    `2) ${code('/broadcast ⚠️ Mantenimiento programado [FECHA]')}\n` +
+    `3) ${code('/broadcast 🎁 Promoción activa: ...')}`,
 
-  // Notificaciones push simples (para sendDirectMessage / notify)
-  NOTIFY_USER_APPROVED: (userName) =>
-    `🎉 ${bold('¡Acceso aprobado!')}
-
-Ahora puedes usar /start. Bienvenido${userName ? ` ${escapeHtml(userName)}` : ''}.`,
-
-  NOTIFY_USER_REMOVED: () =>
-    `⚠️ ${bold('Acceso revocado')}
-Tu acceso ha sido removido. Contacta al admin si es un error.`,
-
-  NOTIFY_USER_REACTIVATED: () =>
-    `✅ ${bold('Acceso reactivado')}
-Tu acceso ha sido restaurado. Usa /start para continuar.`,
-
-  // ——— Comandos y utilidades ———
+  // ------------------------------------------------------------------------
+  // ❌ Comandos desconocidos
+  // ------------------------------------------------------------------------
   UNKNOWN_COMMAND: (isAdmin) => {
-    let msg = `⚠️ ${bold('Comando no válido')}\n\n${bold('Usuario:')}\n`;
-    msg += USER_COMMANDS.map((cmd) => {
-      const [c, d] = cmd.split(' - ');
-      return `${code(c)} - ${escapeHtml(d)}\n`;
-    }).join('');
+    let msg =
+      `⚠️ ${bold('Comando no reconocido')}\n\n` +
+      `${bold('Comandos de usuario:')}\n`;
+
+    msg += USER_COMMANDS.map((c) => `• ${escapeHtml(c)}\n`).join('');
+
     if (isAdmin) {
-      msg += `\n👑 ${bold('Admin:')}\n`;
-      msg += ADMIN_COMMANDS.map((cmd) => {
-        const [c, d] = cmd.split(' - ');
-        return `${code(c)} - ${escapeHtml(d)}\n`;
-      }).join('');
+      msg += `\n${bold('Comandos de administrador:')}\n`;
+      msg += ADMIN_COMMANDS.map((c) => `• ${escapeHtml(c)}\n`).join('');
     }
-    return msg + `\nUsa ${code('/start')}`;
+
+    return msg + `\n\nUsa ${code('/start')} para volver al menú.`;
   },
 
   COMMANDS_LIST: (isAdmin) => {
-    let msg = `📋 ${bold('Comandos disponibles')}\n\n`;
-    msg += `👤 ${bold('Usuario:')}\n`;
-    msg += USER_COMMANDS.map((cmd) => {
-      const [c, d] = cmd.split(' - ');
-      return `• ${code(c)}: ${escapeHtml(d)}\n`;
-    }).join('');
+    let msg =
+      `📋 ${bold('Lista de comandos')}\n\n` +
+      `👤 ${bold('Usuario:')}\n`;
+
+    msg += USER_COMMANDS.map((c) => `• ${escapeHtml(c)}\n`).join('');
+
     if (isAdmin) {
-      msg += `\n👑 ${bold('Admin:')}\n`;
-      msg += ADMIN_COMMANDS.map((cmd) => {
-        const [c, d] = cmd.split(' - ');
-        return `• ${code(c)}: ${escapeHtml(d)}\n`;
-      }).join('');
+      msg += `\n👑 ${bold('Administrador:')}\n`;
+      msg += ADMIN_COMMANDS.map((c) => `• ${escapeHtml(c)}\n`).join('');
     }
+
     return msg;
   },
 
   GENERIC_TEXT_PROMPT: (name) =>
-    `👋 Hola ${escapeHtml(name)}
+    `👋 Hola ${escapeHtml(name)}\n\nSelecciona el tipo de VPN:\n• WireGuard\n• Outline`,
 
-Crea tu VPN:
-• WireGuard
-• Outline`,
-
-  // Export helper utilities if alguien las necesita (opcional)
-  _helpers: {
-    escapeHtml,
-    bold,
-    code,
-    italic
-  }
+  // ------------------------------------------------------------------------
+  // Helpers exportados
+  // ------------------------------------------------------------------------
+  _helpers: { escapeHtml, bold, code, italic }
 };
 
 module.exports = messages;

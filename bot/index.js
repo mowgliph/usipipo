@@ -1,20 +1,28 @@
-// index.js
+// ============================================================================
+// 🛡️ uSipipo VPN Manager - Bot Bootstrap
+// Punto de entrada principal del sistema
+// ============================================================================
 
 require('dotenv').config();
 
 const { bot, notificationService } = require('./bot/bot.instance');
 const config = require('./config/environment');
 
-// ===============================================================
-// 🟢 STARTUP FUNCTIONS
-// ===============================================================
+// System Jobs
+const SystemJobsService = require('./services/systemJobs.service');
 
-// Construcción de comandos
+// ============================================================================
+// 🟢 STARTUP HELPERS
+// ============================================================================
+
+/**
+ * Construye la lista de comandos disponibles para usuarios y admins.
+ */
 const buildCommands = () => {
   const userCommands = [
     { command: 'start', description: '🏠 Menú Principal' },
     { command: 'miinfo', description: '👤 Ver mis datos e ID' },
-    { command: 'status', description: '✅ Comprobar estado de acceso' },
+    { command: 'status', description: '✅ Estado de acceso' },
     { command: 'commands', description: '📋 Lista de comandos' },
     { command: 'help', description: '❓ Ayuda y soporte' }
   ];
@@ -27,29 +35,32 @@ const buildCommands = () => {
     { command: 'sus', description: '⏸️ Suspender usuario' },
     { command: 'react', description: '▶️ Reactivar usuario' },
     { command: 'stats', description: '📊 Estadísticas del servidor' },
-    { command: 'broadcast', description: '📢 Enviar mensaje a todos' }
+    { command: 'broadcast', description: '📢 Enviar mensaje global' }
   ];
 
   return { userCommands, adminCommands };
 };
 
-// Establecer comandos en Telegram
+/**
+ * Establece comandos personalizados en Telegram.
+ */
 const configureTelegramCommands = async () => {
   const { userCommands, adminCommands } = buildCommands();
 
   await bot.telegram.setMyCommands(userCommands);
 
-  // Comandos exclusivos para Admin en su chat privado
   if (config.ADMIN_ID) {
     await bot.telegram.setMyCommands(adminCommands, {
       scope: { type: 'chat', chat_id: config.ADMIN_ID }
     });
   }
 
-  console.log('✅ Comandos de Telegram configurados');
+  console.log('✅ Comandos de Telegram configurados correctamente');
 };
 
-// Notificación de arranque
+/**
+ * Envía notificación de arranque del sistema.
+ */
 const notifyStartup = async () => {
   try {
     await notificationService.notifyAdminsSystemStartup();
@@ -59,17 +70,22 @@ const notifyStartup = async () => {
   }
 };
 
-// Mostrar información de entorno
+/**
+ * Log profesional al iniciar.
+ */
 const logStartupInfo = () => {
-  console.log('🚀 uSipipo VPN Bot iniciado');
-  console.log(`📡 Admin ID: ${config.ADMIN_ID || 'no definido'}`);
-  console.log(`👥 Usuarios autorizados: ${(config.AUTHORIZED_USERS || []).length}`);
-  console.log(`🌍 Servidor IPv4: ${config.SERVER_IPV4}`);
+  console.log('\n===================================================');
+  console.log('🚀 uSipipo VPN Bot iniciado correctamente');
+  console.log('===================================================');
+  console.log(`👑 Admin ID:             ${config.ADMIN_ID || 'No definido'}`);
+  console.log(`👥 Usuarios autorizados: ${config.AUTHORIZED_USERS.length}`);
+  console.log(`🌍 Servidor IPv4:        ${config.SERVER_IPV4}`);
+  console.log('===================================================\n');
 };
 
-// ===============================================================
+// ============================================================================
 // 🔵 LAUNCH BOT
-// ===============================================================
+// ============================================================================
 
 (async () => {
   try {
@@ -78,22 +94,45 @@ const logStartupInfo = () => {
     logStartupInfo();
     await configureTelegramCommands();
 
-    // Delay para evitar "Too Many Requests" al iniciar
-    setTimeout(notifyStartup, 2000);
+    // Delay para evitar "Too Many Requests"
+    setTimeout(notifyStartup, 1500);
+
+    // ============================================================================
+    // 🔄 Inicio de System Jobs (Quota Monitor + Enforcement)
+    // ============================================================================
+    const systemJobs = new SystemJobsService(notificationService);
+
+    try {
+      await systemJobs.initialize();
+      console.log('🔁 SystemJobs inicializado (monitoreo de cuotas activo)');
+    } catch (err) {
+      console.error('❌ Error inicializando SystemJobs:', err.message);
+      await notificationService.notifyAdminError(
+        'Fallo inicializando SystemJobs',
+        { error: err.message }
+      );
+    }
 
   } catch (error) {
-    console.error('❌ Error al iniciar el bot:', error);
+    console.error('❌ Error crítico al iniciar el bot:', error);
     process.exit(1);
   }
 })();
 
-// ===============================================================
-// 🔴 SHUTDOWN & FATAL ERRORS
-// ===============================================================
+// ============================================================================
+// 🔴 SHUTDOWN & FATAL ERROR HANDLERS
+// ============================================================================
 
+/**
+ * Manejo elegante de apagado.
+ */
 const shutdownHandler = (signal) => {
-  console.log(`\n📴 Señal recibida (${signal}). Cerrando bot...`);
-  bot.stop(signal);
+  console.log(`\n📴 Señal recibida (${signal}). Cerrando bot de forma segura...`);
+  try {
+    bot.stop(signal);
+  } catch (e) {
+    console.error('⚠️ Error al detener el bot:', e);
+  }
   process.exit(0);
 };
 

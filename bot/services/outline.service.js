@@ -1,199 +1,186 @@
-// services/outline.service.js
+'use strict';
+
 const axios = require('axios');
-const https = require('https');
 const config = require('../config/environment');
-const constants = require('../config/constants');
 const logger = require('../utils/logger');
+const { bold, code, escapeHtml } = require('../utils/messages')._helpers;
 
 /**
- * Servicio Outline — versión refactorizada Estilo A
- * -----------------------------------------------
- * ✔ Cliente Axios unificado
- * ✔ Manejo de errores consistente
- * ✔ Reducción del 50% del código repetido
- * ✔ Logs más claros
+ * Servicio oficial para gestionar Outline (Shadowbox)
+ * Compatible 100% con el API REST del servidor oficial "shadowbox"
+ *
+ * Requisitos:
+ *  - OUTLINE_API_URL        → https://IP:PORT/<secret>/
+ *  - OUTLINE_CERT_SHA256    → sha256 del certificado de Shadowbox
+ *  - OUTLINE_SERVER_IP
+ *  - OUTLINE_API_PORT
  */
 class OutlineService {
 
-  // =============================================
-  // CLIENTE AXIOS CENTRALIZADO
-  // =============================================
-  static get client() {
-    if (!this._client) {
-      this._client = axios.create({
-        baseURL: config.OUTLINE_API_URL,
-        timeout: 10000,
-        httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-        validateStatus: () => true // manejamos errores manualmente
-      });
+  constructor() {
+    if (!config.OUTLINE_API_URL) {
+      logger.warn('OutlineService inicializado SIN OUTLINE_API_URL en .env');
     }
-    return this._client;
+
+    this.api = axios.create({
+      baseURL: config.OUTLINE_API_URL,
+      timeout: 10000,
+      httpsAgent: new (require('https').Agent)({
+        rejectUnauthorized: false
+      })
+    });
   }
 
-  // =============================================
-  // HELPER CENTRAL PARA REQUESTS
-  // =============================================
-  static async request(method, path, body = null) {
-    try {
-      const res = await this.client.request({
-        method,
-        url: path,
-        data: body || undefined
-      });
+  // ---------------------------------------------------------------------
+  // 🔒 UTILIDADES INTERNAS
+  // ---------------------------------------------------------------------
 
-      // Error HTTP → lo tratamos como fallo real
-      if (res.status >= 400) {
-        logger.error(`OutlineService HTTP ${res.status}`, {
-          path,
-          response: res.data
-        });
-        throw new Error(res.data?.message || `HTTP ${res.status}`);
-      }
+  /**
+   * Añade el tag a los enlaces Outline como:
+   * ss://HASH@server:port#uSipipo%20VPN,%20MIAMI,%20US
+   */
+  static applyBranding(accessUrl) {
+    const brand = config.OUTLINE_BRAND || 'uSipipo VPN';
+    const city = config.OUTLINE_LOCATION_NAME || null;
+    const country = config.OUTLINE_LOCATION_COUNTRY || null;
 
-      return res.data;
+    let tagParts = [];
 
-    } catch (err) {
-      logger.error('OutlineService.request FAILED', {
-        method,
-        path,
-        error: err.message
-      });
-      throw new Error(`Outline API error: ${err.message}`);
-    }
+    if (brand) tagParts.push(brand);
+    if (city) tagParts.push(city);
+    if (country) tagParts.push(country);
+
+    const finalTag = tagParts.join(', ');
+    const encoded = encodeURIComponent(finalTag);
+
+    return `${accessUrl}#${encoded}`;
   }
 
-  // =============================================
-  // CREATE ACCESS KEY
-  // =============================================
-  static async createAccessKey(name = null) {
-    try {
-      // 1. Crear clave
-      const accessKey = await this.request('post', '/access-keys');
+  _safeError(err) {
+    if (err.response) {
+      return `HTTP ${err.response.status}: ${JSON.stringify(err.response.data)}`;
+    }
+    return err.message;
+  }
 
-      // 2. Asignar nombre (opcional)
-      if (name) {
-        await this.request(
-          'put',
-          `/access-keys/${accessKey.id}/name`,
-          { name }
-        );
-        accessKey.name = name;
+  // ---------------------------------------------------------------------
+  // 🔑 CREAR NUEVA CLAVE (CLIENTE)
+  // ---------------------------------------------------------------------
+  async createKey(name = 'Cliente') {
+    try {
+      const res = await this.api.post('/access-keys', { name });
+
+      const key = res.data;
+      if (!key || !key.accessUrl) {
+        throw new Error('Respuesta inválida del servidor Outline');
       }
 
-      // 3. Límite de datos por defecto
-      await this.setDataLimit(accessKey.id, constants.OUTLINE_DEFAULT_DATA_LIMIT);
+      const branded = OutlineService.applyBranding(key.accessUrl);
 
-      logger.success('OutlineService.createAccessKey', {
-        id: accessKey.id,
+      logger.info('Outline key creada', {
+        id: key.id,
+        name
+      });
+
+      return {
+        id: key.id,
         name,
-        url: accessKey.accessUrl
-      });
-
-      return accessKey;
+        accessUrl: branded
+      };
 
     } catch (err) {
-      logger.error('OutlineService.createAccessKey ERROR', err.message);
-      throw new Error(`Failed to create Outline key: ${err.message}`);
+      const safe = this._safeError(err);
+      logger.error('createKey', safe);
+      throw new Error(`Error creando clave Outline: ${safe}`);
     }
   }
 
-  // =============================================
-  // SET DATA LIMIT
-  // =============================================
-  static async setDataLimit(keyId, bytes) {
+  // ---------------------------------------------------------------------
+  // 🗑 ELIMINAR CLAVE
+  // ---------------------------------------------------------------------
+  async deleteKey(keyId) {
     try {
-      await this.request(
-        'put',
-        `/access-keys/${keyId}/data-limit`,
-        { limit: { bytes } }
-      );
+      await this.api.delete(`/access-keys/${keyId}`);
 
-      logger.info('OutlineService.setDataLimit', { keyId, bytes });
-
-    } catch (err) {
-      logger.warn(`Could not set data limit for key ${keyId}`, err.message);
-      // NO lanzamos error — Outline puede seguir funcionando
-    }
-  }
-
-  // =============================================
-  // LIST KEYS
-  // =============================================
-  static async listAccessKeys() {
-    try {
-      const data = await this.request('get', '/access-keys');
-
-      const keys = data.accessKeys || [];
-
-      logger.info('OutlineService.listAccessKeys', {
-        count: keys.length
-      });
-
-      return keys;
-
-    } catch (err) {
-      logger.error('OutlineService.listAccessKeys ERROR', err.message);
-      return []; // fallback seguro
-    }
-  }
-
-  // =============================================
-  // DELETE KEY
-  // =============================================
-  static async deleteAccessKey(keyId) {
-    try {
-      await this.request('delete', `/access-keys/${keyId}`);
-
-      logger.info('OutlineService.deleteAccessKey', { keyId });
+      logger.warn('Outline key eliminada', { keyId });
       return true;
 
     } catch (err) {
-      logger.error('OutlineService.deleteAccessKey ERROR', {
-        keyId,
-        error: err.message
-      });
-      return false;
+      const safe = this._safeError(err);
+      logger.error('deleteKey', safe, { keyId });
+      throw new Error(`No se pudo eliminar la clave: ${safe}`);
     }
   }
 
-  // =============================================
-  // SERVER INFO
-  // =============================================
-  static async getServerInfo() {
+  // ---------------------------------------------------------------------
+  // 📋 LISTAR CLAVES
+  // ---------------------------------------------------------------------
+  async listKeys() {
     try {
-      return await this.request('get', '/server');
+      const res = await this.api.get('/access-keys');
+      const list = res.data || [];
+
+      const final = list.map(k => ({
+        id: k.id,
+        name: k.name || 'Sin nombre',
+        accessUrl: OutlineService.applyBranding(k.accessUrl)
+      }));
+
+      logger.info('listKeys', { count: final.length });
+
+      return final;
 
     } catch (err) {
-      logger.error('OutlineService.getServerInfo ERROR', err.message);
-      return null;
+      const safe = this._safeError(err);
+      logger.error('listKeys', safe);
+      throw new Error(`No se pudieron obtener las claves: ${safe}`);
     }
   }
 
-  // =============================================
-  // RENAME KEY
-  // =============================================
-  static async renameAccessKey(keyId, newName) {
+  // ---------------------------------------------------------------------
+  // 📊 ESTADÍSTICAS DEL SERVIDOR OUTLINE
+  // ---------------------------------------------------------------------
+  async getServerStats() {
     try {
-      await this.request(
-        'put',
-        `/access-keys/${keyId}/name`,
-        { name: newName }
-      );
+      const res = await this.api.get('/server');
 
-      logger.info('OutlineService.renameAccessKey', {
-        keyId,
-        newName
-      });
-
-      return true;
+      return {
+        name: res.data.name,
+        createdAt: res.data.createdTimestampMs,
+        version: res.data.version,
+        port: config.OUTLINE_API_PORT,
+        keys: res.data.accessKeys?.length ?? 0
+      };
 
     } catch (err) {
-      logger.error('OutlineService.renameAccessKey ERROR', {
-        keyId, newName, error: err.message
-      });
-      return false;
+      const safe = this._safeError(err);
+      logger.error('getServerStats', safe);
+      throw new Error(`Error obteniendo estadísticas del servidor: ${safe}`);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // 📡 OBTENER USO (DATA USAGE) DE UNA CLAVE
+  // ---------------------------------------------------------------------
+  async getKeyUsage(keyId) {
+    try {
+      const res = await this.api.get(`/metrics/transfer`);
+      const entries = res.data?.bytesTransferredByUserId || {};
+
+      const usage = entries[keyId] || { bytesUploaded: 0, bytesDownloaded: 0 };
+
+      return {
+        uploaded: usage.bytesUploaded,
+        downloaded: usage.bytesDownloaded,
+        total: usage.bytesUploaded + usage.bytesDownloaded
+      };
+
+    } catch (err) {
+      const safe = this._safeError(err);
+      logger.error('getKeyUsage', safe, { keyId });
+      throw new Error(`Error leyendo consumo de clave Outline: ${safe}`);
     }
   }
 }
 
-module.exports = OutlineService;
+module.exports = new OutlineService();

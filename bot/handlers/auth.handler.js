@@ -1,46 +1,49 @@
+'use strict';
+
 const { isAuthorized, isAdmin } = require('../middleware/auth.middleware');
 const userManager = require('../services/userManager.service');
 const messages = require('../utils/messages');
 const keyboards = require('../utils/keyboards');
-
-const escapeHtml = (text) =>
-  text ? String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
 
 class AuthHandler {
   constructor(notificationService) {
     this.notificationService = notificationService;
   }
 
-  /**
-   * /start — Menú principal según estado del usuario
-   */
+  // ============================================================================
+  // 🎛️ START — Vista principal tipo App
+  // ============================================================================
   async handleStart(ctx) {
     const userId = ctx.from.id.toString();
     const name = ctx.from.first_name || 'Usuario';
 
-    const msg = isAuthorized(userId)
+    const authorized = isAuthorized(userId);
+
+    const msg = authorized
       ? messages.WELCOME_AUTHORIZED(name)
       : messages.WELCOME_UNAUTHORIZED(name);
 
-    const keyboard = isAuthorized(userId)
-      ? keyboards.mainMenuAuthorized()
-      : keyboards.mainMenuUnauthorized();
+    const keyboard = authorized
+      ? keyboards.homeAuthorized()
+      : keyboards.homeUnauthorized();
 
     return ctx.reply(msg, keyboard);
   }
 
-  /**
-   * /miinfo — Muestra datos del usuario
-   */
+  // ============================================================================
+  // 👤 MI INFO
+  // ============================================================================
   async handleUserInfo(ctx) {
     const user = ctx.from;
     const authorized = isAuthorized(user.id.toString());
-    return ctx.reply(messages.USER_INFO(user, authorized));
+
+    const msg = messages.USER_INFO(user, authorized);
+    return ctx.reply(msg, keyboards.userInfoMenu(authorized));
   }
 
-  /**
-   * Botón "Solicitar acceso"
-   */
+  // ============================================================================
+  // 📧 SOLICITAR ACCESO (botón)
+  // ============================================================================
   async handleAccessRequest(ctx) {
     if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
     const user = ctx.from;
@@ -49,77 +52,64 @@ class AuthHandler {
     await this.notificationService.notifyAdminAccessRequest(user);
   }
 
-  /**
-   * /users — Lista usuarios activos (admin)
-   */
+  // ============================================================================
+  // 📊 ESTADO DEL USUARIO
+  // ============================================================================
+  async handleCheckStatus(ctx) {
+    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
+    
+    const user = ctx.from;
+    const userId = user.id.toString();
+    const info = userManager.getUser(userId);
+
+    // Usuario no existe en la DB
+    if (!info) {
+      return ctx.reply(
+        messages.STATUS_NOT_REGISTERED(user),
+        keyboards.homeUnauthorized()
+      );
+    }
+
+    switch (info.status) {
+      case 'active':
+        return ctx.reply(
+          messages.STATUS_ACTIVE(user, info),
+          keyboards.homeAuthorized()
+        );
+
+      case 'suspended':
+        return ctx.reply(messages.STATUS_SUSPENDED(user), keyboards.minimalBack());
+
+      default:
+        return ctx.reply(messages.STATUS_UNKNOWN(user), keyboards.minimalBack());
+    }
+  }
+
+  // ============================================================================
+  // ❓ AYUDA
+  // ============================================================================
+  async handleHelp(ctx) {
+    const authorized = isAuthorized(ctx.from.id.toString());
+    const msg = authorized ? messages.HELP_AUTHORIZED : messages.HELP_UNAUTHORIZED;
+
+    return ctx.reply(msg, keyboards.helpMenu(authorized));
+  }
+
+  // ============================================================================
+  // 👥 (ADMIN) — Vista rápida de usuarios 
+  // (Se mantiene para compatibilidad, pero ya no se usa desde navegación)
+  // ============================================================================
   async handleListUsers(ctx) {
     const userId = ctx.from.id.toString();
     if (!isAdmin(userId)) {
       return ctx.reply(messages.ADMIN_ONLY);
     }
 
-    const active = userManager.getAllUsers().filter(u => u.status === 'active');
+    const users = userManager.getAllUsers();
+    const stats = userManager.getUserStats();
+    const msg = messages.ADMIN_USER_LIST(users, stats);
 
-    if (active.length === 0) {
-      return ctx.reply('👥 <b>USUARIOS AUTORIZADOS</b>\n\n<i>No hay usuarios activos.</i>');
-    }
-
-    const list = active
-      .map((u, i) => {
-        const role = u.role === 'admin' ? '👑' : '';
-        const name = escapeHtml(u.name || 'Sin nombre');
-        return `${i + 1}. ID: <code>${u.id}</code> ${role} - ${name}`;
-      })
-      .join('\n');
-
-    const msg =
-      `👥 <b>USUARIOS AUTORIZADOS</b>\n\n` +
-      list +
-      `\n\n📝 <b>Total:</b> ${active.length}`;
-
-    return ctx.reply(msg);
-  }
-
-  /**
-   * /status — Verifica estado de acceso del usuario
-   */
-  async handleCheckStatus(ctx) {
-    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-
-    const user = ctx.from;
-    const userId = user.id.toString();
-    const info = userManager.getUser(userId);
-
-    // No registrado en DB
-    if (!info) {
-      return ctx.reply(
-        messages.STATUS_NOT_REGISTERED(user),
-        keyboards.mainMenuUnauthorized()
-      );
-    }
-
-    // Registrado → verificar estado
-    switch (info.status) {
-      case 'active':
-        return ctx.reply(
-          messages.STATUS_ACTIVE(user, info),
-          keyboards.mainMenuAuthorized()
-        );
-      case 'suspended':
-        return ctx.reply(messages.STATUS_SUSPENDED(user, info));
-      default:
-        return ctx.reply(messages.STATUS_UNKNOWN(user));
-    }
-  }
-
-  /**
-   * /help — Ayuda según estado del usuario
-   */
-  async handleHelp(ctx) {
-    const authorized = isAuthorized(ctx.from.id.toString());
-    return ctx.reply(
-      authorized ? messages.HELP_AUTHORIZED : messages.HELP_UNAUTHORIZED
-    );
+    return ctx.reply(msg, keyboards.adminBackMenu());
   }
 }
 

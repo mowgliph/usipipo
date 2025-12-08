@@ -1,19 +1,38 @@
-// =====================================================
-// HTML UTILITIES
-// =====================================================
-
-const escapeHtml = (text) =>
-  text ? String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
-
-const bold = (text) => `<b>${text}</b>`;
-const code = (text) => `<code>${text}</code>`;
-
-// =====================================================
-// FORMAT FUNCTIONS
-// =====================================================
+'use strict';
 
 /**
- * Convierte bytes a unidades legibles (B, KB, MB, GB, TB).
+ * ============================================================================
+ * 🧩 FORMATO Y UTILIDADES HTML — uSipipo VPN Manager
+ * Conjunto de funciones para formateo, sanitización y presentación de datos.
+ * Diseño profesional, seguro y consistente con el cliente final.
+ * ============================================================================
+ */
+
+// ============================================================================
+// 🔐 HTML UTILITIES
+// ============================================================================
+
+/**
+ * Escapa caracteres HTML peligrosos para evitar inyección.
+ */
+const escapeHtml = (text) =>
+  text
+    ? String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+    : '';
+
+const bold = (text) => `<b>${escapeHtml(text)}</b>`;
+const italic = (text) => `<i>${escapeHtml(text)}</i>`;
+const code = (text) => `<code>${escapeHtml(text)}</code>`;
+
+// ============================================================================
+// 📏 FORMAT FUNCTIONS
+// ============================================================================
+
+/**
+ * Convierte bytes en formato legible (B, KB, MB, GB, TB).
  */
 function formatBytes(bytes) {
   if (!bytes || bytes <= 0) return '0 B';
@@ -21,13 +40,13 @@ function formatBytes(bytes) {
   const k = 1024;
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const val = (bytes / Math.pow(k, i)).toFixed(2);
+  const value = (bytes / Math.pow(k, i)).toFixed(2);
 
-  return `${val} ${units[i]}`;
+  return `${value} ${units[i]}`;
 }
 
 /**
- * Convierte timestamp UNIX a fecha legible en español.
+ * Convierte timestamp UNIX a una fecha legible en español.
  */
 function formatTimestamp(timestamp) {
   if (!timestamp || timestamp === '0') return 'Nunca';
@@ -45,55 +64,57 @@ function formatTimestamp(timestamp) {
 }
 
 /**
- * Limita texto a maxLength añadiendo "...".
+ * Recorta texto largo añadiendo "..."
  */
 function truncate(text, maxLength = 50) {
-  if (typeof text !== 'string' || text.length <= maxLength) return text || '';
-  return `${text.substring(0, maxLength)}...`;
+  if (!text || typeof text !== 'string') return '';
+  return text.length <= maxLength
+    ? text
+    : `${text.substring(0, maxLength)}...`;
 }
 
-// =====================================================
-// LIST FORMATTERS (Compact Style)
-// =====================================================
+// ============================================================================
+// 📋 LIST FORMATTERS (Compact & Professional)
+// ============================================================================
 
 /**
- * Formatea lista de clientes WireGuard en estilo compacto.
+ * Formatea lista de clientes WireGuard.
  */
 function formatWireGuardClients(clients = []) {
   if (clients.length === 0) {
     return '📭 No hay clientes WireGuard';
   }
 
-  let msg = `🔐 ${bold('WireGuard')} • ${clients.length} clientes\n\n`;
+  let msg = `🔐 ${bold('WireGuard')} • ${clients.length} cliente(s)\n\n`;
 
   clients.forEach((c, i) => {
-    msg += `${i + 1}) IP: ${code(escapeHtml(c.ip))}\n`;
-    msg += `   Última conexión: ${escapeHtml(c.lastSeen)}\n`;
-    msg += `   Recibido: ${escapeHtml(c.dataReceived)} | Enviado: ${escapeHtml(c.dataSent)}\n\n`;
+    msg += `${i + 1}) IP: ${code(c.ip)}\n`;
+    msg += `   Última conexión: ${escapeHtml(c.lastSeen || 'N/A')}\n`;
+    msg += `   Recibido: ${escapeHtml(c.dataReceived)} • Enviado: ${escapeHtml(c.dataSent)}\n\n`;
   });
 
   return msg.trim();
 }
 
 /**
- * Formatea lista de claves Outline en estilo compacto.
+ * Formatea lista de claves Outline.
  */
 function formatOutlineKeys(keys = []) {
   if (keys.length === 0) {
     return '📭 No hay claves Outline';
   }
 
-  let msg = `🌐 ${bold('Outline')} • ${keys.length} claves\n\n`;
+  let msg = `🌐 ${bold('Outline')} • ${keys.length} clave(s)\n\n`;
 
   keys.forEach((k, i) => {
-    msg += `${i + 1}) ID: ${code(escapeHtml(k.id))} • ${escapeHtml(k.name || 'Sin nombre')}\n`;
+    msg += `${i + 1}) ID: ${code(k.id)} • ${escapeHtml(k.name || 'Sin nombre')}\n`;
   });
 
   return msg.trim();
 }
 
 /**
- * Formatea vista combinada de WireGuard + Outline.
+ * Vista conjunta WireGuard + Outline
  */
 function formatClientsList(wgClients, outlineKeys) {
   let msg = `${bold('📊 CLIENTES ACTIVOS')}\n\n`;
@@ -104,20 +125,35 @@ function formatClientsList(wgClients, outlineKeys) {
   return msg.trim();
 }
 
+// ============================================================================
+// 🧹 SANITIZACIÓN
+// ============================================================================
+
 /**
- * Sanitiza entrada eliminando < >.
+ * Elimina caracteres conflictivos para entrada segura.
  */
 function sanitizeInput(input) {
   if (typeof input !== 'string') return '';
   return input.replace(/[<>]/g, '');
 }
 
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
 module.exports = {
+  escapeHtml,
+  bold,
+  italic,
+  code,
+
   formatBytes,
   formatTimestamp,
   truncate,
+
   formatWireGuardClients,
   formatOutlineKeys,
   formatClientsList,
+
   sanitizeInput
 };

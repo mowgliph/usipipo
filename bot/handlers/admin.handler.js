@@ -1,291 +1,425 @@
-const { Markup } = require('telegraf');
+'use strict';
+
+/**
+ * handlers/admin.handler.js
+ *
+ * Refactor admin handler - estilo Premium (Moderado)
+ *
+ * Requisitos (ya presentes en el proyecto):
+ * - services/userManager.service (userManager)
+ * - services/notification.service (NotificationService) → inyectado en constructor
+ * - utils/messages (mensajes HTML reutilizables)
+ * - utils/logger
+ *
+ * Nota: Este handler no envía notificaciones de sistema por sí mismo salvo a través
+ *       de notificationService para broadcast/errores/admin-notify.
+ */
+
 const userManager = require('../services/userManager.service');
-const logger = require('../utils/logger');
 const messages = require('../utils/messages');
+const logger = require('../utils/logger');
 
 class AdminHandler {
   constructor(notificationService) {
     this.notificationService = notificationService;
+    // Pending broadcasts stored in memory: { id: { messageHtml, scope, fromAdminId } }
     this.pendingBroadcasts = new Map();
   }
 
-  // /add [ID] [nombre]
-  async handleAddUser(ctx) {
-    try {
-      const { adminId, args } = this.#parseCommand(ctx);
-      logger.info(adminId, 'handleAddUser', { args });
-
-      if (args.length === 0) {
-        return ctx.reply('⚠️ Uso: /add [ID] [nombre_opcional]');
-      }
-
-      const userId = args[0];
-      if (!/^\d+$/.test(userId)) {
-        return ctx.reply('⚠️ El ID debe ser numérico');
-      }
-
-      const userName = args.slice(1).join(' ') || null;
-      const newUser = await userManager.addUser(userId, adminId, userName);
-
-      await ctx.reply(messages.ADMIN_USER_ADDED(userId, newUser.name, new Date(newUser.addedAt).toLocaleString('es-ES')));
-
-      // Notify user (via notificationService)
-      await this.notificationService.bot.telegram.sendMessage(
-        userId,
-        messages.NOTIFY_USER_APPROVED(newUser.name)
-      );
-
-      logger.success(adminId, 'add_user', userId);
-    } catch (err) {
-      this.#handleError(ctx, err, 'handleAddUser');
-    }
+  // ---------------------------
+  // Helpers internos
+  // ---------------------------
+  _isAdmin(userId) {
+    return userManager.isAdmin(userId);
   }
 
-  // /rm [ID]
-  async handleRemoveUser(ctx) {
-    try {
-      const { adminId, args } = this.#parseCommand(ctx);
-      logger.info(adminId, 'handleRemoveUser', { args });
-
-      const userId = args[0];
-      if (!userId) return ctx.reply('⚠️ Uso: /rm [ID]');
-
-      await userManager.removeUser(userId);
-      await ctx.reply(messages.ADMIN_USER_REMOVED(userId));
-
-      // notify user
-      await this.notificationService.bot.telegram.sendMessage(userId, messages.NOTIFY_USER_REMOVED());
-      logger.success(adminId, 'remove_user', userId);
-    } catch (err) {
-      this.#handleError(ctx, err, 'handleRemoveUser');
-    }
+  _moderadoHeader(title) {
+    // Header visual estilo "Moderado"
+    return `👑 ${title}\n━━━━━━━━━━━━━━━━━━━━\n`;
   }
 
-  // /sus [ID]
-  async handleSuspendUser(ctx) {
-    try {
-      const { adminId, args } = this.#parseCommand(ctx);
-      logger.info(adminId, 'handleSuspendUser', { args });
-
-      if (!args[0]) return ctx.reply('⚠️ Uso: /sus [ID]');
-
-      const user = await userManager.suspendUser(args[0]);
-      await ctx.reply(messages.ADMIN_USER_SUSPENDED(user.id));
-
-      logger.success(adminId, 'suspend_user', user.id);
-    } catch (err) {
-      this.#handleError(ctx, err, 'handleSuspendUser');
+  _requireAdminReply(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._isAdmin(userId)) {
+      logger.warn('Admin access denied', { userId });
+      ctx.reply(messages.ADMIN_ONLY);
+      return false;
     }
+    return true;
   }
 
-  // /react [ID]
-  async handleReactivateUser(ctx) {
-    try {
-      const { adminId, args } = this.#parseCommand(ctx);
-      logger.info(adminId, 'handleReactivateUser', { args });
-
-      if (!args[0]) return ctx.reply('⚠️ Uso: /react [ID]');
-
-      const user = await userManager.reactivateUser(args[0]);
-      await ctx.reply(messages.ADMIN_USER_REACTIVATED(user.id));
-
-      // notify user
-      await this.notificationService.bot.telegram.sendMessage(user.id, messages.NOTIFY_USER_REACTIVATED());
-      logger.success(adminId, 'reactivate_user', user.id);
-    } catch (err) {
-      this.#handleError(ctx, err, 'handleReactivateUser');
-    }
+  _parseArgsFromText(text = '') {
+    // split by spaces but keep quoted groups (simple)
+    const args = text.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+    return args.map(a => a.replace(/^"|"$/g, ''));
   }
 
-  // /users
+  // ---------------------------
+  // List users (compact + premium)
+  // ---------------------------
   async handleListUsers(ctx) {
-    try {
-      const adminId = ctx.from.id;
-      logger.info(adminId, 'handleListUsers');
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
 
+    try {
       const users = userManager.getAllUsers();
       const stats = userManager.getUserStats();
 
-      return ctx.reply(messages.ADMIN_USER_LIST(users, stats));
+      const msg = messages.ADMIN_USER_LIST(users, stats);
+
+      await ctx.reply(msg, { parse_mode: 'HTML' });
+
+      logger.info('admin:list_users', { userId, total: users.length });
     } catch (err) {
-      this.#handleError(ctx, err, 'handleListUsers');
+      logger.error('handleListUsers error', err);
+      await ctx.reply('❌ Error obteniendo la lista de usuarios.');
     }
   }
 
-  // /stats
+  // ---------------------------
+  // Add user: /add <id> [name]
+  // ---------------------------
+  async handleAddUser(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
+    try {
+      const text = ctx.message?.text || '';
+      const parts = this._parseArgsFromText(text);
+      // first element is command
+      if (parts.length < 2) {
+        await ctx.reply('Uso: /add <ID> [Nombre]');
+        return;
+      }
+
+      const targetId = parts[1];
+      const name = parts.slice(2).join(' ') || 'Sin nombre';
+
+      const added = await userManager.addUser(targetId, String(userId), name);
+
+      const addedAt = added.addedAt || new Date().toISOString();
+      const reply = this._moderadoHeader('Usuario autorizado') +
+        `🆔 ID: <code>${added.id}</code>\n` +
+        `👤 Nombre: ${added.name ? this._escape(added.name) : '—'}\n` +
+        `📅 Desde: ${this._escape(new Date(addedAt).toLocaleString())}`;
+
+      await ctx.reply(reply, { parse_mode: 'HTML' });
+
+      logger.success(userId, 'admin_add_user', { addedId: targetId, by: userId });
+
+      // Notify the new user (if bot can contact them)
+      try {
+        await this.notificationService.bot.telegram.sendMessage(added.id, `✅ Has sido autorizado. Usa /start para continuar.`);
+      } catch (notifyErr) {
+        logger.debug('No se pudo notificar al usuario añadido', { err: notifyErr.message, targetId });
+      }
+
+    } catch (err) {
+      logger.error('handleAddUser error', err);
+      await ctx.reply(`❌ Error añadiendo usuario: ${err.message}`);
+    }
+  }
+
+  // ---------------------------
+  // Remove user: /rm <id>
+  // ---------------------------
+  async handleRemoveUser(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
+    try {
+      const text = ctx.message?.text || '';
+      const parts = this._parseArgsFromText(text);
+      if (parts.length < 2) {
+        await ctx.reply('Uso: /rm <ID>');
+        return;
+      }
+
+      const targetId = parts[1];
+
+      await userManager.removeUser(targetId);
+
+      const reply = this._moderadoHeader('Usuario removido') +
+        `🆔 ID: <code>${this._escape(targetId)}</code>\n` +
+        `El acceso ha sido revocado.`;
+
+      await ctx.reply(reply, { parse_mode: 'HTML' });
+
+      logger.warn(userId, 'admin_remove_user', { removedId: targetId });
+
+      // Notify removed user (best-effort)
+      try {
+        await this.notificationService.bot.telegram.sendMessage(targetId, `⚠️ Tu acceso ha sido revocado. Contacta al admin si es un error.`);
+      } catch (_) {
+        // silent
+      }
+
+    } catch (err) {
+      logger.error('handleRemoveUser error', err);
+      await ctx.reply(`❌ No se pudo remover el usuario: ${err.message}`);
+    }
+  }
+
+  // ---------------------------
+  // Suspend user: /sus <id>
+  // ---------------------------
+  async handleSuspendUser(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
+    try {
+      const text = ctx.message?.text || '';
+      const parts = this._parseArgsFromText(text);
+      if (parts.length < 2) {
+        await ctx.reply('Uso: /sus <ID>');
+        return;
+      }
+
+      const targetId = parts[1];
+      const suspended = await userManager.suspendUser(targetId);
+
+      const reply = this._moderadoHeader('Usuario suspendido') +
+        `🆔 ID: <code>${this._escape(targetId)}</code>\n` +
+        `⏸️ Estado: suspendido\n` +
+        `📅 Hora: ${this._escape(new Date(suspended.suspendedAt).toLocaleString())}`;
+
+      await ctx.reply(reply, { parse_mode: 'HTML' });
+
+      logger.warn(userId, 'admin_suspend_user', { targetId });
+
+      // Notify user
+      try {
+        await this.notificationService.bot.telegram.sendMessage(targetId, `⏸️ Tu cuenta ha sido suspendida. Contacta al admin si crees que es un error.`);
+      } catch (_) {}
+
+    } catch (err) {
+      logger.error('handleSuspendUser error', err);
+      await ctx.reply(`❌ No se pudo suspender al usuario: ${err.message}`);
+    }
+  }
+
+  // ---------------------------
+  // Reactivate user: /react <id>
+  // ---------------------------
+  async handleReactivateUser(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
+    try {
+      const text = ctx.message?.text || '';
+      const parts = this._parseArgsFromText(text);
+      if (parts.length < 2) {
+        await ctx.reply('Uso: /react <ID>');
+        return;
+      }
+
+      const targetId = parts[1];
+      const re = await userManager.reactivateUser(targetId);
+
+      const reply = this._moderadoHeader('Usuario reactivado') +
+        `🆔 ID: <code>${this._escape(targetId)}</code>\n` +
+        `▶️ Estado: activo\n` +
+        `📅 Hora: ${this._escape(new Date().toISOString())}`;
+
+      await ctx.reply(reply, { parse_mode: 'HTML' });
+
+      logger.info(userId, 'admin_reactivate_user', { targetId });
+
+      // Notify user
+      try {
+        await this.notificationService.bot.telegram.sendMessage(targetId, `✅ Tu cuenta ha sido reactivada. Puedes usar /start ahora.`);
+      } catch (_) {}
+
+    } catch (err) {
+      logger.error('handleReactivateUser error', err);
+      await ctx.reply(`❌ No se pudo reactivar al usuario: ${err.message}`);
+    }
+  }
+
+  // ---------------------------
+  // Stats: /stats
+  // ---------------------------
   async handleStats(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
     try {
-      const adminId = ctx.from.id;
-      logger.info(adminId, 'handleStats');
-
       const stats = userManager.getUserStats();
-      const users = userManager.getAllUsers();
-      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-      const recentUsers = users.filter(u => new Date(u.addedAt).getTime() > oneDayAgo).length;
 
-      return ctx.reply(messages.ADMIN_STATS(stats, recentUsers));
+      const msg = this._moderadoHeader('ESTADÍSTICAS') +
+        `Total: ${stats.total}\n` +
+        `Activos: ${stats.active}\n` +
+        `Suspendidos: ${stats.suspended}\n` +
+        `Admins: ${stats.admins}\n\n` +
+        `Nuevos (24h): —`;
+
+      await ctx.reply(msg, { parse_mode: 'HTML' });
+
+      logger.info(userId, 'admin_stats', stats);
+
     } catch (err) {
-      this.#handleError(ctx, err, 'handleStats');
+      logger.error('handleStats error', err);
+      await ctx.reply('❌ Error obteniendo estadísticas.');
     }
   }
 
-  // /broadcast [mensaje]
+  // ---------------------------
+  // Broadcast: /broadcast <mensaje>
+  // Preview -> confirm via inline buttons
+  // ---------------------------
   async handleBroadcast(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
     try {
-      const adminId = ctx.from.id.toString();
-      logger.info(adminId, 'handleBroadcast');
+      const text = (ctx.message && ctx.message.text) || '';
+      const parts = text.split(' ').slice(1);
+      const messageRaw = parts.join(' ').trim();
+      if (!messageRaw) {
+        await ctx.reply('Uso: /broadcast <mensaje>');
+        return;
+      }
 
-      const messageText = (ctx.message?.text || '').replace(/^\/broadcasts?\s*/i, '').trim();
-      if (!messageText) return ctx.reply(messages.BROADCAST_HELP);
+      // build a simple id
+      const broadcastId = `b_${Date.now()}`;
+      const recipients = userManager.getAllUsers().filter(u => u.status === 'active');
 
-      const users = userManager.getAllUsers();
-      const activeUsers = users.filter(u => u.status === 'active');
-      const userCount = activeUsers.filter(u => u.role === 'user').length;
-      const adminCount = activeUsers.filter(u => u.role === 'admin').length;
-
-      const safeMessage = messages._helpers.escapeHtml(messageText);
-      const broadcastId = Date.now().toString();
-
+      // save pending broadcast
       this.pendingBroadcasts.set(broadcastId, {
-        adminId,
-        message: safeMessage,
-        createdAt: Date.now(),
-        targets: { userCount, adminCount, total: activeUsers.length }
+        messageHtml: messageRaw,
+        recipients,
+        from: userId
       });
 
-      this.#cleanOldBroadcasts();
+      const preview = messages.BROADCAST_PREVIEW(broadcastId, messageRaw, recipients.length, 1, recipients.length + 1);
 
-      await ctx.reply(messages.BROADCAST_PREVIEW(broadcastId, safeMessage, userCount, adminCount, activeUsers.length),
-        this.#getBroadcastKeyboard(broadcastId)
-      );
+      // confirmation keyboard
+      const keyboard = {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '✅ Confirmar', callback_data: `broadcast_confirm_${broadcastId}` },
+              { text: '❌ Cancelar', callback_data: `broadcast_cancel_${broadcastId}` }
+            ]
+          ]
+        },
+        parse_mode: 'HTML'
+      };
+
+      await ctx.reply(preview, keyboard);
+
+      logger.info(userId, 'admin_broadcast_preview', { broadcastId, recipients: recipients.length });
+
     } catch (err) {
-      this.#handleError(ctx, err, 'handleBroadcast');
+      logger.error('handleBroadcast error', err);
+      await ctx.reply('❌ Error preparando broadcast.');
     }
   }
 
-  // Confirm broadcast (callbacks)
-  async handleBroadcastConfirm(ctx, broadcastId, target) {
-    try {
-      if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-      const adminId = ctx.from.id.toString();
-      logger.info(adminId, 'handleBroadcastConfirm', { broadcastId, target });
+  // Confirm broadcast (action)
+  async handleBroadcastConfirm(ctx, broadcastId) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
 
-      await this.#processBroadcastConfirm(ctx, broadcastId, target);
-    } catch (err) {
-      this.#handleError(ctx, err, 'handleBroadcastConfirm');
-    }
-  }
-
-  // Cancel broadcast
-  async handleBroadcastCancel(ctx, broadcastId) {
     try {
-      if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-      const adminId = ctx.from.id.toString();
-      logger.info(adminId, 'handleBroadcastCancel', { broadcastId });
+      const pending = this.pendingBroadcasts.get(broadcastId);
+      if (!pending) {
+        await ctx.reply('❌ Broadcast no encontrado o ya procesado.');
+        return;
+      }
+
+      const recipients = pending.recipients || [];
+      const messageHtml = pending.messageHtml;
+
+      // Build list of recipients for service: map to { id }
+      const recipientsForSend = recipients.map(u => ({ id: u.id }));
+
+      await ctx.reply('⏳ Enviando broadcast...');
+
+      const results = await this.notificationService.sendBroadcast(messageHtml, recipientsForSend, { includeHeader: true });
+
+      const resultMsg = messages.BROADCAST_RESULT(results.success, results.failed);
+      await ctx.reply(resultMsg, { parse_mode: 'HTML' });
 
       this.pendingBroadcasts.delete(broadcastId);
 
-      await ctx.editMessageText('❌ Broadcast cancelado.');
+      logger.info(userId, 'admin_broadcast_sent', { broadcastId, results });
+
     } catch (err) {
-      logger.error('handleBroadcastCancel', err);
+      logger.error('handleBroadcastConfirm error', err);
+      await ctx.reply('❌ Error enviando broadcast.');
     }
   }
 
-  // /sms [ID] [mensaje]
+  // Cancel broadcast (action)
+  async handleBroadcastCancel(ctx, broadcastId) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
+    try {
+      const had = this.pendingBroadcasts.delete(broadcastId);
+      if (had) {
+        await ctx.reply('✅ Broadcast cancelado.');
+        logger.info(userId, 'admin_broadcast_cancel', { broadcastId });
+      } else {
+        await ctx.reply('ℹ️ Broadcast no encontrado o ya procesado.');
+      }
+    } catch (err) {
+      logger.error('handleBroadcastCancel error', err);
+      await ctx.reply('❌ Error cancelando broadcast.');
+    }
+  }
+
+  // ---------------------------
+  // Direct message: /sms <ID> <mensaje>
+  // ---------------------------
   async handleDirectMessage(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
     try {
-      const { adminId, args } = this.#parseCommand(ctx);
-      logger.info(adminId, 'handleDirectMessage', { args });
+      const text = ctx.message?.text || '';
+      const parts = this._parseArgsFromText(text);
 
-      if (args.length < 2) return ctx.reply('⚠️ Uso: /sms [ID] [mensaje]');
+      if (parts.length < 3) {
+        await ctx.reply('Uso: /sms <ID> <mensaje>');
+        return;
+      }
 
-      const [targetId, ...rest] = args;
-      const messageText = rest.join(' ');
-      const target = userManager.getUser(targetId);
+      const targetId = parts[1];
+      const message = parts.slice(2).join(' ');
 
-      if (!target) return ctx.reply(`❌ Usuario ${messages._helpers.code(targetId)} no encontrado`);
+      await this.notificationService.bot.telegram.sendMessage(targetId, message);
 
-      // send via notification service (sanitized inside)
-      await this.notificationService.bot.telegram.sendMessage(targetId,
-        `💬 ${messages._helpers.bold('Mensaje del Administrador')}\n\n${messages._helpers.escapeHtml(messageText)}`
-      );
+      await ctx.reply(messages.ADMIN_DIRECT_MSG_SENT(targetId, ''));
+      logger.info(userId, 'admin_sms_sent', { targetId });
 
-      await ctx.reply(messages.ADMIN_DIRECT_MSG_SENT(targetId, target.name));
-      logger.success(adminId, 'direct_message', targetId);
     } catch (err) {
-      this.#handleError(ctx, err, 'handleDirectMessage');
+      logger.error('handleDirectMessage error', err);
+      await ctx.reply(`❌ Error enviando mensaje directo: ${err.message}`);
     }
   }
 
-  // /templates
+  // ---------------------------
+  // Templates list
+  // ---------------------------
   async handleTemplates(ctx) {
+    const userId = ctx.from?.id;
+    if (!this._requireAdminReply(ctx)) return;
+
     try {
-      const adminId = ctx.from.id;
-      logger.info(adminId, 'handleTemplates');
-      await ctx.reply(messages.ADMIN_TEMPLATES());
+      await ctx.reply(messages.ADMIN_TEMPLATES(), { parse_mode: 'HTML' });
     } catch (err) {
-      this.#handleError(ctx, err, 'handleTemplates');
+      logger.error('handleTemplates error', err);
+      await ctx.reply('❌ Error mostrando plantillas.');
     }
   }
 
-  // ========== PRIVATES ==========
-
-  #parseCommand(ctx) {
-    const adminId = ctx.from?.id || 'system';
-    const text = ctx.message?.text || '';
-    const args = text.split(' ').slice(1).filter(Boolean);
-    return { adminId, args };
-  }
-
-  #getBroadcastKeyboard(bId) {
-    return Markup.inlineKeyboard([
-      [Markup.button.callback('✅ Enviar a TODOS', `broadcast_all_${bId}`)],
-      [
-        Markup.button.callback('👤 Solo Usuarios', `broadcast_users_${bId}`),
-        Markup.button.callback('👑 Solo Admins', `broadcast_admins_${bId}`)
-      ],
-      [Markup.button.callback('❌ Cancelar', `broadcast_cancel_${bId}`)]
-    ]);
-  }
-
-  async #processBroadcastConfirm(ctx, broadcastId, target) {
-    const b = this.pendingBroadcasts.get(broadcastId);
-    if (!b) return ctx.reply('❌ Broadcast expirado o inválido.');
-
-    this.pendingBroadcasts.delete(broadcastId);
-
-    const users = userManager.getAllUsers();
-    const recipients = this.#filterRecipients(users, target);
-    if (recipients.length === 0) return ctx.reply('❌ No hay destinatarios.');
-
-    await ctx.editMessageText('📤 Enviando broadcast...');
-
-    const results = await this.notificationService.sendBroadcast(b.message, recipients);
-
-    await ctx.editMessageText(messages.BROADCAST_RESULT(results.success, results.failed));
-  }
-
-  #filterRecipients(users, target) {
-    switch (target) {
-      case 'all': return users.filter(u => u.status === 'active');
-      case 'users': return users.filter(u => u.status === 'active' && u.role === 'user');
-      case 'admins': return users.filter(u => u.status === 'active' && u.role === 'admin');
-      default: return [];
-    }
-  }
-
-  #cleanOldBroadcasts() {
-    const cutoff = Date.now() - 5 * 60 * 1000;
-    for (const [id, b] of this.pendingBroadcasts.entries()) {
-      if (b.createdAt < cutoff) this.pendingBroadcasts.delete(id);
-    }
-  }
-
-  #handleError(ctx, err, method) {
-    const adminId = ctx.from?.id || 'unknown';
-    const msg = err?.message || 'Error interno';
-    logger.error(method, err, { adminId, msg });
-    ctx.reply(`❌ Error: ${messages._helpers.escapeHtml(msg)}`);
+  // ---------------------------
+  // Utility: escape simple HTML (used for plain strings)
+  // ---------------------------
+  _escape(text = '') {
+    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 }
 

@@ -1,8 +1,6 @@
-// config/constants.js
-
 /**
  * Constantes globales del sistema uSipipo VPN Bot.
- * Diseñado para ser inmutable y modular.
+ * Diseñado para ser totalmente inmutable, modular y consistente.
  */
 
 const constants = Object.freeze({
@@ -11,25 +9,33 @@ const constants = Object.freeze({
   // 📦 Límites, rangos y configuración interna
   // =====================================================
   LIMITS: Object.freeze({
-    OUTLINE_DEFAULT_DATA_LIMIT: 10 * 1024 * 1024 * 1024 // 10 GB
-  }),
-
-  NETWORK: Object.freeze({
-    WIREGUARD_IP_RANGE: '10.13.13',
-    WIREGUARD_IP_START: 2,
-    WIREGUARD_IP_END: 254
+    // Límite de datos por defecto para Outline (10GB)
+    OUTLINE_DEFAULT_DATA_LIMIT: 10 * 1024 * 1024 * 1024
   }),
 
   // =====================================================
-  // 🔗 URLs externas (descargas y recursos)
+  // 🌐 Redes internas asignadas para clientes WireGuard
+  // (generación incremental de direcciones)
+  // =====================================================
+  NETWORK: Object.freeze({
+    // Prefijo por defecto si no existe ENV
+    WG_DEFAULT_PREFIX: '10.13.13.',
+
+    // Rangos válidos de clientes
+    WG_IP_START: 2,
+    WG_IP_END: 254
+  }),
+
+  // =====================================================
+  // 🔗 URLs externas oficiales
   // =====================================================
   URLS: Object.freeze({
-    WIREGUARD_DOWNLOAD: 'https://wireguard.com/install',
+    WIREGUARD_DOWNLOAD: 'https://www.wireguard.com/install/',
     OUTLINE_DOWNLOAD: 'https://getoutline.org/get-started'
   }),
 
   // =====================================================
-  // 🧩 Estados y mensajes de estado del usuario
+  // 🧩 Estados del sistema y permisos
   // =====================================================
   STATUS: Object.freeze({
     AUTHORIZED: '✅ Autorizado',
