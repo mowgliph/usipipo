@@ -6,12 +6,13 @@ const { Markup } = require('telegraf');
  * ============================================================================
  * 🎛️ Teclados Inline — uSipipo VPN Manager
  * UI estilo App: navegación limpia, profesional y coherente.
+ * Refactorizado para incluir menús faltantes y prevenir crash.
  * ============================================================================
  */
 
 const keyboards = {
   // ========================================================================
-  // 🟢 MENÚ PRINCIPAL — Usuario Autorizado (Fix: Renombrado para AuthHandler)
+  // 🟢 MENÚ PRINCIPAL — Usuario Autorizado
   // ========================================================================
   homeAuthorized: () =>
     Markup.inlineKeyboard([
@@ -24,7 +25,7 @@ const keyboards = {
     ]),
 
   // ========================================================================
-  // 🔴 MENÚ PRINCIPAL — Usuario NO autorizado (Fix: Renombrado para AuthHandler)
+  // 🔴 MENÚ PRINCIPAL — Usuario NO autorizado
   // ========================================================================
   homeUnauthorized: () =>
     Markup.inlineKeyboard([
@@ -33,6 +34,24 @@ const keyboards = {
         Markup.button.callback('🔄 Verificar Estado', 'check_status'),
         Markup.button.callback('❓ Ayuda', 'help')
       ]
+    ]),
+
+  // ========================================================================
+  // 👤 MENÚ DE INFORMACIÓN DE USUARIO (Fix: Añadido para AuthHandler)
+  // ========================================================================
+  userInfoMenu: () =>
+    Markup.inlineKeyboard([
+      [Markup.button.callback('🔄 Actualizar', 'show_my_info')],
+      [Markup.button.callback('⬅️ Volver al Inicio', 'start')]
+    ]),
+
+  // ========================================================================
+  // ❓ MENÚ DE AYUDA (Fix: Añadido para AuthHandler)
+  // ========================================================================
+  helpMenu: () =>
+    Markup.inlineKeyboard([
+      [Markup.button.url('🆘 Soporte Oficial', 'https://t.me/TuUsuarioDeSoporte')], // Cambia esto si tienes un canal/usuario real
+      [Markup.button.callback('⬅️ Volver al Inicio', 'start')]
     ]),
 
   // ========================================================================
@@ -45,7 +64,7 @@ const keyboards = {
         Markup.button.callback('🌐 Outline', 'outline_menu')
       ],
       [Markup.button.callback('📋 Listar Mis Clientes', 'list_clients')],
-      [Markup.button.callback('🔙 Volver al Inicio', 'start')] // 'start' suele recargar el menú home
+      [Markup.button.callback('⬅️ Volver al Inicio', 'start')]
     ]),
 
   // ========================================================================
@@ -81,7 +100,7 @@ const keyboards = {
     ]),
 
   // ========================================================================
-  // ⚠️ CONFIRMACIÓN DE ACCIONES
+  // ⚠️ CONFIRMACIÓN Y NAVEGACIÓN
   // ========================================================================
   backButton: () =>
     Markup.inlineKeyboard([

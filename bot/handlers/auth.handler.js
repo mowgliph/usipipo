@@ -4,6 +4,7 @@ const { isAuthorized, isAdmin } = require('../middleware/auth.middleware');
 const userManager = require('../services/userManager.service');
 const messages = require('../utils/messages');
 const keyboards = require('../utils/keyboards');
+const logger = require('../utils/logger');
 
 class AuthHandler {
   constructor(notificationService) {
@@ -14,85 +15,132 @@ class AuthHandler {
   // 🎛️ START — Vista principal tipo App
   // ============================================================================
   async handleStart(ctx) {
-    const userId = ctx.from.id.toString();
-    const name = ctx.from.first_name || 'Usuario';
+    try {
+      const userId = ctx.from.id.toString();
+      const name = ctx.from.first_name || 'Usuario';
 
-    const authorized = isAuthorized(userId);
+      const authorized = isAuthorized(userId);
 
-    // messages.js ya devuelve texto formateado en Markdown V1 y escapado
-    const msg = authorized
-      ? messages.WELCOME_AUTHORIZED(name)
-      : messages.WELCOME_UNAUTHORIZED(name);
+      // messages.js ya devuelve texto formateado en Markdown V1 y escapado
+      const msg = authorized
+        ? messages.WELCOME_AUTHORIZED(name)
+        : messages.WELCOME_UNAUTHORIZED(name);
 
-    const keyboard = authorized
-      ? keyboards.homeAuthorized()
-      : keyboards.homeUnauthorized();
+      const keyboard = authorized
+        ? keyboards.homeAuthorized()
+        : keyboards.homeUnauthorized();
 
-    return ctx.reply(msg, keyboard);
+      // FIX: Se añade parse_mode: 'Markdown' para que se vean las negritas
+      // Se combina el teclado con las opciones extra
+      await ctx.reply(msg, {
+        parse_mode: 'Markdown',
+        ...keyboard
+      });
+
+    } catch (err) {
+      logger.error('handleStart error', err);
+      ctx.reply('❌ Error al iniciar el menú.');
+    }
   }
 
   // ============================================================================
   // 👤 MI INFO
   // ============================================================================
   async handleUserInfo(ctx) {
-    const user = ctx.from;
-    const authorized = isAuthorized(user.id.toString());
+    try {
+      // Si viene de un botón, cerramos el reloj de arena
+      if (ctx.callbackQuery) await ctx.answerCbQuery().catch(() => {});
 
-    const msg = messages.USER_INFO(user, authorized);
-    return ctx.reply(msg, keyboards.userInfoMenu(authorized));
+      const user = ctx.from;
+      const authorized = isAuthorized(user.id.toString());
+
+      const msg = messages.USER_INFO(user, authorized);
+      
+      await ctx.reply(msg, {
+        parse_mode: 'Markdown',
+        ...keyboards.userInfoMenu() // Se usa la función que añadimos en keyboards.js
+      });
+    } catch (err) {
+      logger.error('handleUserInfo error', err);
+    }
   }
 
   // ============================================================================
   // 📧 SOLICITAR ACCESO (botón)
   // ============================================================================
   async handleAccessRequest(ctx) {
-    // Responder al callback para detener el spinner de carga en Telegram
-    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-    
-    const user = ctx.from;
+    try {
+      // FIX CRÍTICO: Verificar explícitamente si es un callbackQuery antes de responder
+      if (ctx.callbackQuery) await ctx.answerCbQuery('Solicitando...').catch(() => {});
+      
+      const user = ctx.from;
 
-    await ctx.reply(messages.ACCESS_REQUEST_SENT(user));
-    await this.notificationService.notifyAdminAccessRequest(user);
+      await ctx.reply(messages.ACCESS_REQUEST_SENT(user), { parse_mode: 'Markdown' });
+      
+      // Notificar al admin
+      await this.notificationService.notifyAdminAccessRequest(user);
+    } catch (err) {
+      logger.error('handleAccessRequest error', err);
+    }
   }
 
   // ============================================================================
   // 📊 ESTADO DEL USUARIO
   // ============================================================================
   async handleCheckStatus(ctx) {
-    if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-    
-    const user = ctx.from;
-    const userId = user.id.toString();
-    const info = userManager.getUser(userId);
+    try {
+      // FIX CRÍTICO: Evita el error "answerCbQuery isn't available for message"
+      if (ctx.callbackQuery) await ctx.answerCbQuery().catch(() => {});
+      
+      const user = ctx.from;
+      const userId = user.id.toString();
+      const info = userManager.getUser(userId);
 
-    // 1. Usuario no existe en la DB
-    if (!info) {
-      // Nota: Asegúrate de que STATUS_NOT_REGISTERED exista en messages.js
-      return ctx.reply(
-        messages.STATUS_NOT_REGISTERED ? messages.STATUS_NOT_REGISTERED(user) : '⚠️ No estás registrado.',
-        keyboards.homeUnauthorized()
-      );
-    }
+      // 1. Usuario no existe en la DB
+      if (!info) {
+        const msg = messages.STATUS_NOT_REGISTERED 
+          ? messages.STATUS_NOT_REGISTERED(user) 
+          : '⚠️ *No estás registrado en el sistema.*';
+        
+        return ctx.reply(msg, {
+          parse_mode: 'Markdown',
+          ...keyboards.homeUnauthorized()
+        });
+      }
 
-    // 2. Verificar estado
-    switch (info.status) {
-      case 'active':
-        return ctx.reply(
-          messages.STATUS_ACTIVE ? messages.STATUS_ACTIVE(user, info) : '✅ *Cuenta Activa*',
-          keyboards.homeAuthorized()
-        );
+      // 2. Verificar estado
+      // Nota: Reemplazamos keyboards.minimalBack() por keyboards.backButton()
+      // para evitar crash, ya que minimalBack no existía en el archivo anterior.
+      switch (info.status) {
+        case 'active':
+          const msgActive = messages.STATUS_ACTIVE 
+            ? messages.STATUS_ACTIVE(user, info) 
+            : '✅ *Cuenta Activa*';
+            
+          return ctx.reply(msgActive, {
+            parse_mode: 'Markdown',
+            ...keyboards.homeAuthorized()
+          });
 
-      case 'suspended':
-        return ctx.reply(
-          messages.STATUS_SUSPENDED ? messages.STATUS_SUSPENDED(user) : '⏸️ *Cuenta Suspendida*', 
-          keyboards.minimalBack()
-        );
+        case 'suspended':
+          const msgSuspended = messages.STATUS_SUSPENDED 
+            ? messages.STATUS_SUSPENDED(user) 
+            : '⏸️ *Cuenta Suspendida*';
 
-      default:
-        return ctx.reply(
-          messages.STATUS_UNKNOWN ? messages.STATUS_UNKNOWN(user) : '❓ Estado desconocido', 
-          keyboards.minimalBack()
-        );
+          return ctx.reply(msgSuspended, {
+            parse_mode: 'Markdown',
+            ...keyboards.backButton()
+          });
+
+        default:
+          return ctx.reply('❓ *Estado desconocido*', {
+            parse_mode: 'Markdown',
+            ...keyboards.backButton()
+          });
+      }
+    } catch (err) {
+      logger.error('handleCheckStatus error', err);
+      ctx.reply('❌ Error verificando estado.');
     }
   }
 
@@ -100,10 +148,22 @@ class AuthHandler {
   // ❓ AYUDA
   // ============================================================================
   async handleHelp(ctx) {
-    const authorized = isAuthorized(ctx.from.id.toString());
-    const msg = authorized ? messages.HELP_AUTHORIZED : messages.HELP_UNAUTHORIZED;
+    try {
+      if (ctx.callbackQuery) await ctx.answerCbQuery().catch(() => {});
 
-    return ctx.reply(msg, keyboards.helpMenu(authorized));
+      const authorized = isAuthorized(ctx.from.id.toString());
+      const msg = authorized ? messages.HELP_AUTHORIZED : messages.HELP_UNAUTHORIZED;
+
+      // Aseguramos que msg sea string para evitar errores si messages.js falla
+      const finalMsg = typeof msg === 'string' ? msg : 'ℹ️ *Sección de Ayuda*';
+
+      return ctx.reply(finalMsg, {
+        parse_mode: 'Markdown',
+        ...keyboards.helpMenu()
+      });
+    } catch (err) {
+      logger.error('handleHelp error', err);
+    }
   }
 
   // ============================================================================
@@ -112,14 +172,24 @@ class AuthHandler {
   async handleListUsers(ctx) {
     const userId = ctx.from.id.toString();
     if (!isAdmin(userId)) {
-      return ctx.reply(messages.ADMIN_ONLY);
+      // Enviamos sin markdown si es un mensaje simple de error, o con markdown si messages.js lo soporta
+      return ctx.reply(messages.ADMIN_ONLY || '⛔ Acceso denegado', { parse_mode: 'Markdown' });
     }
 
-    const users = userManager.getAllUsers();
-    const stats = userManager.getUserStats();
-    const msg = messages.ADMIN_USER_LIST(users, stats);
+    try {
+      const users = userManager.getAllUsers();
+      const stats = userManager.getUserStats();
+      const msg = messages.ADMIN_USER_LIST(users, stats);
 
-    return ctx.reply(msg, keyboards.adminBackMenu());
+      // Usamos backButton() porque adminBackMenu() no existía en keyboards.js
+      return ctx.reply(msg, {
+        parse_mode: 'Markdown',
+        ...keyboards.backButton()
+      });
+    } catch (err) {
+      logger.error('handleListUsers error', err);
+      ctx.reply('❌ Error listando usuarios.');
+    }
   }
 }
 

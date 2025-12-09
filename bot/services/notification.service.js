@@ -1,15 +1,33 @@
 'use strict';
 
+/**
+ * services/notification.service.js
+ *
+ * Refactorizado a Markdown V1 para máxima compatibilidad y estabilidad.
+ * Soluciona el error "escapeHtml is not a function".
+ */
+
 const config = require('../config/environment');
 const messages = require('../utils/messages');
 const userManager = require('./userManager.service');
 const logger = require('../utils/logger');
 
-const { escapeHtml, bold, code, italic } = messages._helpers;
-
 class NotificationService {
   constructor(bot) {
     this.bot = bot;
+  }
+
+  // ============================================================================
+  // 🛡️ HELPER: Escape Markdown V1
+  // ============================================================================
+  
+  /**
+   * Escapa caracteres reservados de Markdown V1 para evitar errores de parseo.
+   * Caracteres: _ * ` [
+   */
+  _escapeMarkdown(text) {
+    if (!text) return '';
+    return String(text).replace(/([_*\[`])/g, '\\$1');
   }
 
   // ============================================================================
@@ -18,10 +36,22 @@ class NotificationService {
 
   async notifyAdminAccessRequest(user) {
     try {
-      const formatted = messages.ACCESS_REQUEST_ADMIN_NOTIFICATION(user);
+      // Se asume que messages.ACCESS_REQUEST_ADMIN_NOTIFICATION devuelve texto compatible
+      // Si devuelve HTML, fallará. Idealmente ese método también debe devolver Markdown.
+      // Aquí forzamos un formato seguro por si acaso:
+      
+      const safeName = this._escapeMarkdown(user.first_name || 'Sin nombre');
+      const safeUsername = user.username ? `@${this._escapeMarkdown(user.username)}` : 'N/A';
+      const safeId = user.id;
 
-      await this.bot.telegram.sendMessage(config.ADMIN_ID, formatted, {
-        parse_mode: 'HTML'
+      const msg = `🔔 *Nueva Solicitud de Acceso*\n\n` +
+                  `👤 *Usuario:* ${safeName}\n` +
+                  `🔖 *Username:* ${safeUsername}\n` +
+                  `🆔 *ID:* \`${safeId}\`\n\n` +
+                  `_Usa /add ${safeId} para aprobar._`;
+
+      await this.bot.telegram.sendMessage(config.ADMIN_ID, msg, {
+        parse_mode: 'Markdown'
       });
 
       logger.info(`Notificación de solicitud enviada al Admin`, { user });
@@ -39,24 +69,28 @@ class NotificationService {
 
   async notifyAdminError(errorMessage, context = {}) {
     try {
-      const safeError = escapeHtml(errorMessage);
-      const safeContext = code(escapeHtml(JSON.stringify(context, null, 2)));
+      const safeError = this._escapeMarkdown(errorMessage);
+      // JSON stringify no necesita escape si va dentro de bloque de código, 
+      // pero por seguridad escapamos backticks internos si existen.
+      let jsonContext = JSON.stringify(context, null, 2);
+      jsonContext = jsonContext.replace(/`/g, "'"); 
 
       const msg =
-        `${bold('⚠️ ERROR CRÍTICO EN EL BOT')}\n\n` +
-        `${bold(safeError)}\n\n` +
-        `${bold('Contexto:')}\n${safeContext}\n\n` +
-        `${italic(new Date().toLocaleString())}`;
+        `*⚠️ ERROR CRÍTICO EN EL BOT*\n\n` +
+        `*Error:* ${safeError}\n\n` +
+        `*Contexto:*\n\`\`\`\n${jsonContext}\n\`\`\`\n\n` +
+        `_Hora: ${this._escapeMarkdown(new Date().toLocaleString())}_`;
 
       await this.bot.telegram.sendMessage(config.ADMIN_ID, msg, {
-        parse_mode: 'HTML'
+        parse_mode: 'Markdown'
       });
 
       logger.warn('Error crítico notificado al admin', { errorMessage, context });
       return true;
 
     } catch (err) {
-      logger.error('notifyAdminError — fallo notificando al admin', err);
+      // Usamos console.error aquí para evitar bucles infinitos con el logger si este falla
+      console.error('notifyAdminError — fallo notificando al admin (Backup Log)', err);
       return false;
     }
   }
@@ -67,14 +101,16 @@ class NotificationService {
 
   async notifyAdminAlert(subject, context = {}) {
     try {
-      const formatted =
-        `${bold('🔔 ALERTA DEL SISTEMA')}\n\n` +
-        `${bold(escapeHtml(subject))}\n\n` +
-        `${bold('Contexto:')}\n` +
-        `${code(escapeHtml(JSON.stringify(context, null, 2)))}`;
+      let jsonContext = JSON.stringify(context, null, 2);
+      jsonContext = jsonContext.replace(/`/g, "'");
 
-      await this.bot.telegram.sendMessage(config.ADMIN_ID, formatted, {
-        parse_mode: 'HTML'
+      const msg =
+        `*🔔 ALERTA DEL SISTEMA*\n\n` +
+        `*Asunto:* ${this._escapeMarkdown(subject)}\n\n` +
+        `*Contexto:*\n\`\`\`\n${jsonContext}\n\`\`\``;
+
+      await this.bot.telegram.sendMessage(config.ADMIN_ID, msg, {
+        parse_mode: 'Markdown'
       });
 
       logger.info('Alerta enviada al admin', { subject, context });
@@ -90,10 +126,10 @@ class NotificationService {
   // 📬 MENSAJE DIRECTO A USUARIO (jobs, advertencias, avisos)
   // ============================================================================
 
-  async sendDirectMessage(userId, messageHtml) {
+  async sendDirectMessage(userId, messageMarkdown) {
     try {
-      await this.bot.telegram.sendMessage(String(userId), messageHtml, {
-        parse_mode: 'HTML'
+      await this.bot.telegram.sendMessage(String(userId), messageMarkdown, {
+        parse_mode: 'Markdown'
       });
       logger.info('Mensaje directo enviado', { userId });
       return true;
@@ -107,12 +143,12 @@ class NotificationService {
   // 📢 BROADCAST DE TEXTO — Optimizado por lotes
   // ============================================================================
 
-  async sendBroadcast(messageHtml, recipients, options = {}) {
+  async sendBroadcast(messageMarkdown, recipients, options = {}) {
     const { includeHeader = true } = options;
 
     const finalMessage = includeHeader
-      ? `${bold('📢 ANUNCIO')}\n━━━━━━━━━━━━━━━━━━━━\n\n${messageHtml}\n\n━━━━━━━━━━━━━━━━━━━━\n${italic('🤖 uSipipo VPN Bot')}`
-      : messageHtml;
+      ? `*📢 ANUNCIO*\n━━━━━━━━━━━━━━━━━━━━\n\n${messageMarkdown}\n\n━━━━━━━━━━━━━━━━━━━━\n_🤖 uSipipo VPN Bot_`
+      : messageMarkdown;
 
     const results = { success: 0, failed: 0, errors: [] };
 
@@ -124,7 +160,7 @@ class NotificationService {
 
       const tasks = batch.map((user) =>
         this.bot.telegram
-          .sendMessage(user.id, finalMessage, { parse_mode: 'HTML' })
+          .sendMessage(user.id, finalMessage, { parse_mode: 'Markdown' })
           .then(() => ({ ok: true }))
           .catch(err => ({
             ok: false,
@@ -156,7 +192,7 @@ class NotificationService {
   // 🖼️ BROADCAST CON FOTO — Optimizado por lotes
   // ============================================================================
 
-  async sendBroadcastWithPhoto(messageHtml, photoUrl, recipients) {
+  async sendBroadcastWithPhoto(messageMarkdown, photoUrl, recipients) {
     const results = { success: 0, failed: 0, errors: [] };
 
     const BATCH_SIZE = 15;
@@ -168,8 +204,8 @@ class NotificationService {
       const tasks = batch.map((user) =>
         this.bot.telegram
           .sendPhoto(user.id, photoUrl, {
-            caption: `${bold('📢 ANUNCIO')}\n\n${messageHtml}`,
-            parse_mode: 'HTML'
+            caption: `*📢 ANUNCIO*\n\n${messageMarkdown}`,
+            parse_mode: 'Markdown'
           })
           .then(() => ({ ok: true }))
           .catch(err => ({
@@ -211,21 +247,22 @@ class NotificationService {
         (u) => u.role === 'admin' && u.status === 'active'
       );
 
-      const info = {
-        ip: config.SERVER_IPV4,
-        wgPort: config.WIREGUARD_PORT,
-        outlinePort: config.OUTLINE_API_PORT
-      };
+      // Preparamos info básica
+      const infoMsg = `🌐 *IP:* \`${config.SERVER_IPV4 || 'N/A'}\`\n` +
+                      `🔒 *WG Port:* \`${config.WIREGUARD_PORT || 'N/A'}\`\n` +
+                      `🔑 *Outline:* \`${config.OUTLINE_API_PORT || 'N/A'}\``;
 
-      const formatted = messages.SYSTEM_STARTUP(info, stats.admins, stats.total);
-      const finalMessage = `${bold('🚀 INICIO DEL SISTEMA')}\n\n${formatted}`;
+      const finalMessage = `*🚀 INICIO DEL SISTEMA*\n\n` +
+                           `${infoMsg}\n\n` +
+                           `👥 *Usuarios:* ${stats.total}\n` +
+                           `👮 *Admins:* ${stats.admins}`;
 
       const results = { success: 0, failed: 0 };
 
       for (const admin of admins) {
         try {
           await this.bot.telegram.sendMessage(admin.id, finalMessage, {
-            parse_mode: 'HTML'
+            parse_mode: 'Markdown'
           });
           results.success++;
         } catch (err) {
