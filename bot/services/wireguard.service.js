@@ -342,7 +342,7 @@ PersistentKeepalive = 25
     return {
       clientName,
       ip: clientIP,
-      clientConfig,
+      clientConfig: clientConf,
       clientFilePath: filePath,
       qr: qrAscii,
       publicKey,
