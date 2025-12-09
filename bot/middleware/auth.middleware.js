@@ -3,7 +3,7 @@
 const userManager = require('../services/userManager.service');
 const messages = require('../utils/messages');
 const logger = require('../utils/logger');
-const { escapeHtml } = require('../utils/format');
+const { escapeHtml } = require('../utils/formatters');
 
 // ============================================================================
 // 🔎 User Metadata Helper
