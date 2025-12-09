@@ -246,6 +246,30 @@ PersistentKeepalive = 25
       throw new Error('Error generando claves WireGuard: ' + err.message);
     }
 
+    // ------------------------------------------------------------------------------------------
+    // 🚀 CORRECCIÓN DEL ERROR DE CLAVE PÚBLICA (Longitud incorrecta)
+    // Se obtiene la clave pública del servidor (44 caracteres) de forma dinámica si no está en config.
+    // ------------------------------------------------------------------------------------------
+    let finalServerPubKey = config.WG_SERVER_PUBKEY; // 1. Intentamos leerla de la configuración
+
+    if (!finalServerPubKey || finalServerPubKey.length !== 44) {
+      // 2. Si es inválida o no existe, la pedimos directamente al sistema WireGuard.
+      try {
+        // 'this.interface' suele ser 'wg0'
+        const { stdout } = await execPromise(`wg show ${this.interface} public-key`);
+        finalServerPubKey = stdout.trim();
+      } catch (e) {
+        logger.error('Fallo al obtener Server Public Key', e);
+        throw new Error('No se pudo obtener la clave pública del servidor. El túnel no funcionará.');
+      }
+    }
+
+    // 3. Verificación final de seguridad antes de continuar.
+    if (!finalServerPubKey || finalServerPubKey.length !== 44) {
+        throw new Error(`Clave pública del servidor inválida (Longitud: ${finalServerPubKey ? finalServerPubKey.length : 0}). Revisa la interfaz ${this.interface}.`);
+    }
+
+
     // asignar IP
     const clientIP = await this.getNextAvailableIP();
 
@@ -274,7 +298,7 @@ PersistentKeepalive = 25
     const clientConf = this._buildClientConfig({
       privateKey,
       clientIP,
-      publicServerKey: config.WG_SERVER_PUBKEY || '',
+      publicServerKey: finalServerPubKey,
       presharedKey
     });
 
@@ -288,6 +312,7 @@ PersistentKeepalive = 25
       logger.error('write client file failed', err);
       throw new Error('No se pudo escribir el archivo de configuración del cliente: ' + err.message);
     }
+
 
     // intentar generar QR ASCII con qrencode si está disponible
     let qrAscii = null;
