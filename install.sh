@@ -668,19 +668,20 @@ uninstall_wireguard() {
 
 # =============================================================================
 # Configuración de Permisos para el Bot (uSipipoVPNBot)
+# Esto resuelve el error EACCES y evita pedir contraseña al bot en runtime.
 # =============================================================================
 configure_bot_permissions() {
-    log_ok "🛡️ Configurando permisos de WireGuard para el bot"
+    log "🛡️ Configurando permisos de WireGuard para el bot" 
     
-    
-    # Determinar el usuario que está ejecutando el script
+    # Determinar el usuario que está ejecutando el script (asumimos que es quien corre el bot)
     BOT_USER=${SUDO_USER:-$(whoami)}
-    WG_PATH="/etc/wireguard" # Ruta por defecto de WireGuard
+    WG_PATH="/etc/wireguard" 
+    WG_CONF="${WG_PATH}/wg0.conf" 
 
     log "Usuario del bot identificado: ${BOT_USER}"
     
     if [ "${BOT_USER}" = "root" ]; then
-        log_warn "El bot se está ejecutando como 'root'. NO se modificará el sudoers, pero se asegurará la carpeta."
+        log_warn "El bot se está ejecutando como 'root'. NO se modificará el sudoers, pero se asegurarán los directorios."
     else
         # 1. Añadir reglas NOPASSWD para los comandos críticos de WireGuard
         log "Añadiendo reglas NOPASSWD para ${BOT_USER} en sudoers..."
@@ -696,21 +697,32 @@ ${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/wg show *
 EOF
         # Establecer permisos seguros para el archivo sudoers
         run_sudo chmod 0440 "$SUDOERS_FILE"
-        log_ok "Reglas de NOPASSWD añadidas a ${SUDOERS_FILE}."
+        log_ok "Reglas de NOPASSWD añadidas a ${SUDOERS_FILE}." 
     fi
 
     # 2. Asegurar que el directorio de clientes existe y es propiedad del BOT_USER
     log "Asegurando el directorio de clientes: ${WG_PATH}/clients"
-    
-    # Crear la carpeta con run_sudo 
     run_sudo mkdir -p "${WG_PATH}/clients"
-    
-    # Dar propiedad al usuario del bot.
     run_sudo chown -R "${BOT_USER}:${BOT_USER}" "${WG_PATH}/clients"
+    log_ok "✔ Propiedad del directorio clients ajustada." 
+    
+    # 3. Asegurar que el archivo de configuración principal (wg0.conf) es legible/escribible
+    if [ -f "${WG_CONF}" ]; then
+        log "Asegurando permisos para el archivo de configuración principal: ${WG_CONF}"
+        
+        # Cambiar el propietario del archivo principal al BOT_USER (permite al bot leerlo)
+        run_sudo chown "${BOT_USER}:${BOT_USER}" "${WG_CONF}"
+        
+        # Opcional: Asegurar permisos (600: solo el dueño puede leer/escribir)
+        run_sudo chmod 600 "${WG_CONF}"
+        log_ok "✔ Permisos de ${WG_CONF} ajustados." 
+    else
+        log_warn "Advertencia: Archivo ${WG_CONF} no encontrado. Asumiendo que se creará luego."
+    fi
 
     log_ok "✔ Permisos y directorios de WireGuard configurados correctamente."
-    
 }
+
 
 # =============================================================================
 # Menu
