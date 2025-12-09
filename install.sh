@@ -75,9 +75,46 @@ get_random_port() {
     shuf -i 20000-55000 -n 1
 }
 
+# =============================================================================
+# Robust public IP detection (tries metadata, direct IP services, then local iface)
+# =============================================================================
 get_public_ip() {
-    # try common services
-    curl -4 -s ifconfig.co || curl -4 -s icanhazip.com || echo "127.0.0.1"
+    # 1) Cloud metadata (works on many VPS providers)
+    ip=$(curl -4 -s --max-time 2 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || true)
+    if [[ -n "$ip" ]]; then
+        echo "$ip"
+        return 0
+    fi
+
+    # 2) Direct IP-based endpoints (some providers resolve these without DNS; keep short timeouts)
+    ip=$(curl -4 -s --max-time 3 http://4.icanhazip.com 2>/dev/null || true)
+    if [[ -n "$ip" ]]; then
+        echo "$ip"
+        return 0
+    fi
+
+    # 3) Regular external services (requires DNS)
+    ip=$(curl -4 -s --max-time 3 https://api.ipify.org 2>/dev/null || true)
+    if [[ -n "$ip" ]]; then
+        echo "$ip"
+        return 0
+    fi
+
+    # 4) Fallback: detect from primary network interface (eth0 or default route)
+    # Try to find interface used for default route
+    iface=$(ip route 2>/dev/null | awk '/default/ {print $5; exit}' || true)
+    if [[ -z "$iface" ]]; then
+        iface="eth0"
+    fi
+    ip=$(ip -4 addr show dev "$iface" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1 || true)
+    if [[ -n "$ip" ]]; then
+        echo "$ip"
+        return 0
+    fi
+
+    # final fallback: empty string (caller must handle)
+    echo ""
+    return 1
 }
 
 # =============================================================================
@@ -107,6 +144,99 @@ env_set() {
         # append
         echo "${key}=${value}" >> "$ENV_FILE"
     fi
+}
+
+# =============================================================================
+# DNS helpers: ensure resolvconf (if present) has sane head; otherwise ensure /etc/resolv.conf
+# =============================================================================
+fix_dns() {
+    # Desired fallback nameservers
+    local NS1="1.1.1.1"
+    local NS2="8.8.8.8"
+
+    # If resolvconf is installed, populate its head file so generated resolv.conf contains valid entries
+    if command -v resolvconf &>/dev/null; then
+        log "Ensuring resolvconf head contains fallback nameservers..."
+        # create directory if missing
+        run_sudo mkdir -p /etc/resolvconf/resolv.conf.d
+        # create or update head with our nameservers (preserve if already contains nameserver entries)
+        if ! run_sudo grep -qE '^\s*nameserver' /etc/resolvconf/resolv.conf.d/head 2>/dev/null; then
+            run_sudo tee /etc/resolvconf/resolv.conf.d/head >/dev/null <<EOF
+# uSipipo fallback nameservers (added by install.sh)
+nameserver ${NS1}
+nameserver ${NS2}
+EOF
+            log_ok "Wrote /etc/resolvconf/resolv.conf.d/head"
+        else
+            log "resolvconf head already contains nameserver(s); leaving intact."
+        fi
+
+        # Regenerate resolv.conf
+        log "Updating resolvconf..."
+        run_sudo resolvconf -u || {
+            log_warn "resolvconf -u failed or not supported; falling back to writing /etc/resolv.conf directly."
+        }
+    else
+        # If resolvconf not installed (yet), ensure /etc/resolv.conf has sane entries
+        if ! grep -qE '^\s*nameserver' /etc/resolv.conf 2>/dev/null; then
+            log_warn "/etc/resolv.conf has no nameserver entries — writing fallback nameservers."
+            run_sudo tee /etc/resolv.conf >/dev/null <<EOF
+# uSipipo fallback resolv.conf
+nameserver ${NS1}
+nameserver ${NS2}
+EOF
+            log_ok "Wrote /etc/resolv.conf with fallback nameservers"
+        else
+            log "Existing /etc/resolv.conf contains nameserver(s); leaving intact."
+        fi
+    fi
+}
+
+# Check DNS resolution and basic connectivity
+check_dns() {
+    # 1) Quick check: ping a known IP (cloudflare)
+    if ! ping -c1 -W2 1.1.1.1 &>/dev/null; then
+        log_err "Network connectivity to 1.1.1.1 failed. Check upstream network before proceeding."
+        return 1
+    fi
+
+    # 2) Check presence of nameserver entries
+    if ! grep -qE '^\s*nameserver' /etc/resolv.conf 2>/dev/null; then
+        log_warn "/etc/resolv.conf has no nameserver. Attempting to fix DNS."
+        fix_dns
+    fi
+
+    # 3) Try resolve a domain using getent (no extra deps)
+    if getent hosts google.com >/dev/null 2>&1; then
+        log_ok "DNS resolution OK (getent)."
+        return 0
+    fi
+
+    # 4) Fallback: try nslookup if available
+    if command -v nslookup &>/dev/null; then
+        if nslookup google.com 1.1.1.1 >/dev/null 2>&1; then
+            log_ok "DNS resolution OK (nslookup to 1.1.1.1)."
+            return 0
+        fi
+    fi
+
+    # 5) Last attempt: attempt to use curl to fetch a known host (requires DNS)
+    if curl -s --head --max-time 3 https://www.google.com >/dev/null 2>&1; then
+        log_ok "DNS resolution and HTTP connectivity OK."
+        return 0
+    fi
+
+    log_warn "DNS resolution still failing after attempts. Forcing fallback resolv.conf and rechecking."
+    # Force fallback resolv.conf and recheck
+    fix_dns
+    sleep 1
+    if getent hosts google.com >/dev/null 2>&1 || curl -s --head --max-time 3 https://www.google.com >/dev/null 2>&1; then
+        log_ok "DNS fixed using fallback."
+        return 0
+    fi
+
+    log_err "DNS resolution could not be established. Aborting installation."
+    return 1
 }
 
 # =============================================================================
@@ -147,9 +277,18 @@ install_outline() {
         install_docker_wrapper || { log_err "Docker is required for Outline. Aborting."; return 1; }
     fi
 
+    # ensure DNS is working before detecting public IP or running the installer
+    check_dns || { log_err "DNS check failed. Fix DNS and retry Outline installation."; return 1; }
+
     local server_ip
     server_ip=$(get_public_ip)
-    log "Detected public IP: $server_ip"
+    if [[ -z "$server_ip" ]]; then
+        log_warn "Could not auto-detect public IP via metadata/external services. Falling back to primary interface address."
+        iface=$(ip route 2>/dev/null | awk '/default/ {print $5; exit}' || true)
+        iface=${iface:-eth0}
+        server_ip=$(ip -4 addr show dev "$iface" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1 || true)
+    fi
+    log "Detected public IP: ${server_ip:-<none>}"
 
     # Choose random ports but allow user override
     local api_port keys_port
@@ -160,7 +299,7 @@ install_outline() {
 
     echo ""
     echo "Outline installation will run with:"
-    echo "  Hostname / IP: $server_ip"
+    echo "  Hostname / IP: ${server_ip:-<none>}"
     echo "  API port: $api_port"
     echo "  Keys port: $keys_port"
     echo ""
@@ -172,7 +311,7 @@ install_outline() {
     # Run official script with chosen args (interactive script will still run)
     log "Running Outline installer script..."
     # run as root, since outline script expects root privileges
-    run_sudo bash "$OL_SCRIPT" --hostname "$server_ip" --api-port "$api_port" --keys-port "$keys_port" 2>&1 | tee -a "$LOG_FILE"
+    run_sudo bash "$OL_SCRIPT" --hostname "${server_ip:-}" --api-port "$api_port" --keys-port "$keys_port" 2>&1 | tee -a "$LOG_FILE"
 
     log_ok "Outline installer finished. Attempting to extract API info..."
 
@@ -202,7 +341,7 @@ install_outline() {
 
         # compute server IP and dashboard url
         local outline_server_ip outline_dashboard
-        outline_server_ip="${server_ip}"
+        outline_server_ip="${server_ip:-}"
         outline_dashboard="${apiUrl:-}"
 
         # persist to .env
@@ -231,6 +370,7 @@ install_outline() {
     fi
 }
 
+
 # =============================================================================
 # WireGuard: installer wrapper
 # =============================================================================
@@ -247,10 +387,16 @@ install_wireguard() {
     # with sudo so it can write to /etc/wireguard and then extract params file.
     echo ""
     log "The WireGuard installer is interactive. It will ask a few questions (interface, IPs, port)."
+
     if ! confirm "Proceed to run official WireGuard installer now?"; then
         log_warn "User cancelled WireGuard install."
         return 1
     fi
+
+    # Ensure DNS is sane before running the installer (resolvconf may be installed by the wg script,
+    # but we proactively ensure we have fallback nameservers so server doesn't lose DNS).
+    fix_dns
+    check_dns || { log_err "DNS check failed. Fix DNS and retry WireGuard installation."; return 1; }
 
     # Run official installer (interactive)
     run_sudo bash "$WG_SCRIPT" 2>&1 | tee -a "$LOG_FILE"
@@ -282,15 +428,53 @@ install_wireguard() {
         [ -n "$WG_SERVER_PUB_KEY" ] && env_set "WG_SERVER_PUBKEY" "$WG_SERVER_PUB_KEY"
         [ -n "$WG_SERVER_PRIV_KEY" ] && env_set "WG_SERVER_PRIVKEY" "$WG_SERVER_PRIV_KEY"
         [ -n "$ALLOWED_IPS" ] && env_set "WG_ALLOWED_IPS" "$ALLOWED_IPS"
-        [ -n "$CLIENT_DNS_1" ] && env_set "WG_CLIENT_DNS_1" "$CLIENT_DNS_1"
-        [ -n "$CLIENT_DNS_2" ] && env_set "WG_CLIENT_DNS_2" "$CLIENT_DNS_2"
 
-        # Compute endpoint from public IP detection if not present
+        # If the wg params provided DNS for clients, preserve them; otherwise use server resolv.conf
+        if [ -n "$CLIENT_DNS_1" ]; then
+            env_set "WG_CLIENT_DNS_1" "$CLIENT_DNS_1"
+            log_ok "Using CLIENT_DNS_1 from wg params: $CLIENT_DNS_1"
+        else
+            # try to obtain server DNS from /etc/resolv.conf
+            server_dns=$(grep -E '^\s*nameserver' /etc/resolv.conf | awk '{print $2}' | head -n1 || true)
+            if [ -n "$server_dns" ]; then
+                env_set "WG_CLIENT_DNS_1" "$server_dns"
+                log_ok "Set WG_CLIENT_DNS_1 to server DNS from /etc/resolv.conf: $server_dns"
+            else
+                env_set "WG_CLIENT_DNS_1" "1.1.1.1"
+                log_warn "No DNS found in /etc/resolv.conf; defaulting WG_CLIENT_DNS_1 to 1.1.1.1"
+            fi
+        fi
+
+        if [ -n "$CLIENT_DNS_2" ]; then
+            env_set "WG_CLIENT_DNS_2" "$CLIENT_DNS_2"
+        else
+            server_dns2=$(grep -E '^\s*nameserver' /etc/resolv.conf | awk '{print $2}' | sed -n '2p' || true)
+            if [ -n "$server_dns2" ]; then
+                env_set "WG_CLIENT_DNS_2" "$server_dns2"
+            else
+                env_set "WG_CLIENT_DNS_2" "8.8.8.8"
+            fi
+        fi
+
+        # Compute endpoint from public IP detection if not present (avoid 127.0.0.1)
         local server_ip
         server_ip=$(get_public_ip)
-        env_set "SERVER_IP" "$server_ip"
-        if [ -n "$WG_SERVER_PORT" ]; then
-            env_set "WG_ENDPOINT" "${server_ip}:${WG_SERVER_PORT}"
+        if [[ -z "$server_ip" ]]; then
+            log_warn "get_public_ip returned empty; falling back to interface IP for SERVER_IP."
+            iface=$(ip route 2>/dev/null | awk '/default/ {print $5; exit}' || true)
+            iface=${iface:-eth0}
+            server_ip=$(ip -4 addr show dev "$iface" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1 || true)
+        fi
+
+        if [[ -n "$server_ip" ]]; then
+            env_set "SERVER_IP" "$server_ip"
+            if [ -n "$WG_SERVER_PORT" ]; then
+                env_set "WG_ENDPOINT" "${server_ip}:${WG_SERVER_PORT}"
+            else
+                log_warn "WG_SERVER_PORT empty; WG_ENDPOINT not set."
+            fi
+        else
+            log_err "Could not determine SERVER_IP; leaving SERVER_IP and WG_ENDPOINT unset."
         fi
 
         log_ok "WireGuard variables exported to ${ENV_FILE}"
@@ -373,9 +557,18 @@ install_wireguard_extract_only() {
     # ensure SERVER_IP and WG_ENDPOINT
     local server_ip
     server_ip=$(get_public_ip)
-    env_set "SERVER_IP" "$server_ip"
-    if [ -n "$WG_SERVER_PORT" ]; then
-        env_set "WG_ENDPOINT" "${server_ip}:${WG_SERVER_PORT}"
+    if [[ -z "$server_ip" ]]; then
+        iface=$(ip route 2>/dev/null | awk '/default/ {print $5; exit}' || true)
+        iface=${iface:-eth0}
+        server_ip=$(ip -4 addr show dev "$iface" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1 || true)
+    fi
+    if [[ -n "$server_ip" ]]; then
+        env_set "SERVER_IP" "$server_ip"
+        if [ -n "$WG_SERVER_PORT" ]; then
+            env_set "WG_ENDPOINT" "${server_ip}:${WG_SERVER_PORT}"
+        fi
+    else
+        log_warn "Could not determine public IP during extraction."
     fi
 
     return 0
