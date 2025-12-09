@@ -1,12 +1,11 @@
 /**
- * @fileoverview StartHandler.js — Manejador principal del menú inicial (v1.0.0)
- * @version 1.0.0
+ * @fileoverview bot.instance.js — Instancia principal del bot uSipipo VPN (v1.1.0)
+ * @version 1.1.0
  * @author Team uSipipo
- * @description Maneja /start y callback 'start' con limpieza de UI premium.
- * Compatible con AuthHandler existente y UserManager singleton.
+ * @description Bot Telegraf con handlers modulares, StartHandler premium y UI limpia.
  */
- 
- 'use strict';
+
+'use strict';
 
 const { Telegraf } = require('telegraf');
 const config = require('../config/environment');
@@ -24,7 +23,7 @@ const {
 const NotificationService = require('../services/notification.service');
 
 // 🆕 Handlers
-const StartHandler = require('../handlers/start.handler');  // ⭐ NUEVO
+const StartHandler = require('../handlers/start.handler');
 const AuthHandler = require('../handlers/auth.handler');
 const vpnHandler = require('../handlers/vpn.handler'); 
 const InfoHandler = require('../handlers/info.handler');
@@ -64,11 +63,9 @@ bot.use(logUserAction);
 // ⭐ /start → StartHandler (nuevo estándar premium)
 bot.command('start', (ctx) => startHandler.handleStart(ctx));
 
-// ❌ REMOVIDO: authHandler.handleStart(ctx) ← Reemplazado por StartHandler
-
 bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
 bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
-bot.command('help', (ctx) => infoHandler.handleHelp(ctx));  // ✅ Migrado a InfoHandler
+bot.command('help', (ctx) => infoHandler.handleHelp(ctx));
 bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx));
 
 // Comandos VPN específicos
@@ -103,6 +100,9 @@ bot.command('forceadmin', async (ctx) => {
     const userManager = require('../services/userManager.service');
     await userManager.syncAdminFromEnv();
 
+    // ✅ FIX: Markdown V1 correcto con 
+
+
     await ctx.reply(
       `✅ *Admin sincronizado correctamente*
 
@@ -118,7 +118,7 @@ bot.command('forceadmin', async (ctx) => {
 // =====================================================================================
 
 // ⭐ BOTÓN "Volver al Inicio" → StartHandler
-bot.action('start', (ctx) => startHandler.handleStart(ctx));  // ⭐ NUEVO: Reemplaza redirecciones
+bot.action('start', (ctx) => startHandler.handleStart(ctx));
 
 // ----------- USER MAIN NAVIGATION -----------
 bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));
