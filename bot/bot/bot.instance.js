@@ -100,13 +100,11 @@ bot.command('forceadmin', async (ctx) => {
     const userManager = require('../services/userManager.service');
     await userManager.syncAdminFromEnv();
 
-    // ✅ FIX: Markdown V1 correcto con 
-
-
+    // ✅ FIX: Se ha corregido la sintaxis de la template literal.
     await ctx.reply(
       `✅ *Admin sincronizado correctamente*\
       \
-      🆔 `${config.ADMIN_ID}``);
+      🆔 \`${config.ADMIN_ID}\``);
   } catch (error) {
     await ctx.reply(`❌ Error: ${error.message}`);
   }
