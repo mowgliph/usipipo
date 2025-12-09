@@ -672,9 +672,10 @@ uninstall_wireguard() {
 configure_bot_permissions() {
     log_header "🛡️ Configurando permisos de WireGuard para el bot"
     
-    # Usuario que ejecuta el bot (asumimos el usuario actual si no se especifica)
+    # Determinar el usuario que está ejecutando el script
     BOT_USER=${SUDO_USER:-$(whoami)}
-    
+    WG_PATH="/etc/wireguard" # Ruta por defecto de WireGuard
+
     log "Usuario del bot identificado: ${BOT_USER}"
     
     if [ "${BOT_USER}" = "root" ]; then
@@ -683,13 +684,6 @@ configure_bot_permissions() {
         # 1. Añadir reglas NOPASSWD para los comandos críticos de WireGuard
         log "Añadiendo reglas NOPASSWD para ${BOT_USER} en sudoers..."
 
-        # Comandos que necesitan sudo:
-        # - mkdir /etc/wireguard/clients
-        # - chown /etc/wireguard/clients (para que el bot pueda escribir sin sudo)
-        # - wg set / wg show (para añadir/eliminar peers y listar tráfico)
-
-        # Usamos tee para añadir las reglas sin romper el archivo sudoers
-        # Creamos un archivo de configuración separado para evitar conflictos en /etc/sudoers
         SUDOERS_FILE="/etc/sudoers.d/usipipo_wg_bot"
 
         cat > "$SUDOERS_FILE" <<EOF
@@ -700,18 +694,17 @@ ${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/wg set *
 ${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/wg show *
 EOF
         # Establecer permisos seguros para el archivo sudoers
-        chmod 0440 "$SUDOERS_FILE"
+        run_sudo chmod 0440 "$SUDOERS_FILE"
         log_success "Reglas de NOPASSWD añadidas a ${SUDOERS_FILE}."
     fi
 
     # 2. Asegurar que el directorio de clientes existe y es propiedad del BOT_USER
     log "Asegurando el directorio de clientes: ${WG_PATH}/clients"
     
-    # Crear la carpeta con run_sudo (que usa sudo si no somos root)
+    # Crear la carpeta con run_sudo 
     run_sudo mkdir -p "${WG_PATH}/clients"
     
-    # Dar propiedad al usuario del bot. Esto es lo que permite que el servicio
-    # Node.js escriba en la carpeta sin usar sudo.
+    # Dar propiedad al usuario del bot.
     run_sudo chown -R "${BOT_USER}:${BOT_USER}" "${WG_PATH}/clients"
 
     log_success "✔ Permisos y directorios de WireGuard configurados correctamente."
