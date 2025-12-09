@@ -107,9 +107,10 @@ class StartHandler {
       logger.error('StartHandler.handleStart error', error, { userId });
 
       // Fallback crítico: siempre funcional
-      const fallbackText = '🏠 *Menú Principal*
-
-Seleccione una opción del teclado.';
+      // CORRECCIÓN: Usar acentos graves (`) para cadenas multilinea
+      const fallbackText = `🏠 *Menú Principal*
+Seleccione una opción del teclado.`;
+      
       await ctx.reply(fallbackText, this._getReplyOptions(keyboards.homeUnauthorized().reply_markup));
     }
   }
