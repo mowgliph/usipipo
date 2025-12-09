@@ -54,14 +54,18 @@ class VPNHandler {
     try {
       const userId = ctx.from?.id;
       const wgClient = WireGuardService.getUserClient(userId);
+      // La llamada a WireGuard permanece igual, ya que WireGuard sí da rx/tx
       const wgUsage = wgClient ? await WireGuardService.getClientUsageByName(wgClient.clientName) : { rx: 0, tx: 0, total: 0 };
 
       const user = userManager.getUser(String(userId));
-      let outlineUsage = { rx: 0, tx: 0, total: 0 };
+      // Inicializar con la clave que devuelve OutlineService
+      let outlineUsage = { bytesUsed: 0 }; 
       
       if (user && user.outline && user.outline.keyId) {
         try {
-          outlineUsage = await OutlineService.getKeyUsage(user.outline.keyId);
+          // Obtiene { bytesUsed: N, ... }
+          const rawUsage = await OutlineService.getKeyUsage(user.outline.keyId);
+          outlineUsage.bytesUsed = rawUsage.bytesUsed || 0;
         } catch (e) {
           logger.debug('Outline usage fetch failed', { userId, err: e.message });
         }
@@ -74,9 +78,8 @@ class VPNHandler {
         `• Enviado: ${code(formatBytes(wgUsage.tx || 0))}\n` +
         `• Total: ${code(formatBytes(wgUsage.total || (wgUsage.rx || 0) + (wgUsage.tx || 0)))}\n\n` +
         `${bold('Outline')}\n` +
-        `• Recibido: ${code(formatBytes(outlineUsage.rx || 0))}\n` +
-        `• Enviado: ${code(formatBytes(outlineUsage.tx || 0))}\n` +
-        `• Total: ${code(formatBytes(outlineUsage.total || 0))}\n`;
+        // Se usa 'bytesUsed' que es la clave que devuelve OutlineService, y se elimina rx/tx
+        `• Total: ${code(formatBytes(outlineUsage.bytesUsed || 0))}\n`; 
 
       await ctx.reply(msg, { parse_mode: 'Markdown', ...keyboards.backButton() });
       logger.info('cmdUsage', { userId });
@@ -85,6 +88,7 @@ class VPNHandler {
       await ctx.reply('❌ No se pudo obtener el consumo. Intenta más tarde.', { parse_mode: 'Markdown' });
     }
   }
+
 
   // -----------------------------
   // ACTION: show vpn main menu (called from bot.instance)
@@ -456,13 +460,13 @@ class VPNHandler {
         return;
       }
 
+      // usage será { keyId, bytesUsed: N, ... }
       const usage = await OutlineService.getKeyUsage(user.outline.keyId);
 
       const msg =
         `${bold('📈 Uso Outline')}\n\n` +
-        `• Recibido: ${code(formatBytes(usage.rx || 0))}\n` +
-        `• Enviado: ${code(formatBytes(usage.tx || 0))}\n` +
-        `• Total: ${code(formatBytes(usage.total || 0))}\n`;
+        // Se elimina 'Recibido' y 'Enviado'. Se usa 'bytesUsed' del servicio.
+        `• Total: ${code(formatBytes(usage.bytesUsed || 0))}\n`;
 
       await ctx.reply(msg, { parse_mode: 'Markdown', ...keyboards.backButton() });
       logger.info(userId, 'outline_usage', { keyId: user.outline.keyId, usage });
@@ -471,6 +475,7 @@ class VPNHandler {
       await ctx.reply('❌ No se pudo obtener el consumo Outline.');
     }
   }
+
 
   // -----------------------------
   // OUTLINE: solicitar eliminación
@@ -514,6 +519,8 @@ class VPNHandler {
 
     try {
       const user = userManager.getUser(String(userId));
+      
+      // Verificación de seguridad
       if (!user || !user.outline || user.outline.keyId !== keyId) {
         if (!userManager.isAdmin(String(userId))) {
           await ctx.reply('⛔ No tienes permiso para eliminar esta clave.');
@@ -521,8 +528,14 @@ class VPNHandler {
         }
       }
 
-      await OutlineService.deleteKeyForUser(String(userId));
+      // 🔴 ANTES (Error):
+      // await OutlineService.deleteKeyForUser(String(userId));
 
+      // 🟢 AHORA (Corregido):
+      // Usamos keyId directamente, que es lo que espera el servicio
+      await OutlineService.deleteKey(keyId);
+
+      // Limpieza en la base de datos local
       if (user && user.outline && user.outline.keyId === keyId) {
         delete user.outline;
         await userManager.saveUsers();
@@ -536,6 +549,7 @@ class VPNHandler {
     }
   }
 
+
   // -----------------------------
   // LISTAR CLIENTES (WireGuard + Outline)
   // -----------------------------
@@ -547,7 +561,7 @@ class VPNHandler {
     try {
       const [wgClients, outlineKeys] = await Promise.all([
         WireGuardService.listClients(),
-        OutlineService.listAccessKeys()
+        OutlineService.listKeys()
       ]);
 
       const wgLines = (wgClients || [])
