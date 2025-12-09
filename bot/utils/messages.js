@@ -2,260 +2,226 @@
 
 const config = require('../config/environment');
 const constants = require('../config/constants');
-// 👇 IMPORTAMOS LAS UTILIDADES CENTRALIZADAS
-const { escapeMarkdown, bold, italic, code } = require('./markdown');
+// 👇 Asegúrate de que este archivo sea el formatters.js del paso anterior
+//    o que exporte correctamente escapeMarkdown, bold, code.
+const { escapeMarkdown, bold, code, italic } = require('../utils/formatters');
 
 // ============================================================================
-// 📋 COMMAND LIST
+// 📋 LISTA DE COMANDOS (Visualización limpia)
 // ============================================================================
 const USER_COMMANDS = [
-  '/start - Menú principal',
-  '/miinfo - Ver tus datos',
-  '/status - Ver estado de acceso',
-  '/commands - Comandos disponibles',
-  '/help - Ayuda'
+  '/start    - 🏠 Menú Principal',
+  '/miinfo   - 👤 Mi Cuenta y Estado',
+  '/status   - 📡 Estado del Servidor',
+  '/help     - 🆘 Soporte y Ayuda'
 ];
 
 const ADMIN_COMMANDS = [
-  '/add [ID] [nombre] - Autorizar usuario',
-  '/rm [ID] - Remover usuario',
-  '/sus [ID] - Suspender usuario',
-  '/react [ID] - Reactivar usuario',
-  '/users - Listar usuarios',
-  '/stats - Estadísticas',
-  '/broadcast [msg] - Mensaje masivo',
-  '/sms [ID] [txt] - Mensaje directo',
-  '/templates - Plantillas rápidas'
+  '/users    - 👥 Gestión de Usuarios',
+  '/stats    - 📊 Métricas del Sistema',
+  '/broadcast - 📢 Mensaje Global',
+  '/add [ID] - ✅ Autorizar Usuario',
+  '/rm [ID]  - 🗑 Revocar Acceso'
 ];
 
 // ============================================================================
-// 💬 MESSAGES — Estilo premium tipo App (Markdown V1)
+// 💬 MESSAGES — Tono Profesional & MarkdownV2 Seguro
 // ============================================================================
+
 const messages = {
+
   // ------------------------------------------------------------------------
-  // 🟢 Bienvenida
+  // 🟢 BIENVENIDA & AUTENTICACIÓN
   // ------------------------------------------------------------------------
+  
   WELCOME_AUTHORIZED: (name) =>
-    `👋 Hola ${escapeMarkdown(name)}\n\n` +
-    `${bold('Bienvenido nuevamente')}\n` +
-    `Accede a las opciones desde el menú.`,
+    `👋 Hola, ${bold(name)}\n\n` +
+    `Bienvenido al ecosistema ${bold('uSipipo VPN')}\\.\n` +
+    `Su conexión segura está lista para ser configurada\\.\n\n` +
+    `👇 *Seleccione una opción del menú:*`,
 
   WELCOME_UNAUTHORIZED: (name) =>
-    `👋 Hola ${escapeMarkdown(name)}\n\n` +
-    `${bold('Tu acceso aún no está autorizado.')}\n\n` +
-    `Usa /miinfo para obtener tus datos y envíalos al administrador:\n` +
-    `${code(config.ADMIN_ID || 'No definido')}`,
+    `🔒 ${bold('Acceso Restringido')}\n\n` +
+    `Estimado ${escapeMarkdown(name)}, su cuenta aún no tiene permisos para utilizar este servicio VPN\\.\n\n` +
+    `📂 *Para solicitar acceso:*\n` +
+    `1️⃣ Copie su ID de usuario\\.\n` +
+    `2️⃣ Envíelo al administrador del sistema\\.\n\n` +
+    `👤 Admin: ${code(config.ADMIN_ID || 'No definido')}`,
 
   // ------------------------------------------------------------------------
-  // 👤 Información del usuario
+  // 👤 PERFIL DE USUARIO
   // ------------------------------------------------------------------------
+  
   USER_INFO: (user, isAuth) => {
-    const username = user.username ? '@' + escapeMarkdown(user.username) : 'No disponible';
+    const statusIcon = isAuth ? '🟢' : '🔴';
+    const statusText = isAuth ? 'Activo' : 'Pendiente';
+    const username = user.username ? `@${escapeMarkdown(user.username)}` : italic('No configurado');
 
     return (
-      `👤 ${bold('Datos de tu cuenta')}\n\n` +
-      `ID: ${code(user.id)}\n` +
-      `Nombre: ${escapeMarkdown(user.first_name || '')}\n` +
-      `Username: ${username}\n\n` +
-      (isAuth ? constants.STATUS.AUTHORIZED : constants.STATUS.UNAUTHORIZED)
+      `👤 ${bold('Perfil de Usuario')}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `🆔 ID: ${code(user.id)}\n` +
+      `👤 Nombre: ${escapeMarkdown(user.first_name || 'Sin nombre')}\n` +
+      `💬 Alias: ${username}\n` +
+      `🛡 Estado: ${statusIcon} ${bold(statusText)}\n` +
+      `━━━━━━━━━━━━━━━━━━`
     );
   },
 
   // ------------------------------------------------------------------------
-  // 📨 Solicitud de acceso
+  // 📨 SOLICITUDES
   // ------------------------------------------------------------------------
+
   ACCESS_REQUEST_SENT: (user) =>
-    `📨 ${bold('Solicitud enviada correctamente')}\n\n` +
-    `ID: ${code(user.id)}\n` +
-    `Nombre: ${escapeMarkdown(user.first_name || '')}\n\n` +
-    `Envía este ID al administrador para continuar.`,
+    `📤 ${bold('Solicitud Registrada')}\n\n` +
+    `Hemos notificado al administrador sobre su petición de acceso\\.\n\n` +
+    `🆔 Su ID: ${code(user.id)}\n` +
+    `⏳ Por favor, espere la confirmación\\...`,
 
   ACCESS_REQUEST_ADMIN_NOTIFICATION: (user) => {
-    const name = escapeMarkdown(user.first_name || '');
-    const username = user.username ? '@' + escapeMarkdown(user.username) : 'Sin username';
+    const name = escapeMarkdown(user.first_name || 'Anónimo');
+    const username = user.username ? `@${escapeMarkdown(user.username)}` : 'N/A';
 
     return (
-      `🔔 ${bold('Nueva solicitud de acceso')}\n\n` +
+      `🔔 ${bold('Nueva Solicitud de Acceso')}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
       `👤 Usuario: ${name}\n` +
-      `🆔 ID: ${code(user.id)}\n` +
-      `💬 Username: ${username}\n\n` +
-      `Para autorizar:\n${code('/add ' + user.id)}`
+      `🔗 Alias: ${username}\n` +
+      `🆔 ID: ${code(user.id)}\n\n` +
+      `👇 *Acción requerida:*`
     );
   },
 
-  ACCESS_DENIED: `⛔ ${bold('Acceso denegado')}`,
-  ADMIN_ONLY: `⛔ ${bold('Solo administradores')}`,
+  ACCESS_DENIED: `⛔ ${bold('Acceso Denegado')}\nNo tiene permisos para ejecutar esta acción\\.`,
+  ADMIN_ONLY: `🛡 ${bold('Seguridad')}\nEste comando es exclusivo para administradores\\.`,
 
   // ------------------------------------------------------------------------
-  // 🔐 WireGuard
+  // 🔐 SERVICIOS VPN (WireGuard & Outline)
   // ------------------------------------------------------------------------
-  WIREGUARD_CREATING: '⏳ Generando tu perfil WireGuard...',
+
+  WIREGUARD_CREATING: `⚙️ ${italic('Provisionando túnel WireGuard, por favor espere...')}`,
 
   WIREGUARD_SUCCESS: (ip) =>
-    `✅ ${bold('WireGuard creado correctamente')}\n\n` +
-    `🖥 IP asignada: ${code(ip)}\n` +
-    `🌐 Endpoint: ${code(`${config.SERVER_IP}:${config.WG_SERVER_PORT}`)}\n\n` +
-    `Descarga el archivo o escanea el código QR.`,
+    `🔐 ${bold('WireGuard Configurado')}\n\n` +
+    `Su túnel cifrado ha sido generado exitosamente\\.\n` +
+    `━━━━━━━━━━━━━━━━━━\n` +
+    `💻 IP Interna: ${code(ip)}\n` +
+    `🌐 Endpoint: ${code(`${config.SERVER_IP}:${config.WG_SERVER_PORT}`)}\n` +
+    `━━━━━━━━━━━━━━━━━━\n\n` +
+    `📲 *Instrucciones:*\n` +
+    `Descargue el archivo adjunto o escanee el código QR desde la App oficial\\.`,
 
-  WIREGUARD_INSTRUCTIONS:
-    `${bold('Instrucciones de uso')}\n\n` +
-    `📱 *Móvil*: Abrir app → "+" → Escanear QR\n` +
-    `💻 *PC*: Importar archivo .conf\n\n` +
-    `Descargar WireGuard:\n${constants.URLS.WIREGUARD_DOWNLOAD}`,
+  ERROR_WIREGUARD: (e) => 
+    `❌ ${bold('Error de Provisionamiento')}\n` +
+    `No se pudo generar la configuración WireGuard\\.\n` +
+    `Error: ${code(truncate(String(e), 100))}`,
 
-  ERROR_WIREGUARD: (e) => `❌ Error en WireGuard:\n${escapeMarkdown(String(e))}`,
-
-  // ------------------------------------------------------------------------
-  // 🌐 Outline
-  // ------------------------------------------------------------------------
-  OUTLINE_CREATING: '⏳ Generando acceso Outline...',
+  OUTLINE_CREATING: `⚙️ ${italic('Generando llave de acceso Outline...')}`,
 
   OUTLINE_SUCCESS: (key) =>
-    `✅ ${bold('Acceso Outline generado')}\n\n` +
-    `ID: ${code(key.id)}\n` +
-    `Enlace:\n${code(key.accessUrl)}\n\n` +
-    `Descargar Outline:\n${constants.URLS.OUTLINE_DOWNLOAD}`,
+    `🌐 ${bold('Outline Access Key')}\n\n` +
+    `Copie la siguiente clave de acceso para iniciar su conexión segura:\n\n` +
+    `${code(key.accessUrl)}\n\n` +
+    `ℹ️ _Toque la clave para copiarla automáticamente_\\.`,
 
-  ERROR_OUTLINE: (e) => `❌ Error en Outline:\n${escapeMarkdown(String(e))}`,
-
-  // ------------------------------------------------------------------------
-  // 🖥 Estado del servidor
-  // ------------------------------------------------------------------------
-  SERVER_STATUS: () =>
-    `🖥️ ${bold('Estado del servidor')}\n\n` +
-    `IPv4: ${code(config.SERVER_IPV4)}\n` +
-    `Puerto WireGuard: ${code(config.WG_SERVER_PORT)}\n` +
-    `Outline API: ${code(config.OUTLINE_API_PORT)}\n` +
-    `DNS (Pi-hole): ${code(config.PIHOLE_DNS || 'N/A')}\n\n` +
-    `Todos los servicios están operativos.`,
-
-  ERROR_SERVER_STATUS: '⚠️ No se pudo consultar el estado del servidor.',
+  ERROR_OUTLINE: (e) => 
+    `❌ ${bold('Error de Outline')}\n` +
+    `El servidor Shadowbox no respondió correctamente\\.\n` +
+    `Detalle: ${code(truncate(String(e), 100))}`,
 
   // ------------------------------------------------------------------------
-  // 📚 Ayuda
+  // 🖥 ESTADO DEL SISTEMA
   // ------------------------------------------------------------------------
+
+  SERVER_STATUS: (info) => {
+    // Asumimos que 'info' viene del OutlineService.getServerInfo refactorizado
+    return (
+      `🖥 ${bold('Estado del Sistema')}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `📍 IP Pública: ${code(config.SERVER_IPV4)}\n` +
+      `🛡 Versión: ${escapeMarkdown(info.version || 'v1.0')}\n` +
+      `👥 Usuarios VPN: ${code(info.totalKeys || 0)}\n` +
+      `🔌 Puertos: ${code(config.WG_SERVER_PORT)} (WG) / ${code(config.OUTLINE_API_PORT)} (API)\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `✅ Todos los servicios operativos\\.`
+    );
+  },
+
+  ERROR_SERVER_STATUS: `⚠️ ${bold('Conexión Fallida')}\nNo se pudo establecer conexión con el servidor de gestión\\.`,
+
+  // ------------------------------------------------------------------------
+  // 📚 AYUDA Y SOPORTE
+  // ------------------------------------------------------------------------
+
   HELP_AUTHORIZED:
-    `📚 ${bold('Guía rápida')}\n\n` +
-    `🔐 ${bold('WireGuard')}: rápido y estable\n` +
-    `🌐 ${bold('Outline')}: ideal para móviles\n` +
-    `🛑 ${bold('Pi-hole')}: bloqueo de anuncios activo\n\n` +
-    `Soporte: ${code(config.ADMIN_ID || 'No definido')}`,
+    `📚 ${bold('Centro de Ayuda')}\n\n` +
+    `🟢 ${bold('WireGuard')}: Protocolo recomendado para máxima velocidad y estabilidad (Streaming, Gaming)\\.\n\n` +
+    `🔵 ${bold('Outline')}: Protocolo recomendado para alta censura o redes restrictivas (Oficinas, Universidades)\\.\n\n` +
+    `🆘 *¿Problemas de conexión?*\n` +
+    `Contacte a soporte técnico: ${code('@' + (config.ADMIN_USERNAME || 'Admin'))}`,
 
   HELP_UNAUTHORIZED:
-    `📚 ${bold('Ayuda')}\n\n` +
-    `1️⃣ Usa /miinfo para obtener tu ID\n` +
-    `2️⃣ Envíalo al administrador\n` +
-    `3️⃣ Espera aprobación\n\n` +
-    `Contacto: ${code(config.ADMIN_ID)}`,
-
-  ERROR_LIST_CLIENTS: '❌ No se pudo obtener la lista de clientes.',
+    `❓ ${bold('¿Cómo obtengo acceso?')}\n\n` +
+    `Este es un servicio privado\\. Para utilizarlo, debe solicitar una invitación al administrador del sistema\\.\n\n` +
+    `Use el comando /miinfo para obtener sus credenciales de registro\\.`,
 
   // ------------------------------------------------------------------------
-  // 👑 Administrador
+  // 👑 PANEL DE ADMINISTRADOR
   // ------------------------------------------------------------------------
-  ADMIN_USER_ADDED: (id, name, addedAt) =>
-    `✅ ${bold('Usuario autorizado')}\n\n` +
-    `ID: ${code(id)}\n` +
-    `Nombre: ${escapeMarkdown(name)}\n` +
-    `Fecha: ${escapeMarkdown(addedAt)}`,
 
-  ADMIN_USER_REMOVED: (id) => `🗑️ ${bold('Usuario eliminado')}\nID: ${code(id)}`,
+  ADMIN_USER_ADDED: (id, name) =>
+    `✅ ${bold('Usuario Autorizado')}\n` +
+    `El usuario ${escapeMarkdown(name)} (${code(id)}) ha sido añadido a la lista blanca\\.`,
 
-  ADMIN_USER_SUSPENDED: (id) =>
-    `⏸️ ${bold('Usuario suspendido')}\nID: ${code(id)}\n` +
-    `Para reactivarlo usa: ${code(`/react ${id}`)}`,
+  ADMIN_USER_REMOVED: (id) => 
+    `🗑 ${bold('Usuario Revocado')}\n` +
+    `Se han eliminado los accesos para el ID ${code(id)}\\.`,
 
-  ADMIN_USER_REACTIVATED: (id) =>
-    `▶️ ${bold('Usuario reactivado')}\nID: ${code(id)}`,
+  ADMIN_STATS: (stats) =>
+    `📊 ${bold('Métricas en Tiempo Real')}\n` +
+    `━━━━━━━━━━━━━━━━━━\n` +
+    `👥 Totales: ${code(stats.total)}\n` +
+    `🟢 Activos: ${code(stats.active)}\n` +
+    `⛔ Suspendidos: ${code(stats.suspended)}\n` +
+    `👑 Admins: ${code(stats.admins)}\n` +
+    `━━━━━━━━━━━━━━━━━━`,
 
-  ADMIN_USER_LIST: (users, stats) => {
-    const header =
-      `👥 ${bold('Usuarios registrados')}\n` +
-      `Total: ${stats.total} • Activos: ${stats.active}\n\n`;
+  BROADCAST_PREVIEW: (msg, count) =>
+    `📢 ${bold('Confirmación de Difusión')}\n\n` +
+    `📜 *Mensaje:*\n${italic(msg)}\n\n` +
+    `👥 *Destinatarios:* ${count} usuarios\n\n` +
+    `¿Desea proceder con el envío?`,
 
-    const rows = users
-      .map((u, i) => {
-        const status = u.status === 'active' ? '🟢' : '⛔';
-        const role = u.role === 'admin' ? '👑' : '👤';
-        return `${i + 1}. ${status} ${role} ${code(u.id)} — ${escapeMarkdown(u.name)}`;
-      })
-      .join('\n');
-
-    return header + (rows || italic('No hay usuarios registrados.'));
-  },
-
-  ADMIN_STATS: (stats, new24h) =>
-    `📊 ${bold('Estadísticas del sistema')}\n\n` +
-    `Usuarios totales: ${stats.total}\n` +
-    `Activos: ${stats.active}\n` +
-    `Suspendidos: ${stats.suspended}\n` +
-    `Administradores: ${stats.admins}\n\n` +
-    `Nuevos en 24h: ${new24h}`,
-
-  BROADCAST_PREVIEW: (id, msg, u, a, t) =>
-    `📢 ${bold('Confirmar envío')}\n\n` +
-    `${msg}\n\n` +
-    `Destinatarios:\n` +
-    `• Usuarios: ${u}\n` +
-    `• Admins: ${a}\n` +
-    `• Total: ${t}\n\n` +
-    `ID: ${code(id)}`,
-
-  BROADCAST_RESULT: (ok, fail) =>
-    `📢 ${bold('Envío completado')}\n\n` +
-    `✅ Enviados: ${ok}\n` +
-    `❌ Fallidos: ${fail}`,
-
-  ADMIN_DIRECT_MSG_SENT: (id, name) =>
-    `📨 ${bold('Mensaje enviado')}\nID: ${code(id)}\nUsuario: ${escapeMarkdown(name)}`,
-
-  ADMIN_TEMPLATES: () =>
-    `📋 ${bold('Plantillas disponibles')}\n\n` +
-    `1) ${code('/broadcast 🎉 Bienvenido a uSipipo VPN')}\n` +
-    `2) ${code('/broadcast ⚠️ Mantenimiento programado [FECHA]')}\n` +
-    `3) ${code('/broadcast 🎁 Promoción activa: ...')}`,
+  BROADCAST_RESULT: (success, failed) =>
+    `📬 ${bold('Difusión Finalizada')}\n` +
+    `✅ Entregados: ${success}\n` +
+    `❌ Fallidos: ${failed}`,
 
   // ------------------------------------------------------------------------
-  // ❌ Comandos desconocidos
+  // ⚠️ ERRORES GENÉRICOS
   // ------------------------------------------------------------------------
+
   UNKNOWN_COMMAND: (isAdmin) => {
-    let msg =
-      `⚠️ ${bold('Comando no reconocido')}\n\n` +
-      `${bold('Comandos de usuario:')}\n`;
-
-    msg += USER_COMMANDS.map((c) => `• ${escapeMarkdown(c)}\n`).join('');
-
+    let msg = `🤔 ${bold('Comando no reconocido')}\n\n`;
+    msg += `Use el menú interactivo o pruebe uno de los siguientes:\n\n`;
+    msg += USER_COMMANDS.map(c => `• ${escapeMarkdown(c)}`).join('\n');
+    
     if (isAdmin) {
-      msg += `\n${bold('Comandos de administrador:')}\n`;
-      msg += ADMIN_COMMANDS.map((c) => `• ${escapeMarkdown(c)}\n`).join('');
+        msg += `\n\n🛠 ${bold('Admin Panel:')}\n`;
+        msg += ADMIN_COMMANDS.map(c => `• ${escapeMarkdown(c)}`).join('\n');
     }
-
-    return msg + `\n\nUsa ${code('/start')} para volver al menú.`;
-  },
-
-  COMMANDS_LIST: (isAdmin) => {
-    let msg =
-      `📋 ${bold('Lista de comandos')}\n\n` +
-      `👤 ${bold('Usuario:')}\n`;
-
-    msg += USER_COMMANDS.map((c) => `• ${escapeMarkdown(c)}\n`).join('');
-
-    if (isAdmin) {
-      msg += `\n👑 ${bold('Administrador:')}\n`;
-      msg += ADMIN_COMMANDS.map((c) => `• ${escapeMarkdown(c)}\n`).join('');
-    }
-
     return msg;
   },
-
-  GENERIC_TEXT_PROMPT: (name) =>
-    `👋 Hola ${escapeMarkdown(name)}\n\nSelecciona el tipo de VPN:\n• WireGuard\n• Outline`,
-
-  // ------------------------------------------------------------------------
-  // Exports
-  // ------------------------------------------------------------------------
-  // Mantenemos _helpers por compatibilidad si algo lo usa, pero apuntando al nuevo archivo
+  
+  // Helpers internos para compatibilidad
   _helpers: { escapeMarkdown, bold, code, italic }
 };
+
+/**
+ * Helper simple para recortar strings largos en mensajes de error
+ */
+function truncate(str, n){
+  return (str.length > n) ? str.substr(0, n-1) + '...' : str;
+}
 
 module.exports = messages;

@@ -1,31 +1,26 @@
 'use strict';
 
 const axios = require('axios');
+const https = require('https');
 const config = require('../config/environment');
 const logger = require('../utils/logger');
-const { bold, code, escapeHtml } = require('../utils/messages')._helpers;
 
 /**
- * Servicio oficial para gestionar Outline (Shadowbox)
- * Compatible 100% con el API REST del servidor oficial "shadowbox"
- *
- * Requisitos:
- *  - OUTLINE_API_URL        → https://IP:PORT/<secret>/
- *  - OUTLINE_CERT_SHA256    → sha256 del certificado de Shadowbox
- *  - OUTLINE_SERVER_IP
- *  - OUTLINE_API_PORT
+ * Servicio Outline (Shadowbox)
+ * Refactorizado para estabilidad MVP 2025
  */
 class OutlineService {
 
   constructor() {
     if (!config.OUTLINE_API_URL) {
-      logger.warn('OutlineService inicializado SIN OUTLINE_API_URL en .env');
+      logger.warn('⚠️ OutlineService: Falta OUTLINE_API_URL en variables de entorno');
     }
 
+    // Configuración de Axios ignorando certificados autofirmados (común en Outline)
     this.api = axios.create({
       baseURL: config.OUTLINE_API_URL,
-      timeout: 10000,
-      httpsAgent: new (require('https').Agent)({
+      timeout: 15000, // Aumentado timeout para evitar falsos negativos
+      httpsAgent: new https.Agent({
         rejectUnauthorized: false
       })
     });
@@ -36,149 +31,154 @@ class OutlineService {
   // ---------------------------------------------------------------------
 
   /**
-   * Añade el tag a los enlaces Outline como:
-   * ss://HASH@server:port#uSipipo%20VPN,%20MIAMI,%20US
+   * Formatea el enlace ss:// con branding
    */
   static applyBranding(accessUrl) {
     const brand = config.OUTLINE_BRAND || 'uSipipo VPN';
-    const city = config.OUTLINE_LOCATION_NAME || null;
-    const country = config.OUTLINE_LOCATION_COUNTRY || null;
-
-    let tagParts = [];
-
-    if (brand) tagParts.push(brand);
-    if (city) tagParts.push(city);
-    if (country) tagParts.push(country);
-
-    const finalTag = tagParts.join(', ');
-    const encoded = encodeURIComponent(finalTag);
-
-    return `${accessUrl}#${encoded}`;
+    // Codificación segura para evitar romper el link
+    const tag = encodeURIComponent(brand);
+    return `${accessUrl}#${tag}`;
   }
 
-  _safeError(err) {
-    if (err.response) {
-      return `HTTP ${err.response.status}: ${JSON.stringify(err.response.data)}`;
-    }
-    return err.message;
+  /**
+   * Manejo estandarizado de errores de Axios
+   */
+  _safeError(err, context = '') {
+    const errorMsg = err.response 
+      ? `HTTP ${err.response.status} - ${JSON.stringify(err.response.data)}`
+      : err.message;
+    
+    return `${context}: ${errorMsg}`;
   }
 
   // ---------------------------------------------------------------------
-  // 🔑 CREAR NUEVA CLAVE (CLIENTE)
+  // 📡 INFORMACIÓN DEL SERVIDOR (Fix para InfoHandler)
   // ---------------------------------------------------------------------
-  async createKey(name = 'Cliente') {
+  async getServerInfo() {
     try {
-      const res = await this.api.post('/access-keys', { name });
-
-      const key = res.data;
-      if (!key || !key.accessUrl) {
-        throw new Error('Respuesta inválida del servidor Outline');
+      // Endpoint /server solo devuelve: name, serverId, metricsEnabled, createdTimestampMs, version, etc.
+      const serverRes = await this.api.get('/server');
+      
+      // Para obtener el conteo real de keys, necesitamos consultar /access-keys
+      // Hacemos esto en paralelo o secuencial si la carga es baja.
+      let keyCount = 0;
+      try {
+        const keysRes = await this.api.get('/access-keys');
+        keyCount = keysRes.data?.accessKeys?.length || 0;
+      } catch (e) {
+        logger.warn('No se pudo obtener conteo de keys en getServerInfo', e.message);
       }
 
-      const branded = OutlineService.applyBranding(key.accessUrl);
-
-      logger.info('Outline key creada', {
-        id: key.id,
-        name
-      });
+      const data = serverRes.data;
 
       return {
-        id: key.id,
-        name,
-        accessUrl: branded
+        name: data.name || 'Outline Server',
+        serverId: data.serverId,
+        version: data.version,
+        metricsEnabled: data.metricsEnabled,
+        createdTimestampMs: data.createdTimestampMs,
+        portForNewAccessKeys: data.portForNewAccessKeys || config.OUTLINE_API_PORT,
+        totalKeys: keyCount, // Dato corregido
+        isHealthy: true
       };
 
     } catch (err) {
-      const safe = this._safeError(err);
-      logger.error('createKey', safe);
-      throw new Error(`Error creando clave Outline: ${safe}`);
+      const safe = this._safeError(err, 'getServerInfo');
+      logger.error(safe);
+      throw new Error('El servidor VPN no responde o no es accesible.');
     }
   }
 
   // ---------------------------------------------------------------------
-  // 🗑 ELIMINAR CLAVE
+  // 🔑 GESTIÓN DE CLAVES
   // ---------------------------------------------------------------------
+  
+  async createKey(name = 'Usuario') {
+    try {
+      const res = await this.api.post('/access-keys', { name });
+      const key = res.data; // { id, name, password, port, method, accessUrl }
+
+      if (!key || !key.accessUrl) {
+        throw new Error('Respuesta malformada de Shadowbox');
+      }
+
+      const brandedUrl = OutlineService.applyBranding(key.accessUrl);
+
+      logger.info(`Key creada: ID ${key.id} (${name})`);
+
+      return {
+        id: key.id,
+        name: key.name,
+        accessUrl: brandedUrl,
+        port: key.port,
+        method: key.method
+      };
+
+    } catch (err) {
+      const safe = this._safeError(err, 'createKey');
+      logger.error(safe);
+      throw new Error('Error al crear la llave de acceso.');
+    }
+  }
+
   async deleteKey(keyId) {
     try {
       await this.api.delete(`/access-keys/${keyId}`);
-
-      logger.warn('Outline key eliminada', { keyId });
+      logger.info(`Key eliminada: ID ${keyId}`);
       return true;
-
     } catch (err) {
-      const safe = this._safeError(err);
-      logger.error('deleteKey', safe, { keyId });
-      throw new Error(`No se pudo eliminar la clave: ${safe}`);
+      // Si es 404, técnicamente ya está borrada, no deberíamos lanzar error fatal
+      if (err.response && err.response.status === 404) {
+        logger.warn(`Intento de borrar key inexistente: ${keyId}`);
+        return true;
+      }
+      const safe = this._safeError(err, `deleteKey(${keyId})`);
+      logger.error(safe);
+      throw new Error('No se pudo eliminar la llave.');
     }
   }
 
-  // ---------------------------------------------------------------------
-  // 📋 LISTAR CLAVES
-  // ---------------------------------------------------------------------
   async listKeys() {
     try {
       const res = await this.api.get('/access-keys');
-      const list = res.data || [];
+      const rawKeys = res.data?.accessKeys || [];
 
-      const final = list.map(k => ({
+      return rawKeys.map(k => ({
         id: k.id,
-        name: k.name || 'Sin nombre',
-        accessUrl: OutlineService.applyBranding(k.accessUrl)
+        name: k.name || 'Sin Nombre',
+        accessUrl: OutlineService.applyBranding(k.accessUrl),
+        dataLimit: k.dataLimit || null
       }));
 
-      logger.info('listKeys', { count: final.length });
-
-      return final;
-
     } catch (err) {
-      const safe = this._safeError(err);
-      logger.error('listKeys', safe);
-      throw new Error(`No se pudieron obtener las claves: ${safe}`);
+      const safe = this._safeError(err, 'listKeys');
+      logger.error(safe);
+      throw new Error('Error listando usuarios.');
     }
   }
 
   // ---------------------------------------------------------------------
-  // 📊 ESTADÍSTICAS DEL SERVIDOR OUTLINE
-  // ---------------------------------------------------------------------
-  async getServerStats() {
-    try {
-      const res = await this.api.get('/server');
-
-      return {
-        name: res.data.name,
-        createdAt: res.data.createdTimestampMs,
-        version: res.data.version,
-        port: config.OUTLINE_API_PORT,
-        keys: res.data.accessKeys?.length ?? 0
-      };
-
-    } catch (err) {
-      const safe = this._safeError(err);
-      logger.error('getServerStats', safe);
-      throw new Error(`Error obteniendo estadísticas del servidor: ${safe}`);
-    }
-  }
-
-  // ---------------------------------------------------------------------
-  // 📡 OBTENER USO (DATA USAGE) DE UNA CLAVE
+  // 📊 MÉTRICAS DE USO
   // ---------------------------------------------------------------------
   async getKeyUsage(keyId) {
     try {
-      const res = await this.api.get(`/metrics/transfer`);
-      const entries = res.data?.bytesTransferredByUserId || {};
-
-      const usage = entries[keyId] || { bytesUploaded: 0, bytesDownloaded: 0 };
+      // Metrics devuelve un objeto: { bytesTransferredByUserId: { "id": bytes, ... } }
+      const res = await this.api.get('/metrics/transfer');
+      const usageMap = res.data?.bytesTransferredByUserId || {};
+      
+      const bytes = usageMap[keyId] || 0;
 
       return {
-        uploaded: usage.bytesUploaded,
-        downloaded: usage.bytesDownloaded,
-        total: usage.bytesUploaded + usage.bytesDownloaded
+        keyId,
+        bytesUsed: bytes, // Outline API standard actual solo devuelve total, no up/down separado a veces
+        bytesUsedHuman: (bytes / (1024 * 1024)).toFixed(2) + ' MB'
       };
 
     } catch (err) {
-      const safe = this._safeError(err);
-      logger.error('getKeyUsage', safe, { keyId });
-      throw new Error(`Error leyendo consumo de clave Outline: ${safe}`);
+      const safe = this._safeError(err, `getKeyUsage(${keyId})`);
+      logger.error(safe);
+      // Retornamos 0 en lugar de romper el flujo, el usuario quiere ver su menú
+      return { keyId, bytesUsed: 0, error: true };
     }
   }
 }
