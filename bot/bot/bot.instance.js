@@ -100,11 +100,9 @@ bot.command('forceadmin', async (ctx) => {
     const userManager = require('../services/userManager.service');
     await userManager.syncAdminFromEnv();
 
-    // ✅ FIX: Se ha corregido la sintaxis de la template literal.
     await ctx.reply(
-      `✅ *Admin sincronizado correctamente*\
-      \
-      🆔 \`${config.ADMIN_ID}\``);
+      `✅ *Admin sincronizado correctamente*
+🆔 \`${config.ADMIN_ID}\``);
   } catch (error) {
     await ctx.reply(`❌ Error: ${error.message}`);
   }
@@ -211,7 +209,7 @@ bot.catch(async (err, ctx) => {
 });
 
 // =====================================================================================
-// 🟨 TEXT HANDLER → fallback al menú principal
+// 🟨 TEXT HANDLER → (Solo maneja comandos desconocidos)
 // =====================================================================================
 
 bot.on('text', async (ctx) => {
@@ -221,14 +219,12 @@ bot.on('text', async (ctx) => {
   try {
     if (text.startsWith('/')) {
       const admin = isAdmin(userId);
-      // Solo responde con "Comando desconocido" si empieza por / y no ha sido capturado
       return ctx.reply(messages.UNKNOWN_COMMAND(admin));
     }
     
-    // 🛑 IMPORTANTE: Eliminamos el fallback a startHandler.handleStart(ctx).
-    // Si el usuario está en un flujo (ej: 'dame el nombre del cliente'),
-    // el texto debe ser procesado por el handler de estado (e.g., vpnHandler) 
-    // que se encarga de manejar la conversación.
+    // ✅ CORRECCIÓN: Eliminado el fallback a startHandler.handleStart(ctx).
+    // Esto permite que el texto que no es un comando sea procesado 
+    // por otros handlers de estado (ej: vpnHandler esperando una respuesta).
     
   } catch (err) {
     logger.error('text_handler', err, { userId });

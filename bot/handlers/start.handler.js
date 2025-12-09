@@ -31,7 +31,7 @@ class StartHandler {
     return {
       parse_mode: 'Markdown',
       disable_web_page_preview: true,
-      ...extra
+      ...extra // Aquí se esparcirá el objeto { reply_markup: {...} } si se le pasa
     };
   }
 
@@ -90,11 +90,13 @@ class StartHandler {
         ? messages.WELCOME_AUTHORIZED(name)
         : messages.WELCOME_UNAUTHORIZED(name);
 
+      // El objeto 'keyboard' ahora es { reply_markup: { inline_keyboard: [...] } }
       const keyboard = authorized
         ? keyboards.homeAuthorized()
         : keyboards.homeUnauthorized();
 
-      await ctx.reply(text, this._getReplyOptions(keyboard.reply_markup));
+      // ✅ CORRECCIÓN: Pasamos el objeto 'keyboard' completo
+      await ctx.reply(text, this._getReplyOptions(keyboard));
 
       logger.info('StartHandler ejecutado', { 
         userId, 
@@ -107,11 +109,11 @@ class StartHandler {
       logger.error('StartHandler.handleStart error', error, { userId });
 
       // Fallback crítico: siempre funcional
-      // CORRECCIÓN: Usar acentos graves (`) para cadenas multilinea
       const fallbackText = `🏠 *Menú Principal*
 Seleccione una opción del teclado.`;
       
-      await ctx.reply(fallbackText, this._getReplyOptions(keyboards.homeUnauthorized().reply_markup));
+      // ✅ CORRECCIÓN: Pasar el objeto 'keyboard' completo en el fallback
+      await ctx.reply(fallbackText, this._getReplyOptions(keyboards.homeUnauthorized()));
     }
   }
 }
