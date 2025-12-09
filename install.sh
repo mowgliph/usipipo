@@ -670,7 +670,8 @@ uninstall_wireguard() {
 # Configuración de Permisos para el Bot (uSipipoVPNBot)
 # =============================================================================
 configure_bot_permissions() {
-    log_header "🛡️ Configurando permisos de WireGuard para el bot"
+    log_header_permi="🛡️ Configurando permisos de WireGuard para el bot"
+    log "$log_header_permi"
     
     # Determinar el usuario que está ejecutando el script
     BOT_USER=${SUDO_USER:-$(whoami)}
