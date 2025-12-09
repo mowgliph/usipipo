@@ -696,7 +696,8 @@ ${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/wg show *
 EOF
         # Establecer permisos seguros para el archivo sudoers
         run_sudo chmod 0440 "$SUDOERS_FILE"
-        log_success "Reglas de NOPASSWD añadidas a ${SUDOERS_FILE}."
+        log_success_permi="Reglas de NOPASSWD añadidas a ${SUDOERS_FILE}."
+        log "$log_success_permi"
     fi
 
     # 2. Asegurar que el directorio de clientes existe y es propiedad del BOT_USER
@@ -708,7 +709,8 @@ EOF
     # Dar propiedad al usuario del bot.
     run_sudo chown -R "${BOT_USER}:${BOT_USER}" "${WG_PATH}/clients"
 
-    log_success "✔ Permisos y directorios de WireGuard configurados correctamente."
+    log_success_dir= "✔ Permisos y directorios de WireGuard configurados correctamente."
+    log "$log_success_dir"
 }
 
 # =============================================================================
