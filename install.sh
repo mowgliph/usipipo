@@ -670,8 +670,8 @@ uninstall_wireguard() {
 # Configuración de Permisos para el Bot (uSipipoVPNBot)
 # =============================================================================
 configure_bot_permissions() {
-    log_header_permi="🛡️ Configurando permisos de WireGuard para el bot"
-    log "$log_header_permi"
+    log_ok "🛡️ Configurando permisos de WireGuard para el bot"
+    
     
     # Determinar el usuario que está ejecutando el script
     BOT_USER=${SUDO_USER:-$(whoami)}
@@ -696,8 +696,7 @@ ${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/wg show *
 EOF
         # Establecer permisos seguros para el archivo sudoers
         run_sudo chmod 0440 "$SUDOERS_FILE"
-        log_success_permi="Reglas de NOPASSWD añadidas a ${SUDOERS_FILE}."
-        log "$log_success_permi"
+        log_ok "Reglas de NOPASSWD añadidas a ${SUDOERS_FILE}."
     fi
 
     # 2. Asegurar que el directorio de clientes existe y es propiedad del BOT_USER
@@ -709,8 +708,8 @@ EOF
     # Dar propiedad al usuario del bot.
     run_sudo chown -R "${BOT_USER}:${BOT_USER}" "${WG_PATH}/clients"
 
-    log_success_dir= "✔ Permisos y directorios de WireGuard configurados correctamente."
-    log "$log_success_dir"
+    log_ok "✔ Permisos y directorios de WireGuard configurados correctamente."
+    
 }
 
 # =============================================================================
