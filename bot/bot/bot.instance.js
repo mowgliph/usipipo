@@ -104,10 +104,9 @@ bot.command('forceadmin', async (ctx) => {
 
 
     await ctx.reply(
-      `✅ *Admin sincronizado correctamente*
-
-🆔 `${config.ADMIN_ID}``
-    );
+      `✅ *Admin sincronizado correctamente*\
+      \
+      🆔 `${config.ADMIN_ID}``);
   } catch (error) {
     await ctx.reply(`❌ Error: ${error.message}`);
   }
