@@ -15,10 +15,12 @@ class InfoHandler {
     if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
 
     try {
+      // Obtenemos info dinámica si es necesaria, o usamos la config global
       const outlineInfo = await OutlineService.getServerInfo();
 
+      // messages.SERVER_STATUS ya devuelve el texto formateado en Markdown V1
       await ctx.reply(messages.SERVER_STATUS(outlineInfo), {
-        parse_mode: 'HTML',
+        parse_mode: 'Markdown',
         ...keyboards.backButton()
       });
 
@@ -27,7 +29,7 @@ class InfoHandler {
       logger.error('server_status', err, { userId });
 
       await ctx.reply(messages.ERROR_SERVER_STATUS, {
-        parse_mode: 'HTML',
+        parse_mode: 'Markdown',
         ...keyboards.backButton()
       });
     }
@@ -47,7 +49,8 @@ class InfoHandler {
 
     try {
       await ctx.reply(text, {
-        parse_mode: 'HTML',
+        parse_mode: 'Markdown',
+        // Mantenemos la lógica de extraer el markup según el estado de autorización
         reply_markup: authorized
           ? keyboards.mainMenuAuthorized().reply_markup
           : keyboards.mainMenuUnauthorized().reply_markup
@@ -68,7 +71,7 @@ class InfoHandler {
 
     try {
       await ctx.reply(messages.COMMANDS_LIST(admin), {
-        parse_mode: 'HTML',
+        parse_mode: 'Markdown',
         ...keyboards.backButton()
       });
 
@@ -77,6 +80,7 @@ class InfoHandler {
       logger.error('command_list', err, { userId });
 
       await ctx.reply('⚠️ Error al mostrar los comandos.', {
+        parse_mode: 'Markdown',
         ...keyboards.backButton()
       });
     }

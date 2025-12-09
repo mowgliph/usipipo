@@ -3,16 +3,15 @@
 /**
  * handlers/admin.handler.js
  *
- * Refactor admin handler - estilo Premium (Moderado)
+ * Refactor admin handler - estilo Premium (Moderado) - MARKDOWN V1
  *
  * Requisitos (ya presentes en el proyecto):
  * - services/userManager.service (userManager)
  * - services/notification.service (NotificationService) → inyectado en constructor
- * - utils/messages (mensajes HTML reutilizables)
+ * - utils/messages (mensajes reutilizables, deben soportar Markdown)
  * - utils/logger
  *
- * Nota: Este handler no envía notificaciones de sistema por sí mismo salvo a través
- *       de notificationService para broadcast/errores/admin-notify.
+ * Nota: Este handler asume que utils/messages devuelve textos compatibles con Markdown.
  */
 
 const userManager = require('../services/userManager.service');
@@ -34,8 +33,8 @@ class AdminHandler {
   }
 
   _moderadoHeader(title) {
-    // Header visual estilo "Moderado"
-    return `👑 ${title}\n━━━━━━━━━━━━━━━━━━━━\n`;
+    // Header visual estilo "Moderado" con negrita Markdown
+    return `👑 *${title}*\n━━━━━━━━━━━━━━━━━━━━\n`;
   }
 
   _requireAdminReply(ctx) {
@@ -65,9 +64,10 @@ class AdminHandler {
       const users = userManager.getAllUsers();
       const stats = userManager.getUserStats();
 
+      // Se asume que messages.ADMIN_USER_LIST devuelve Markdown o texto plano
       const msg = messages.ADMIN_USER_LIST(users, stats);
 
-      await ctx.reply(msg, { parse_mode: 'HTML' });
+      await ctx.reply(msg, { parse_mode: 'Markdown' });
 
       logger.info('admin:list_users', { userId, total: users.length });
     } catch (err) {
@@ -98,12 +98,14 @@ class AdminHandler {
       const added = await userManager.addUser(targetId, String(userId), name);
 
       const addedAt = added.addedAt || new Date().toISOString();
+      
+      // Uso de backticks para código en lugar de <code>
       const reply = this._moderadoHeader('Usuario autorizado') +
-        `🆔 ID: <code>${added.id}</code>\n` +
+        `🆔 ID: \`${added.id}\`\n` +
         `👤 Nombre: ${added.name ? this._escape(added.name) : '—'}\n` +
         `📅 Desde: ${this._escape(new Date(addedAt).toLocaleString())}`;
 
-      await ctx.reply(reply, { parse_mode: 'HTML' });
+      await ctx.reply(reply, { parse_mode: 'Markdown' });
 
       logger.success(userId, 'admin_add_user', { addedId: targetId, by: userId });
 
@@ -140,10 +142,10 @@ class AdminHandler {
       await userManager.removeUser(targetId);
 
       const reply = this._moderadoHeader('Usuario removido') +
-        `🆔 ID: <code>${this._escape(targetId)}</code>\n` +
+        `🆔 ID: \`${this._escape(targetId)}\`\n` +
         `El acceso ha sido revocado.`;
 
-      await ctx.reply(reply, { parse_mode: 'HTML' });
+      await ctx.reply(reply, { parse_mode: 'Markdown' });
 
       logger.warn(userId, 'admin_remove_user', { removedId: targetId });
 
@@ -179,11 +181,11 @@ class AdminHandler {
       const suspended = await userManager.suspendUser(targetId);
 
       const reply = this._moderadoHeader('Usuario suspendido') +
-        `🆔 ID: <code>${this._escape(targetId)}</code>\n` +
+        `🆔 ID: \`${this._escape(targetId)}\`\n` +
         `⏸️ Estado: suspendido\n` +
         `📅 Hora: ${this._escape(new Date(suspended.suspendedAt).toLocaleString())}`;
 
-      await ctx.reply(reply, { parse_mode: 'HTML' });
+      await ctx.reply(reply, { parse_mode: 'Markdown' });
 
       logger.warn(userId, 'admin_suspend_user', { targetId });
 
@@ -217,11 +219,11 @@ class AdminHandler {
       const re = await userManager.reactivateUser(targetId);
 
       const reply = this._moderadoHeader('Usuario reactivado') +
-        `🆔 ID: <code>${this._escape(targetId)}</code>\n` +
+        `🆔 ID: \`${this._escape(targetId)}\`\n` +
         `▶️ Estado: activo\n` +
         `📅 Hora: ${this._escape(new Date().toISOString())}`;
 
-      await ctx.reply(reply, { parse_mode: 'HTML' });
+      await ctx.reply(reply, { parse_mode: 'Markdown' });
 
       logger.info(userId, 'admin_reactivate_user', { targetId });
 
@@ -253,7 +255,7 @@ class AdminHandler {
         `Admins: ${stats.admins}\n\n` +
         `Nuevos (24h): —`;
 
-      await ctx.reply(msg, { parse_mode: 'HTML' });
+      await ctx.reply(msg, { parse_mode: 'Markdown' });
 
       logger.info(userId, 'admin_stats', stats);
 
@@ -285,12 +287,14 @@ class AdminHandler {
       const recipients = userManager.getAllUsers().filter(u => u.status === 'active');
 
       // save pending broadcast
+      // Nota: messageRaw se guarda tal cual. Si el admin usa markdown, se enviará tal cual.
       this.pendingBroadcasts.set(broadcastId, {
-        messageHtml: messageRaw,
+        messageHtml: messageRaw, // Nombre de prop legado, ahora contiene Markdown potencial
         recipients,
         from: userId
       });
 
+      // Se asume que messages.BROADCAST_PREVIEW devuelve texto compatible con Markdown
       const preview = messages.BROADCAST_PREVIEW(broadcastId, messageRaw, recipients.length, 1, recipients.length + 1);
 
       // confirmation keyboard
@@ -303,7 +307,7 @@ class AdminHandler {
             ]
           ]
         },
-        parse_mode: 'HTML'
+        parse_mode: 'Markdown'
       };
 
       await ctx.reply(preview, keyboard);
@@ -329,17 +333,20 @@ class AdminHandler {
       }
 
       const recipients = pending.recipients || [];
-      const messageHtml = pending.messageHtml;
+      const messageContent = pending.messageHtml; // Contenido (posiblemente Markdown)
 
       // Build list of recipients for service: map to { id }
       const recipientsForSend = recipients.map(u => ({ id: u.id }));
 
       await ctx.reply('⏳ Enviando broadcast...');
 
-      const results = await this.notificationService.sendBroadcast(messageHtml, recipientsForSend, { includeHeader: true });
+      // El servicio de notificación debe saber manejar el parse_mode o recibir el texto ya formateado
+      // Si notificationService.sendBroadcast espera HTML, habría que adaptar ese servicio también.
+      // Aquí asumimos que pasamos el contenido tal cual.
+      const results = await this.notificationService.sendBroadcast(messageContent, recipientsForSend, { includeHeader: true });
 
       const resultMsg = messages.BROADCAST_RESULT(results.success, results.failed);
-      await ctx.reply(resultMsg, { parse_mode: 'HTML' });
+      await ctx.reply(resultMsg, { parse_mode: 'Markdown' });
 
       this.pendingBroadcasts.delete(broadcastId);
 
@@ -408,7 +415,7 @@ class AdminHandler {
     if (!this._requireAdminReply(ctx)) return;
 
     try {
-      await ctx.reply(messages.ADMIN_TEMPLATES(), { parse_mode: 'HTML' });
+      await ctx.reply(messages.ADMIN_TEMPLATES(), { parse_mode: 'Markdown' });
     } catch (err) {
       logger.error('handleTemplates error', err);
       await ctx.reply('❌ Error mostrando plantillas.');
@@ -416,10 +423,11 @@ class AdminHandler {
   }
 
   // ---------------------------
-  // Utility: escape simple HTML (used for plain strings)
+  // Utility: escape Markdown V1 (used for plain strings)
+  // Escapa: _, *, ` y [
   // ---------------------------
   _escape(text = '') {
-    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(text).replace(/([_*\[`])/g, '\\$1');
   }
 }
 

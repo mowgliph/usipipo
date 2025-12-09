@@ -2,21 +2,8 @@
 
 const config = require('../config/environment');
 const constants = require('../config/constants');
-
-// ============================================================================
-// 🧩 HTML UTILITIES
-// ============================================================================
-const escapeHtml = (text) =>
-  text
-    ? String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-    : '';
-
-const bold = (txt) => `<b>${escapeHtml(txt)}</b>`;
-const italic = (txt) => `<i>${escapeHtml(txt)}</i>`;
-const code = (txt) => `<code>${escapeHtml(txt)}</code>`;
+// 👇 IMPORTAMOS LAS UTILIDADES CENTRALIZADAS
+const { escapeMarkdown, bold, italic, code } = require('./markdown');
 
 // ============================================================================
 // 📋 COMMAND LIST
@@ -42,19 +29,19 @@ const ADMIN_COMMANDS = [
 ];
 
 // ============================================================================
-// 💬 MESSAGES — Estilo premium tipo App
+// 💬 MESSAGES — Estilo premium tipo App (Markdown V1)
 // ============================================================================
 const messages = {
   // ------------------------------------------------------------------------
   // 🟢 Bienvenida
   // ------------------------------------------------------------------------
   WELCOME_AUTHORIZED: (name) =>
-    `👋 Hola ${escapeHtml(name)}\n\n` +
+    `👋 Hola ${escapeMarkdown(name)}\n\n` +
     `${bold('Bienvenido nuevamente')}\n` +
     `Accede a las opciones desde el menú.`,
 
   WELCOME_UNAUTHORIZED: (name) =>
-    `👋 Hola ${escapeHtml(name)}\n\n` +
+    `👋 Hola ${escapeMarkdown(name)}\n\n` +
     `${bold('Tu acceso aún no está autorizado.')}\n\n` +
     `Usa /miinfo para obtener tus datos y envíalos al administrador:\n` +
     `${code(config.ADMIN_ID || 'No definido')}`,
@@ -63,12 +50,12 @@ const messages = {
   // 👤 Información del usuario
   // ------------------------------------------------------------------------
   USER_INFO: (user, isAuth) => {
-    const username = user.username ? '@' + escapeHtml(user.username) : 'No disponible';
+    const username = user.username ? '@' + escapeMarkdown(user.username) : 'No disponible';
 
     return (
       `👤 ${bold('Datos de tu cuenta')}\n\n` +
       `ID: ${code(user.id)}\n` +
-      `Nombre: ${escapeHtml(user.first_name || '')}\n` +
+      `Nombre: ${escapeMarkdown(user.first_name || '')}\n` +
       `Username: ${username}\n\n` +
       (isAuth ? constants.STATUS.AUTHORIZED : constants.STATUS.UNAUTHORIZED)
     );
@@ -80,12 +67,12 @@ const messages = {
   ACCESS_REQUEST_SENT: (user) =>
     `📨 ${bold('Solicitud enviada correctamente')}\n\n` +
     `ID: ${code(user.id)}\n` +
-    `Nombre: ${escapeHtml(user.first_name || '')}\n\n` +
+    `Nombre: ${escapeMarkdown(user.first_name || '')}\n\n` +
     `Envía este ID al administrador para continuar.`,
 
   ACCESS_REQUEST_ADMIN_NOTIFICATION: (user) => {
-    const name = escapeHtml(user.first_name || '');
-    const username = user.username ? '@' + escapeHtml(user.username) : 'Sin username';
+    const name = escapeMarkdown(user.first_name || '');
+    const username = user.username ? '@' + escapeMarkdown(user.username) : 'Sin username';
 
     return (
       `🔔 ${bold('Nueva solicitud de acceso')}\n\n` +
@@ -116,7 +103,7 @@ const messages = {
     `💻 *PC*: Importar archivo .conf\n\n` +
     `Descargar WireGuard:\n${constants.URLS.WIREGUARD_DOWNLOAD}`,
 
-  ERROR_WIREGUARD: (e) => `❌ Error en WireGuard:\n${escapeHtml(String(e))}`,
+  ERROR_WIREGUARD: (e) => `❌ Error en WireGuard:\n${escapeMarkdown(String(e))}`,
 
   // ------------------------------------------------------------------------
   // 🌐 Outline
@@ -129,7 +116,7 @@ const messages = {
     `Enlace:\n${code(key.accessUrl)}\n\n` +
     `Descargar Outline:\n${constants.URLS.OUTLINE_DOWNLOAD}`,
 
-  ERROR_OUTLINE: (e) => `❌ Error en Outline:\n${escapeHtml(String(e))}`,
+  ERROR_OUTLINE: (e) => `❌ Error en Outline:\n${escapeMarkdown(String(e))}`,
 
   // ------------------------------------------------------------------------
   // 🖥 Estado del servidor
@@ -169,8 +156,8 @@ const messages = {
   ADMIN_USER_ADDED: (id, name, addedAt) =>
     `✅ ${bold('Usuario autorizado')}\n\n` +
     `ID: ${code(id)}\n` +
-    `Nombre: ${escapeHtml(name)}\n` +
-    `Fecha: ${escapeHtml(addedAt)}`,
+    `Nombre: ${escapeMarkdown(name)}\n` +
+    `Fecha: ${escapeMarkdown(addedAt)}`,
 
   ADMIN_USER_REMOVED: (id) => `🗑️ ${bold('Usuario eliminado')}\nID: ${code(id)}`,
 
@@ -190,7 +177,7 @@ const messages = {
       .map((u, i) => {
         const status = u.status === 'active' ? '🟢' : '⛔';
         const role = u.role === 'admin' ? '👑' : '👤';
-        return `${i + 1}. ${status} ${role} ${code(u.id)} — ${escapeHtml(u.name)}`;
+        return `${i + 1}. ${status} ${role} ${code(u.id)} — ${escapeMarkdown(u.name)}`;
       })
       .join('\n');
 
@@ -220,7 +207,7 @@ const messages = {
     `❌ Fallidos: ${fail}`,
 
   ADMIN_DIRECT_MSG_SENT: (id, name) =>
-    `📨 ${bold('Mensaje enviado')}\nID: ${code(id)}\nUsuario: ${escapeHtml(name)}`,
+    `📨 ${bold('Mensaje enviado')}\nID: ${code(id)}\nUsuario: ${escapeMarkdown(name)}`,
 
   ADMIN_TEMPLATES: () =>
     `📋 ${bold('Plantillas disponibles')}\n\n` +
@@ -236,11 +223,11 @@ const messages = {
       `⚠️ ${bold('Comando no reconocido')}\n\n` +
       `${bold('Comandos de usuario:')}\n`;
 
-    msg += USER_COMMANDS.map((c) => `• ${escapeHtml(c)}\n`).join('');
+    msg += USER_COMMANDS.map((c) => `• ${escapeMarkdown(c)}\n`).join('');
 
     if (isAdmin) {
       msg += `\n${bold('Comandos de administrador:')}\n`;
-      msg += ADMIN_COMMANDS.map((c) => `• ${escapeHtml(c)}\n`).join('');
+      msg += ADMIN_COMMANDS.map((c) => `• ${escapeMarkdown(c)}\n`).join('');
     }
 
     return msg + `\n\nUsa ${code('/start')} para volver al menú.`;
@@ -251,23 +238,24 @@ const messages = {
       `📋 ${bold('Lista de comandos')}\n\n` +
       `👤 ${bold('Usuario:')}\n`;
 
-    msg += USER_COMMANDS.map((c) => `• ${escapeHtml(c)}\n`).join('');
+    msg += USER_COMMANDS.map((c) => `• ${escapeMarkdown(c)}\n`).join('');
 
     if (isAdmin) {
       msg += `\n👑 ${bold('Administrador:')}\n`;
-      msg += ADMIN_COMMANDS.map((c) => `• ${escapeHtml(c)}\n`).join('');
+      msg += ADMIN_COMMANDS.map((c) => `• ${escapeMarkdown(c)}\n`).join('');
     }
 
     return msg;
   },
 
   GENERIC_TEXT_PROMPT: (name) =>
-    `👋 Hola ${escapeHtml(name)}\n\nSelecciona el tipo de VPN:\n• WireGuard\n• Outline`,
+    `👋 Hola ${escapeMarkdown(name)}\n\nSelecciona el tipo de VPN:\n• WireGuard\n• Outline`,
 
   // ------------------------------------------------------------------------
-  // Helpers exportados
+  // Exports
   // ------------------------------------------------------------------------
-  _helpers: { escapeHtml, bold, code, italic }
+  // Mantenemos _helpers por compatibilidad si algo lo usa, pero apuntando al nuevo archivo
+  _helpers: { escapeMarkdown, bold, code, italic }
 };
 
 module.exports = messages;

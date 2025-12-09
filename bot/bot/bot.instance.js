@@ -17,7 +17,6 @@ const NotificationService = require('../services/notification.service');
 
 // Handlers
 const AuthHandler = require('../handlers/auth.handler');
-// CAMBIO 1: Importamos la instancia directamente (vpnHandler con minúscula)
 const vpnHandler = require('../handlers/vpn.handler'); 
 const InfoHandler = require('../handlers/info.handler');
 const AdminHandler = require('../handlers/admin.handler');
@@ -32,14 +31,12 @@ const messages = require('../utils/messages');
 
 const bot = new Telegraf(config.TELEGRAM_TOKEN, {
   handlerTimeout: 90_000,
-  telegram: { parse_mode: 'HTML' }
+  telegram: { parse_mode: 'Markdown' }
 });
 
 const notificationService = new NotificationService(bot);
 
 const authHandler = new AuthHandler(notificationService);
-// CAMBIO 2: Eliminamos la línea "const vpnHandler = new VPNHandler();" 
-// porque ya importamos la instancia arriba.
 const infoHandler = new InfoHandler();
 const adminHandler = new AdminHandler(notificationService);
 
@@ -59,7 +56,7 @@ bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
 bot.command('help', (ctx) => authHandler.handleHelp(ctx));
 bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx));
 
-// Comandos VPN específicos (agregados por seguridad si no estaban antes)
+// Comandos VPN específicos
 bot.command('vpn', (ctx) => vpnHandler.cmdVpn(ctx));
 
 // =====================================================================================
@@ -91,8 +88,9 @@ bot.command('forceadmin', async (ctx) => {
     const userManager = require('../services/userManager.service');
     await userManager.syncAdminFromEnv();
 
+    // Actualizado a sintaxis Markdown V1
     await ctx.reply(
-      `✅ <b>Admin sincronizado correctamente</b>\n\n🆔 <code>${config.ADMIN_ID}</code>`
+      `✅ *Admin sincronizado correctamente*\n\n🆔 \`${config.ADMIN_ID}\``
     );
   } catch (error) {
     await ctx.reply(`❌ Error: ${error.message}`);
@@ -109,19 +107,19 @@ bot.action('request_access', (ctx) => authHandler.handleAccessRequest(ctx));
 bot.action('check_status', (ctx) => authHandler.handleCheckStatus(ctx));
 
 // ----------- VPN ACTIONS -----------
-bot.action('vpn_menu', requireAuth, (ctx) => vpnHandler.actionVpnMenu(ctx)); // Agregado por seguridad
-bot.action('wg_menu', requireAuth, (ctx) => vpnHandler.actionWgMenu(ctx)); // Agregado
-bot.action('outline_menu', requireAuth, (ctx) => vpnHandler.actionOutlineMenu(ctx)); // Agregado
+bot.action('vpn_menu', requireAuth, (ctx) => vpnHandler.actionVpnMenu(ctx));
+bot.action('wg_menu', requireAuth, (ctx) => vpnHandler.actionWgMenu(ctx));
+bot.action('outline_menu', requireAuth, (ctx) => vpnHandler.actionOutlineMenu(ctx));
 bot.action('create_wg', requireAuth, (ctx) => vpnHandler.handleCreateWireGuard(ctx));
-bot.action('wg_show', requireAuth, (ctx) => vpnHandler.actionWgShowConfig(ctx)); // Agregado
-bot.action('wg_download', requireAuth, (ctx) => vpnHandler.actionWgDownload(ctx)); // Agregado
-bot.action('wg_qr', requireAuth, (ctx) => vpnHandler.actionWgShowQr(ctx)); // Agregado
-bot.action('wg_usage', requireAuth, (ctx) => vpnHandler.actionWgUsage(ctx)); // Agregado
-bot.action('wg_delete', requireAuth, (ctx) => vpnHandler.actionWgDelete(ctx)); // Agregado
+bot.action('wg_show', requireAuth, (ctx) => vpnHandler.actionWgShowConfig(ctx));
+bot.action('wg_download', requireAuth, (ctx) => vpnHandler.actionWgDownload(ctx));
+bot.action('wg_qr', requireAuth, (ctx) => vpnHandler.actionWgShowQr(ctx));
+bot.action('wg_usage', requireAuth, (ctx) => vpnHandler.actionWgUsage(ctx));
+bot.action('wg_delete', requireAuth, (ctx) => vpnHandler.actionWgDelete(ctx));
 bot.action('create_outline', requireAuth, (ctx) => vpnHandler.handleCreateOutline(ctx));
-bot.action('outline_show', requireAuth, (ctx) => vpnHandler.actionOutlineShow(ctx)); // Agregado
-bot.action('outline_usage', requireAuth, (ctx) => vpnHandler.actionOutlineUsage(ctx)); // Agregado
-bot.action('outline_delete', requireAuth, (ctx) => vpnHandler.actionOutlineDelete(ctx)); // Agregado
+bot.action('outline_show', requireAuth, (ctx) => vpnHandler.actionOutlineShow(ctx));
+bot.action('outline_usage', requireAuth, (ctx) => vpnHandler.actionOutlineUsage(ctx));
+bot.action('outline_delete', requireAuth, (ctx) => vpnHandler.actionOutlineDelete(ctx));
 bot.action('list_clients', requireAuth, (ctx) => vpnHandler.handleListClients(ctx));
 
 // ----------- SYSTEM / HELP -----------
@@ -210,14 +208,14 @@ bot.on('text', async (ctx) => {
       return ctx.reply(messages.UNKNOWN_COMMAND(admin));
     }
     
-    // Si tienes un menú de selección VPN en keyboards.js
+    // Si existe el menú de selección VPN en keyboards.js
     if (keyboards.vpnSelectionMenu) {
        return ctx.reply(
           messages.GENERIC_TEXT_PROMPT(ctx.from?.first_name),
           keyboards.vpnSelectionMenu()
        );
     } else {
-       // Fallback simple si no existe vpnSelectionMenu
+       // Fallback simple
        return ctx.reply('Use /help para ver los comandos.');
     }
 

@@ -2,33 +2,16 @@
 
 /**
  * ============================================================================
- * 🧩 FORMATO Y UTILIDADES HTML — uSipipo VPN Manager
- * Conjunto de funciones para formateo, sanitización y presentación de datos.
- * Diseño profesional, seguro y consistente con el cliente final.
+ * 🧩 FORMATTERS — uSipipo VPN Manager
+ * Lógica para presentación de datos (fechas, bytes, listas).
  * ============================================================================
  */
 
-// ============================================================================
-// 🔐 HTML UTILITIES
-// ============================================================================
-
-/**
- * Escapa caracteres HTML peligrosos para evitar inyección.
- */
-const escapeHtml = (text) =>
-  text
-    ? String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-    : '';
-
-const bold = (text) => `<b>${escapeHtml(text)}</b>`;
-const italic = (text) => `<i>${escapeHtml(text)}</i>`;
-const code = (text) => `<code>${escapeHtml(text)}</code>`;
+// 👇 IMPORTAMOS LAS UTILIDADES CENTRALIZADAS
+const { escapeMarkdown, bold, code } = require('./markdown');
 
 // ============================================================================
-// 📏 FORMAT FUNCTIONS
+// 📏 DATA FORMATTING
 // ============================================================================
 
 /**
@@ -74,7 +57,7 @@ function truncate(text, maxLength = 50) {
 }
 
 // ============================================================================
-// 📋 LIST FORMATTERS (Compact & Professional)
+// 📋 LIST FORMATTERS
 // ============================================================================
 
 /**
@@ -89,8 +72,8 @@ function formatWireGuardClients(clients = []) {
 
   clients.forEach((c, i) => {
     msg += `${i + 1}) IP: ${code(c.ip)}\n`;
-    msg += `   Última conexión: ${escapeHtml(c.lastSeen || 'N/A')}\n`;
-    msg += `   Recibido: ${escapeHtml(c.dataReceived)} • Enviado: ${escapeHtml(c.dataSent)}\n\n`;
+    msg += `   Última conexión: ${escapeMarkdown(c.lastSeen || 'N/A')}\n`;
+    msg += `   Recibido: ${escapeMarkdown(c.dataReceived)} • Enviado: ${escapeMarkdown(c.dataSent)}\n\n`;
   });
 
   return msg.trim();
@@ -107,7 +90,7 @@ function formatOutlineKeys(keys = []) {
   let msg = `🌐 ${bold('Outline')} • ${keys.length} clave(s)\n\n`;
 
   keys.forEach((k, i) => {
-    msg += `${i + 1}) ID: ${code(k.id)} • ${escapeHtml(k.name || 'Sin nombre')}\n`;
+    msg += `${i + 1}) ID: ${code(k.id)} • ${escapeMarkdown(k.name || 'Sin nombre')}\n`;
   });
 
   return msg.trim();
@@ -129,9 +112,6 @@ function formatClientsList(wgClients, outlineKeys) {
 // 🧹 SANITIZACIÓN
 // ============================================================================
 
-/**
- * Elimina caracteres conflictivos para entrada segura.
- */
 function sanitizeInput(input) {
   if (typeof input !== 'string') return '';
   return input.replace(/[<>]/g, '');
@@ -142,18 +122,11 @@ function sanitizeInput(input) {
 // ============================================================================
 
 module.exports = {
-  escapeHtml,
-  bold,
-  italic,
-  code,
-
   formatBytes,
   formatTimestamp,
   truncate,
-
   formatWireGuardClients,
   formatOutlineKeys,
   formatClientsList,
-
   sanitizeInput
 };

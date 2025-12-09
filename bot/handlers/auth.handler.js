@@ -19,6 +19,7 @@ class AuthHandler {
 
     const authorized = isAuthorized(userId);
 
+    // messages.js ya devuelve texto formateado en Markdown V1 y escapado
     const msg = authorized
       ? messages.WELCOME_AUTHORIZED(name)
       : messages.WELCOME_UNAUTHORIZED(name);
@@ -45,7 +46,9 @@ class AuthHandler {
   // 📧 SOLICITAR ACCESO (botón)
   // ============================================================================
   async handleAccessRequest(ctx) {
+    // Responder al callback para detener el spinner de carga en Telegram
     if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
+    
     const user = ctx.from;
 
     await ctx.reply(messages.ACCESS_REQUEST_SENT(user));
@@ -62,26 +65,34 @@ class AuthHandler {
     const userId = user.id.toString();
     const info = userManager.getUser(userId);
 
-    // Usuario no existe en la DB
+    // 1. Usuario no existe en la DB
     if (!info) {
+      // Nota: Asegúrate de que STATUS_NOT_REGISTERED exista en messages.js
       return ctx.reply(
-        messages.STATUS_NOT_REGISTERED(user),
+        messages.STATUS_NOT_REGISTERED ? messages.STATUS_NOT_REGISTERED(user) : '⚠️ No estás registrado.',
         keyboards.homeUnauthorized()
       );
     }
 
+    // 2. Verificar estado
     switch (info.status) {
       case 'active':
         return ctx.reply(
-          messages.STATUS_ACTIVE(user, info),
+          messages.STATUS_ACTIVE ? messages.STATUS_ACTIVE(user, info) : '✅ *Cuenta Activa*',
           keyboards.homeAuthorized()
         );
 
       case 'suspended':
-        return ctx.reply(messages.STATUS_SUSPENDED(user), keyboards.minimalBack());
+        return ctx.reply(
+          messages.STATUS_SUSPENDED ? messages.STATUS_SUSPENDED(user) : '⏸️ *Cuenta Suspendida*', 
+          keyboards.minimalBack()
+        );
 
       default:
-        return ctx.reply(messages.STATUS_UNKNOWN(user), keyboards.minimalBack());
+        return ctx.reply(
+          messages.STATUS_UNKNOWN ? messages.STATUS_UNKNOWN(user) : '❓ Estado desconocido', 
+          keyboards.minimalBack()
+        );
     }
   }
 
@@ -97,7 +108,6 @@ class AuthHandler {
 
   // ============================================================================
   // 👥 (ADMIN) — Vista rápida de usuarios 
-  // (Se mantiene para compatibilidad, pero ya no se usa desde navegación)
   // ============================================================================
   async handleListUsers(ctx) {
     const userId = ctx.from.id.toString();

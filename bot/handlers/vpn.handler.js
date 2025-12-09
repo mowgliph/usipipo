@@ -12,9 +12,13 @@ const messages = require('../utils/messages');
 const keyboards = require('../utils/keyboards');
 const logger = require('../utils/logger');
 
+// Importamos utilidades centralizadas
+const { formatBytes } = require('../utils/formatters');
+const { bold, code, pre, escapeMarkdown } = require('../utils/markdown');
+
 class VPNHandler {
   constructor() {
-    // nothing to inject (services are singletons)
+    // Services are singletons
   }
 
   // -----------------------------
@@ -45,7 +49,8 @@ class VPNHandler {
 
   async cmdUsage(ctx) {
     if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-    await ctx.reply('⏳ Consultando consumo...', { parse_mode: 'HTML' });
+    await ctx.reply('⏳ Consultando consumo...', { parse_mode: 'Markdown' });
+    
     try {
       const userId = ctx.from?.id;
       const wgClient = WireGuardService.getUserClient(userId);
@@ -53,6 +58,7 @@ class VPNHandler {
 
       const user = userManager.getUser(String(userId));
       let outlineUsage = { rx: 0, tx: 0, total: 0 };
+      
       if (user && user.outline && user.outline.keyId) {
         try {
           outlineUsage = await OutlineService.getKeyUsage(user.outline.keyId);
@@ -62,21 +68,21 @@ class VPNHandler {
       }
 
       const msg =
-        `<b>📊 Consumo</b>\n\n` +
-        `<b>WireGuard</b>\n` +
-        `• Recibido: ${formatBytes(wgUsage.rx || 0)}\n` +
-        `• Enviado: ${formatBytes(wgUsage.tx || 0)}\n` +
-        `• Total: ${formatBytes(wgUsage.total || (wgUsage.rx || 0) + (wgUsage.tx || 0))}\n\n` +
-        `<b>Outline</b>\n` +
-        `• Recibido: ${formatBytes(outlineUsage.rx || 0)}\n` +
-        `• Enviado: ${formatBytes(outlineUsage.tx || 0)}\n` +
-        `• Total: ${formatBytes(outlineUsage.total || 0)}\n`;
+        `${bold('📊 Consumo Actual')}\n\n` +
+        `${bold('WireGuard')}\n` +
+        `• Recibido: ${code(formatBytes(wgUsage.rx || 0))}\n` +
+        `• Enviado: ${code(formatBytes(wgUsage.tx || 0))}\n` +
+        `• Total: ${code(formatBytes(wgUsage.total || (wgUsage.rx || 0) + (wgUsage.tx || 0)))}\n\n` +
+        `${bold('Outline')}\n` +
+        `• Recibido: ${code(formatBytes(outlineUsage.rx || 0))}\n` +
+        `• Enviado: ${code(formatBytes(outlineUsage.tx || 0))}\n` +
+        `• Total: ${code(formatBytes(outlineUsage.total || 0))}\n`;
 
-      await ctx.reply(msg, { parse_mode: 'HTML', ...keyboards.backButton() });
+      await ctx.reply(msg, { parse_mode: 'Markdown', ...keyboards.backButton() });
       logger.info('cmdUsage', { userId });
     } catch (err) {
       logger.error('cmdUsage error', err);
-      await ctx.reply('❌ No se pudo obtener el consumo. Intenta más tarde.');
+      await ctx.reply('❌ No se pudo obtener el consumo. Intenta más tarde.', { parse_mode: 'Markdown' });
     }
   }
 
@@ -118,7 +124,7 @@ class VPNHandler {
     const uid = String(userId);
 
     if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-    await ctx.reply(messages.WIREGUARD_CREATING);
+    await ctx.reply(messages.WIREGUARD_CREATING, { parse_mode: 'Markdown' });
 
     try {
       // Enforce quota before creation
@@ -134,24 +140,26 @@ class VPNHandler {
 
       // Send .conf as file
       const fileName = path.basename(res.clientFilePath) || `${res.clientName}.conf`;
+      
+      // Intentamos enviar archivo físico primero
       try {
-        // Prefer send as file from disk if exists (so Telegram shows file size)
         await ctx.replyWithDocument(
           { source: res.clientFilePath, filename: fileName },
-          { caption: messages.WIREGUARD_SUCCESS(res.ip), parse_mode: 'HTML' }
+          { caption: messages.WIREGUARD_SUCCESS(res.ip), parse_mode: 'Markdown' }
         );
       } catch (err) {
-        // fallback: send buffer
+        // fallback: enviar buffer
         await ctx.replyWithDocument(
           { source: Buffer.from(res.clientConfig || ''), filename: fileName },
-          { caption: messages.WIREGUARD_SUCCESS(res.ip), parse_mode: 'HTML' }
+          { caption: messages.WIREGUARD_SUCCESS(res.ip), parse_mode: 'Markdown' }
         );
       }
 
       // Send QR ASCII if available
       if (res.qr) {
         try {
-          await ctx.reply(`<pre>${res.qr}</pre>`, { parse_mode: 'HTML' });
+          // QR en bloque de código para monoespaciado
+          await ctx.reply(pre(res.qr), { parse_mode: 'Markdown' });
         } catch (_) {
           // ignore
         }
@@ -159,7 +167,7 @@ class VPNHandler {
         // optionally attempt to render a QR using qrencode if present
         try {
           const ascii = execSync(`echo "${res.clientConfig.replace(/"/g,'\\"')}" | qrencode -t UTF8 -o -`, { encoding: 'utf8' });
-          if (ascii) await ctx.reply(`<pre>${ascii}</pre>`, { parse_mode: 'HTML' });
+          if (ascii) await ctx.reply(pre(ascii), { parse_mode: 'Markdown' });
         } catch (_) {
           // no qravailable
         }
@@ -167,14 +175,14 @@ class VPNHandler {
 
       // After creation show quick action buttons
       await ctx.reply(messages.WIREGUARD_INSTRUCTIONS, {
-        parse_mode: 'HTML',
+        parse_mode: 'Markdown',
         reply_markup: keyboards.wgMenu().reply_markup
       });
 
       logger.success(userId, 'create_wireguard', { clientName: res.clientName, ip: res.ip });
     } catch (err) {
       logger.error('handleCreateWireGuard error', err, { userId });
-      await ctx.reply(messages.ERROR_WIREGUARD(err.message));
+      await ctx.reply(messages.ERROR_WIREGUARD(err.message), { parse_mode: 'Markdown' });
     }
   }
 
@@ -193,11 +201,10 @@ class VPNHandler {
       }
 
       if (client.clientFilePath) {
-        // send as text (safe)
         const raw = await fs.readFile(client.clientFilePath, 'utf8');
-        await ctx.reply(`<pre>${raw}</pre>`, { parse_mode: 'HTML' });
+        await ctx.reply(pre(raw), { parse_mode: 'Markdown' });
       } else if (client.clientConfig) {
-        await ctx.reply(`<pre>${client.clientConfig}</pre>`, { parse_mode: 'HTML' });
+        await ctx.reply(pre(client.clientConfig), { parse_mode: 'Markdown' });
       } else {
         await ctx.reply('⚠️ No pude recuperar tu archivo .conf.', keyboards.wgMenu());
       }
@@ -254,13 +261,12 @@ class VPNHandler {
       }
 
       if (client.qr) {
-        await ctx.reply(`<pre>${client.qr}</pre>`, { parse_mode: 'HTML' });
+        await ctx.reply(pre(client.qr), { parse_mode: 'Markdown' });
       } else if (client.clientConfig) {
-        // attempt quick local generation (if qrencode present)
         try {
           const ascii = execSync(`echo "${client.clientConfig.replace(/"/g,'\\"')}" | qrencode -t UTF8 -o -`, { encoding: 'utf8' });
           if (ascii) {
-            await ctx.reply(`<pre>${ascii}</pre>`, { parse_mode: 'HTML' });
+            await ctx.reply(pre(ascii), { parse_mode: 'Markdown' });
             return;
           }
         } catch (_) {}
@@ -293,12 +299,12 @@ class VPNHandler {
       const usage = await WireGuardService.getClientUsageByName(client.clientName);
 
       const msg =
-        `<b>📈 Uso WireGuard</b>\n\n` +
-        `• Recibido: ${formatBytes(usage.rx || 0)}\n` +
-        `• Enviado: ${formatBytes(usage.tx || 0)}\n` +
-        `• Total: ${formatBytes(usage.total || (usage.rx || 0) + (usage.tx || 0))}\n`;
+        `${bold('📈 Uso WireGuard')}\n\n` +
+        `• Recibido: ${code(formatBytes(usage.rx || 0))}\n` +
+        `• Enviado: ${code(formatBytes(usage.tx || 0))}\n` +
+        `• Total: ${code(formatBytes(usage.total || (usage.rx || 0) + (usage.tx || 0)))}\n`;
 
-      await ctx.reply(msg, { parse_mode: 'HTML', ...keyboards.backButton() });
+      await ctx.reply(msg, { parse_mode: 'Markdown', ...keyboards.backButton() });
       logger.info(userId, 'wg_usage', { clientName: client.clientName, usage });
     } catch (err) {
       logger.error('actionWgUsage', err, { userId });
@@ -307,7 +313,7 @@ class VPNHandler {
   }
 
   // -----------------------------
-  // ACTION: Solicitar eliminación (muestra confirmación compacta)
+  // ACTION: Solicitar eliminación
   // -----------------------------
   async actionWgDelete(ctx) {
     const userId = ctx.from?.id;
@@ -340,18 +346,15 @@ class VPNHandler {
   }
 
   // -----------------------------
-  // CALLBACK: Confirm deletion (invocado desde bot.instance)
-  // signature: confirmDeleteWireGuard(ctx, clientName)
+  // CALLBACK: Confirm deletion
   // -----------------------------
   async confirmDeleteWireGuard(ctx, clientName) {
     const userId = ctx.from?.id;
     if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
 
     try {
-      // double-check ownership or admin
       const client = WireGuardService.getUserClient(userId);
       if (!client || client.clientName !== clientName) {
-        // if admin, allow deletion by name (admin flows not implemented here)
         if (!userManager.isAdmin(String(userId))) {
           await ctx.reply('⛔ No tienes permiso para eliminar esta configuración.');
           return;
@@ -359,8 +362,6 @@ class VPNHandler {
       }
 
       await WireGuardService.deleteClientByName(clientName);
-
-      // update userManager mapping already handled in service; still ensure we save
       await userManager.saveUsers();
 
       await ctx.reply('✅ Tu configuración WireGuard ha sido eliminada.', keyboards.wgMenu());
@@ -379,10 +380,9 @@ class VPNHandler {
     const uid = String(userId);
 
     if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-    await ctx.reply(messages.OUTLINE_CREATING);
+    await ctx.reply(messages.OUTLINE_CREATING, { parse_mode: 'Markdown' });
 
     try {
-      // build nice key name
       const safeName = (ctx.from?.username || ctx.from?.first_name || `User${uid}`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
       const keyName = `TG-${safeName}-${Date.now()}`;
 
@@ -391,7 +391,6 @@ class VPNHandler {
       // Store in userManager
       let user = userManager.getUser(uid);
       if (!user) {
-        // create minimal user entry
         await userManager.addUser(uid, 'system', `TG ${uid}`);
         user = userManager.getUser(uid);
       }
@@ -402,15 +401,18 @@ class VPNHandler {
       };
       await userManager.saveUsers();
 
-      // Append branding to link as requested e.g. "#uSipipo VPN, MIAMI, US" — Outline link must support fragment
+      // Branding
       const branded = `${accessKey.accessUrl}#uSipipo%20VPN,%20MIAMI,%20US`;
 
-      await ctx.reply(messages.OUTLINE_SUCCESS({ id: accessKey.id, accessUrl: branded }), { parse_mode: 'HTML', reply_markup: keyboards.outlineMenu().reply_markup });
+      await ctx.reply(messages.OUTLINE_SUCCESS({ id: accessKey.id, accessUrl: branded }), { 
+        parse_mode: 'Markdown', 
+        reply_markup: keyboards.outlineMenu().reply_markup 
+      });
 
       logger.success(userId, 'create_outline', { keyId: accessKey.id, accessUrl: accessKey.accessUrl });
     } catch (err) {
       logger.error('handleCreateOutline', err, { userId });
-      await ctx.reply(messages.ERROR_OUTLINE(err.message));
+      await ctx.reply(messages.ERROR_OUTLINE(err.message), { parse_mode: 'Markdown' });
     }
   }
 
@@ -428,7 +430,11 @@ class VPNHandler {
         return;
       }
 
-      await ctx.reply(`<b>🔗 Tu enlace Outline</b>\n\n${user.outline.accessUrl}`, { parse_mode: 'HTML', ...keyboards.backButton() });
+      // Escapamos el enlace con code() para evitar que caracteres rompan el Markdown
+      await ctx.reply(
+        `${bold('🔗 Tu enlace Outline')}\n\n${code(user.outline.accessUrl)}`, 
+        { parse_mode: 'Markdown', ...keyboards.backButton() }
+      );
       logger.info(userId, 'outline_show', { keyId: user.outline.keyId });
     } catch (err) {
       logger.error('actionOutlineShow', err, { userId });
@@ -453,12 +459,12 @@ class VPNHandler {
       const usage = await OutlineService.getKeyUsage(user.outline.keyId);
 
       const msg =
-        `<b>📈 Uso Outline</b>\n\n` +
-        `• Recibido: ${formatBytes(usage.rx || 0)}\n` +
-        `• Enviado: ${formatBytes(usage.tx || 0)}\n` +
-        `• Total: ${formatBytes(usage.total || 0)}\n`;
+        `${bold('📈 Uso Outline')}\n\n` +
+        `• Recibido: ${code(formatBytes(usage.rx || 0))}\n` +
+        `• Enviado: ${code(formatBytes(usage.tx || 0))}\n` +
+        `• Total: ${code(formatBytes(usage.total || 0))}\n`;
 
-      await ctx.reply(msg, { parse_mode: 'HTML', ...keyboards.backButton() });
+      await ctx.reply(msg, { parse_mode: 'Markdown', ...keyboards.backButton() });
       logger.info(userId, 'outline_usage', { keyId: user.outline.keyId, usage });
     } catch (err) {
       logger.error('actionOutlineUsage', err, { userId });
@@ -467,7 +473,7 @@ class VPNHandler {
   }
 
   // -----------------------------
-  // OUTLINE: solicitar eliminación (muestra confirm)
+  // OUTLINE: solicitar eliminación
   // -----------------------------
   async actionOutlineDelete(ctx) {
     const userId = ctx.from?.id;
@@ -501,7 +507,6 @@ class VPNHandler {
 
   // -----------------------------
   // CALLBACK: confirm delete outline
-  // signature: confirmDeleteOutlineKey(ctx, keyId)
   // -----------------------------
   async confirmDeleteOutlineKey(ctx, keyId) {
     const userId = ctx.from?.id;
@@ -518,7 +523,6 @@ class VPNHandler {
 
       await OutlineService.deleteKeyForUser(String(userId));
 
-      // remove local mapping
       if (user && user.outline && user.outline.keyId === keyId) {
         delete user.outline;
         await userManager.saveUsers();
@@ -538,7 +542,7 @@ class VPNHandler {
   async handleListClients(ctx) {
     const userId = ctx.from?.id;
     if (ctx.answerCbQuery) await ctx.answerCbQuery().catch(() => {});
-    await ctx.reply('⏳ Consultando...', { parse_mode: 'HTML' });
+    await ctx.reply('⏳ Consultando...', { parse_mode: 'Markdown' });
 
     try {
       const [wgClients, outlineKeys] = await Promise.all([
@@ -546,13 +550,17 @@ class VPNHandler {
         OutlineService.listAccessKeys()
       ]);
 
-      // format compact message
-      const wgLines = (wgClients || []).map((c, i) => `${i + 1}) ${c.ip} • ${formatBytes(c.dataReceived || 0)} ↓ • ${formatBytes(c.dataSent || 0)} ↑`).join('\n') || 'No hay clientes WireGuard';
-      const olLines = (outlineKeys || []).map((k, i) => `${i + 1}) ${k.id} • ${k.name || 'Sin nombre'}`).join('\n') || 'No hay claves Outline';
+      const wgLines = (wgClients || [])
+        .map((c, i) => `${i + 1}) ${code(c.ip)} • ${formatBytes(c.dataReceived || 0)} ↓ • ${formatBytes(c.dataSent || 0)} ↑`)
+        .join('\n') || 'No hay clientes WireGuard';
 
-      const msg = `<b>📊 CLIENTES ACTIVOS</b>\n\n<b>🔐 WireGuard</b>\n${wgLines}\n\n<b>🌐 Outline</b>\n${olLines}`;
+      const olLines = (outlineKeys || [])
+        .map((k, i) => `${i + 1}) ${code(k.id)} • ${escapeMarkdown(k.name || 'Sin nombre')}`)
+        .join('\n') || 'No hay claves Outline';
 
-      await ctx.reply(msg, { parse_mode: 'HTML', ...keyboards.backButton() });
+      const msg = `${bold('📊 CLIENTES ACTIVOS')}\n\n${bold('🔐 WireGuard')}\n${wgLines}\n\n${bold('🌐 Outline')}\n${olLines}`;
+
+      await ctx.reply(msg, { parse_mode: 'Markdown', ...keyboards.backButton() });
 
       logger.info(userId, 'list_clients', { wg: (wgClients || []).length, outline: (outlineKeys || []).length });
     } catch (err) {
@@ -560,18 +568,6 @@ class VPNHandler {
       await ctx.reply(messages.ERROR_LIST_CLIENTS, keyboards.backButton());
     }
   }
-}
-
-// -----------------------------
-// Helpers locales
-// -----------------------------
-function formatBytes(bytes) {
-  if (!bytes || bytes <= 0) return '0 B';
-  const k = 1024;
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const val = (bytes / Math.pow(k, i)).toFixed(2);
-  return `${val} ${units[i]}`;
 }
 
 module.exports = new VPNHandler();

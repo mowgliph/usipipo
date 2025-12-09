@@ -3,7 +3,6 @@
 const userManager = require('../services/userManager.service');
 const messages = require('../utils/messages');
 const logger = require('../utils/logger');
-const { escapeHtml } = require('../utils/formatters');
 
 // ============================================================================
 // 🔎 User Metadata Helper
@@ -12,13 +11,15 @@ const { escapeHtml } = require('../utils/formatters');
 /**
  * Obtiene toda la metadata relevante del usuario que realiza una acción.
  * Se usa en logs, validaciones y auditorías.
+ * Nota: Los nombres se mantienen en formato RAW (sin escapar) para legibilidad en logs.
  */
 function getUserMeta(ctx) {
   const userId = ctx.from?.id;
   const username = ctx.from?.username ? `@${ctx.from.username}` : null;
 
-  const firstName = escapeHtml(ctx.from?.first_name || '');
-  const lastName = escapeHtml(ctx.from?.last_name || '');
+  const firstName = ctx.from?.first_name || '';
+  const lastName = ctx.from?.last_name || '';
+  
   const fullName =
     (firstName + ' ' + lastName).trim() ||
     username ||
@@ -47,7 +48,8 @@ async function requireAuth(ctx, next) {
     if (!meta.isAuthorized) {
       logger.warn('ACCESS DENIED — User not authorized', meta);
 
-      await ctx.reply(messages.ACCESS_DENIED, { parse_mode: 'HTML' });
+      // Usamos Markdown V1
+      await ctx.reply(messages.ACCESS_DENIED, { parse_mode: 'Markdown' });
       return;
     }
 
@@ -58,7 +60,7 @@ async function requireAuth(ctx, next) {
 
     await ctx.reply(
       '⚠️ Ocurrió un error durante la verificación de permisos.',
-      { parse_mode: 'HTML' }
+      { parse_mode: 'Markdown' }
     );
   }
 }
@@ -73,7 +75,7 @@ async function requireAdmin(ctx, next) {
     if (!meta.isAdmin) {
       logger.warn('ACCESS DENIED — Admin only', meta);
 
-      await ctx.reply(messages.ADMIN_ONLY, { parse_mode: 'HTML' });
+      await ctx.reply(messages.ADMIN_ONLY, { parse_mode: 'Markdown' });
       return;
     }
 
@@ -84,7 +86,7 @@ async function requireAdmin(ctx, next) {
 
     await ctx.reply(
       '⚠️ Error interno al validar los permisos de administrador.',
-      { parse_mode: 'HTML' }
+      { parse_mode: 'Markdown' }
     );
   }
 }
