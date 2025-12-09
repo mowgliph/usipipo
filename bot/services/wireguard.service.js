@@ -55,6 +55,7 @@ class WireGuardService {
   // --------------------------------------------------
   // UTIL: comprobar que wg está disponible
   // --------------------------------------------------
+
   async _ensureTools() {
     // Chequeo simple: wg must be available
     try {
@@ -62,12 +63,35 @@ class WireGuardService {
     } catch (err) {
       logger.warn('wg not found or check failed', { err: err.message });
     }
+    
     // ensure clients dir exists
+    // MODIFICACIÓN: Intentar crear con fs.mkdir, y si falla por EACCES (Permission Denied), 
+    // intentar de nuevo ejecutando 'sudo mkdir -p' a través de runCmd.
     try {
-      await fs.mkdir(this.clientsDir, { recursive: true });
+      // 1. Intentar creación normal (se prefiere si los permisos son correctos)
+      await fs.mkdir(this.clientsDir, { recursive: true }); 
     } catch (err) {
-      logger.error('Unable to create clients dir', { dir: this.clientsDir, err: err.message });
-      throw err;
+      if (err.code === 'EACCES' || err.code === 'EPERM') {
+        logger.warn('Permission denied creating clients dir. Attempting with sudo via runCmd...', { dir: this.clientsDir });
+        try {
+          // 2. Si falla por permisos, intentar con sudo.
+          // Nota: Esto requiere que el usuario del bot esté configurado en sudoers con NOPASSWD.
+          await runCmd(`sudo mkdir -p ${this.clientsDir}`);
+          // 3. Establecer los permisos de propietario de vuelta al usuario del bot (opcional pero recomendado)
+          // Se asume que el usuario que ejecuta el bot es el que debe ser propietario.
+          // Para saber el usuario, usaremos $USER o $LOGNAME (si está disponible)
+          await runCmd(`sudo chown $USER:$USER ${this.clientsDir} || sudo chown $LOGNAME:$LOGNAME ${this.clientsDir} || true`);
+          logger.ok('Clients dir created successfully with sudo and ownership set.');
+
+        } catch (sudoErr) {
+          logger.error('Unable to create clients dir even with sudo command', { dir: this.clientsDir, err: sudoErr.message });
+          throw new Error(`Fallo al crear ${this.clientsDir}: ${sudoErr.message}`);
+        }
+      } else {
+        // 3. Otros errores (ej. disco lleno, nombre inválido)
+        logger.error('Unable to create clients dir', { dir: this.clientsDir, err: err.message });
+        throw err;
+      }
     }
   }
 
