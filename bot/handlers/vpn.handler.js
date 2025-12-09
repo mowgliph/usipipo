@@ -390,7 +390,7 @@ class VPNHandler {
       const safeName = (ctx.from?.username || ctx.from?.first_name || `User${uid}`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
       const keyName = `TG-${safeName}-${Date.now()}`;
 
-      const accessKey = await OutlineService.createAccessKey(keyName);
+      const accessKey = await OutlineService.createKey(keyName);
 
       // Store in userManager
       let user = userManager.getUser(uid);
