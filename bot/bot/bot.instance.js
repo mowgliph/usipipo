@@ -17,7 +17,8 @@ const NotificationService = require('../services/notification.service');
 
 // Handlers
 const AuthHandler = require('../handlers/auth.handler');
-const VPNHandler = require('../handlers/vpn.handler');
+// CAMBIO 1: Importamos la instancia directamente (vpnHandler con minúscula)
+const vpnHandler = require('../handlers/vpn.handler'); 
 const InfoHandler = require('../handlers/info.handler');
 const AdminHandler = require('../handlers/admin.handler');
 
@@ -37,7 +38,8 @@ const bot = new Telegraf(config.TELEGRAM_TOKEN, {
 const notificationService = new NotificationService(bot);
 
 const authHandler = new AuthHandler(notificationService);
-const vpnHandler = new VPNHandler();
+// CAMBIO 2: Eliminamos la línea "const vpnHandler = new VPNHandler();" 
+// porque ya importamos la instancia arriba.
 const infoHandler = new InfoHandler();
 const adminHandler = new AdminHandler(notificationService);
 
@@ -56,6 +58,9 @@ bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
 bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
 bot.command('help', (ctx) => authHandler.handleHelp(ctx));
 bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx));
+
+// Comandos VPN específicos (agregados por seguridad si no estaban antes)
+bot.command('vpn', (ctx) => vpnHandler.cmdVpn(ctx));
 
 // =====================================================================================
 // 🟡 ADMIN COMMANDS
@@ -104,8 +109,19 @@ bot.action('request_access', (ctx) => authHandler.handleAccessRequest(ctx));
 bot.action('check_status', (ctx) => authHandler.handleCheckStatus(ctx));
 
 // ----------- VPN ACTIONS -----------
+bot.action('vpn_menu', requireAuth, (ctx) => vpnHandler.actionVpnMenu(ctx)); // Agregado por seguridad
+bot.action('wg_menu', requireAuth, (ctx) => vpnHandler.actionWgMenu(ctx)); // Agregado
+bot.action('outline_menu', requireAuth, (ctx) => vpnHandler.actionOutlineMenu(ctx)); // Agregado
 bot.action('create_wg', requireAuth, (ctx) => vpnHandler.handleCreateWireGuard(ctx));
+bot.action('wg_show', requireAuth, (ctx) => vpnHandler.actionWgShowConfig(ctx)); // Agregado
+bot.action('wg_download', requireAuth, (ctx) => vpnHandler.actionWgDownload(ctx)); // Agregado
+bot.action('wg_qr', requireAuth, (ctx) => vpnHandler.actionWgShowQr(ctx)); // Agregado
+bot.action('wg_usage', requireAuth, (ctx) => vpnHandler.actionWgUsage(ctx)); // Agregado
+bot.action('wg_delete', requireAuth, (ctx) => vpnHandler.actionWgDelete(ctx)); // Agregado
 bot.action('create_outline', requireAuth, (ctx) => vpnHandler.handleCreateOutline(ctx));
+bot.action('outline_show', requireAuth, (ctx) => vpnHandler.actionOutlineShow(ctx)); // Agregado
+bot.action('outline_usage', requireAuth, (ctx) => vpnHandler.actionOutlineUsage(ctx)); // Agregado
+bot.action('outline_delete', requireAuth, (ctx) => vpnHandler.actionOutlineDelete(ctx)); // Agregado
 bot.action('list_clients', requireAuth, (ctx) => vpnHandler.handleListClients(ctx));
 
 // ----------- SYSTEM / HELP -----------
@@ -113,7 +129,7 @@ bot.action('server_status', requireAuth, (ctx) => infoHandler.handleServerStatus
 bot.action('help', (ctx) => infoHandler.handleHelp(ctx));
 
 // =====================================================================================
-// 🔥 UNIVERSAL CONFIRMATION SYSTEM (Opción A - Profesional)
+// 🔥 UNIVERSAL CONFIRMATION SYSTEM
 // =====================================================================================
 
 // Cancelar acción
@@ -193,11 +209,18 @@ bot.on('text', async (ctx) => {
       const admin = isAdmin(userId);
       return ctx.reply(messages.UNKNOWN_COMMAND(admin));
     }
+    
+    // Si tienes un menú de selección VPN en keyboards.js
+    if (keyboards.vpnSelectionMenu) {
+       return ctx.reply(
+          messages.GENERIC_TEXT_PROMPT(ctx.from?.first_name),
+          keyboards.vpnSelectionMenu()
+       );
+    } else {
+       // Fallback simple si no existe vpnSelectionMenu
+       return ctx.reply('Use /help para ver los comandos.');
+    }
 
-    return ctx.reply(
-      messages.GENERIC_TEXT_PROMPT(ctx.from?.first_name),
-      keyboards.vpnSelectionMenu()
-    );
   } catch (err) {
     logger.error('text_handler', err, { userId });
   }

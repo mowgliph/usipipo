@@ -20,6 +20,7 @@
 │   ├── services
 │   │   ├── notification.service.js
 │   │   ├── outline.service.js
+│   │   ├── systemJobs.service.js
 │   │   ├── userManager.service.js
 │   │   └── wireguard.service.js
 │   └── utils
@@ -27,14 +28,16 @@
 │       ├── keyboards.js
 │       ├── logger.js
 │       └── messages.js
-├── docker-compose.yml
-├── docker.sh
 ├── example.env
+├── install.sh
 ├── issues.txt
 ├── logs
-│   └── install_20251207.log
+│   ├── install_20251207.log
+│   └── install_20251207_203627.log
+├── ol_server.sh
 ├── package.json
 ├── pm2.config.js
-└── structured.md
+├── structured.md
+└── wg_server.sh
 
-10 directories, 28 files
+10 directories, 31 files
