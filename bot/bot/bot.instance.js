@@ -221,11 +221,14 @@ bot.on('text', async (ctx) => {
   try {
     if (text.startsWith('/')) {
       const admin = isAdmin(userId);
+      // Solo responde con "Comando desconocido" si empieza por / y no ha sido capturado
       return ctx.reply(messages.UNKNOWN_COMMAND(admin));
     }
     
-    // ⭐ FALLBACK → StartHandler (menú principal)
-    return startHandler.handleStart(ctx);
+    // 🛑 IMPORTANTE: Eliminamos el fallback a startHandler.handleStart(ctx).
+    // Si el usuario está en un flujo (ej: 'dame el nombre del cliente'),
+    // el texto debe ser procesado por el handler de estado (e.g., vpnHandler) 
+    // que se encarga de manejar la conversación.
     
   } catch (err) {
     logger.error('text_handler', err, { userId });
