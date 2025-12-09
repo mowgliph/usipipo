@@ -2,18 +2,8 @@
 
 const { Markup } = require('telegraf');
 
-/**
- * ============================================================================
- * 🎛️ Teclados Inline — uSipipo VPN Manager
- * UI estilo App: navegación limpia, profesional y coherente.
- * Refactorizado para incluir menús faltantes y prevenir crash.
- * ============================================================================
- */
-
 const keyboards = {
-  // ========================================================================
-  // 🟢 MENÚ PRINCIPAL — Usuario Autorizado
-  // ========================================================================
+  // ... (Tus menús homeAuthorized y homeUnauthorized se quedan igual) ...
   homeAuthorized: () =>
     Markup.inlineKeyboard([
       [Markup.button.callback('🔐 VPN (WireGuard/Outline)', 'vpn_menu')],
@@ -24,9 +14,6 @@ const keyboards = {
       [Markup.button.callback('❓ Ayuda', 'help')]
     ]),
 
-  // ========================================================================
-  // 🔴 MENÚ PRINCIPAL — Usuario NO autorizado
-  // ========================================================================
   homeUnauthorized: () =>
     Markup.inlineKeyboard([
       [Markup.button.callback('🔓 Solicitar Acceso', 'request_access')],
@@ -36,27 +23,19 @@ const keyboards = {
       ]
     ]),
 
-  // ========================================================================
-  // 👤 MENÚ DE INFORMACIÓN DE USUARIO (Fix: Añadido para AuthHandler)
-  // ========================================================================
   userInfoMenu: () =>
     Markup.inlineKeyboard([
       [Markup.button.callback('🔄 Actualizar', 'show_my_info')],
       [Markup.button.callback('⬅️ Volver al Inicio', 'start')]
     ]),
 
-  // ========================================================================
-  // ❓ MENÚ DE AYUDA (Fix: Añadido para AuthHandler)
-  // ========================================================================
   helpMenu: () =>
     Markup.inlineKeyboard([
-      [Markup.button.url('🆘 Soporte Oficial', 'https://t.me/TuUsuarioDeSoporte')], // Cambia esto si tienes un canal/usuario real
+      // Cambia la URL por tu contacto real
+      [Markup.button.url('🆘 Soporte Oficial', 'https://t.me/TuUsuarioDeSoporte')],
       [Markup.button.callback('⬅️ Volver al Inicio', 'start')]
     ]),
 
-  // ========================================================================
-  // 📡 MENU GENERAL DE VPN
-  // ========================================================================
   vpnMenu: () =>
     Markup.inlineKeyboard([
       [
@@ -67,9 +46,7 @@ const keyboards = {
       [Markup.button.callback('⬅️ Volver al Inicio', 'start')]
     ]),
 
-  // ========================================================================
-  // 🔐 SUBMENÚ — WireGuard
-  // ========================================================================
+  // ... (wgMenu y outlineMenu se quedan igual) ...
   wgMenu: () =>
     Markup.inlineKeyboard([
       [Markup.button.callback('➕ Crear Nuevo', 'create_wg')],
@@ -85,9 +62,6 @@ const keyboards = {
       [Markup.button.callback('⬅️ Volver', 'vpn_menu')]
     ]),
 
-  // ========================================================================
-  // 🌐 SUBMENÚ — Outline
-  // ========================================================================
   outlineMenu: () =>
     Markup.inlineKeyboard([
       [Markup.button.callback('➕ Crear Nueva Clave', 'create_outline')],
@@ -99,12 +73,18 @@ const keyboards = {
       [Markup.button.callback('⬅️ Volver', 'vpn_menu')]
     ]),
 
-  // ========================================================================
-  // ⚠️ CONFIRMACIÓN Y NAVEGACIÓN
-  // ========================================================================
+  // === BOTONES DE NAVEGACIÓN ===
+
+  // Úsalo dentro de menús profundos de VPN
   backButton: () =>
     Markup.inlineKeyboard([
       [Markup.button.callback('⬅️ Volver', 'vpn_menu')]
+    ]),
+
+  // NUEVO: Úsalo para Info, Ayuda o Estado del Servidor
+  backToMain: () =>
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Volver al Inicio', 'start')]
     ]),
 
   cancelButton: () =>
@@ -112,9 +92,6 @@ const keyboards = {
       [Markup.button.callback('❌ Cancelar', 'cancel_action')]
     ]),
 
-  // ========================================================================
-  // ⌨️ MENÚ DE TEXTO (Fallback)
-  // ========================================================================
   vpnSelectionMenu: () => {
     return Markup.keyboard([
       ['/start', '/help'],
