@@ -667,6 +667,57 @@ uninstall_wireguard() {
 }
 
 # =============================================================================
+# Configuración de Permisos para el Bot (uSipipoVPNBot)
+# =============================================================================
+configure_bot_permissions() {
+    log_header "🛡️ Configurando permisos de WireGuard para el bot"
+    
+    # Usuario que ejecuta el bot (asumimos el usuario actual si no se especifica)
+    BOT_USER=${SUDO_USER:-$(whoami)}
+    
+    log "Usuario del bot identificado: ${BOT_USER}"
+    
+    if [ "${BOT_USER}" = "root" ]; then
+        log_warn "El bot se está ejecutando como 'root'. NO se modificará el sudoers, pero se asegurará la carpeta."
+    else
+        # 1. Añadir reglas NOPASSWD para los comandos críticos de WireGuard
+        log "Añadiendo reglas NOPASSWD para ${BOT_USER} en sudoers..."
+
+        # Comandos que necesitan sudo:
+        # - mkdir /etc/wireguard/clients
+        # - chown /etc/wireguard/clients (para que el bot pueda escribir sin sudo)
+        # - wg set / wg show (para añadir/eliminar peers y listar tráfico)
+
+        # Usamos tee para añadir las reglas sin romper el archivo sudoers
+        # Creamos un archivo de configuración separado para evitar conflictos en /etc/sudoers
+        SUDOERS_FILE="/etc/sudoers.d/usipipo_wg_bot"
+
+        cat > "$SUDOERS_FILE" <<EOF
+# Permisos de WireGuard para el bot ${BOT_USER}
+${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/mkdir -p /etc/wireguard/clients
+${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/chown -R * /etc/wireguard/clients
+${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/wg set *
+${BOT_USER} ALL=(root) NOPASSWD: /usr/bin/wg show *
+EOF
+        # Establecer permisos seguros para el archivo sudoers
+        chmod 0440 "$SUDOERS_FILE"
+        log_success "Reglas de NOPASSWD añadidas a ${SUDOERS_FILE}."
+    fi
+
+    # 2. Asegurar que el directorio de clientes existe y es propiedad del BOT_USER
+    log "Asegurando el directorio de clientes: ${WG_PATH}/clients"
+    
+    # Crear la carpeta con run_sudo (que usa sudo si no somos root)
+    run_sudo mkdir -p "${WG_PATH}/clients"
+    
+    # Dar propiedad al usuario del bot. Esto es lo que permite que el servicio
+    # Node.js escriba en la carpeta sin usar sudo.
+    run_sudo chown -R "${BOT_USER}:${BOT_USER}" "${WG_PATH}/clients"
+
+    log_success "✔ Permisos y directorios de WireGuard configurados correctamente."
+}
+
+# =============================================================================
 # Menu
 # =============================================================================
 show_menu() {
@@ -691,7 +742,10 @@ show_menu() {
     case "$choice" in
         1) install_docker_wrapper ;;
         2) install_outline ;;
-        3) install_wireguard ;;
+        3) 
+            install_wireguard
+            configure_bot_permissions
+            ;;
         4) extract_vpn_vars ;;
         5) vpn_status ;;
         6) vpn_logs ;;
@@ -712,6 +766,7 @@ show_menu() {
     read -p "Press Enter to continue..." dummy
     show_menu
 }
+
 
 # =============================================================================
 # Bootstrap: ensure example.env exists (create from template if missing)

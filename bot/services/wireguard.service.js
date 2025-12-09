@@ -64,36 +64,34 @@ class WireGuardService {
       logger.warn('wg not found or check failed', { err: err.message });
     }
     
-    // ensure clients dir exists
-    // MODIFICACIÓN: Intentar crear con fs.mkdir, y si falla por EACCES (Permission Denied), 
-    // intentar de nuevo ejecutando 'sudo mkdir -p' a través de runCmd.
+    // 1. Intentamos crear el directorio. Si el install.sh se ejecutó, esto debería
+    //    funcionar sin problemas porque la carpeta ya existe y es propiedad del BOT_USER.
     try {
-      // 1. Intentar creación normal (se prefiere si los permisos son correctos)
-      await fs.mkdir(this.clientsDir, { recursive: true }); 
-    } catch (err) {
-      if (err.code === 'EACCES' || err.code === 'EPERM') {
-        logger.warn('Permission denied creating clients dir. Attempting with sudo via runCmd...', { dir: this.clientsDir });
-        try {
-          // 2. Si falla por permisos, intentar con sudo.
-          // Nota: Esto requiere que el usuario del bot esté configurado en sudoers con NOPASSWD.
-          await runCmd(`sudo mkdir -p ${this.clientsDir}`);
-          // 3. Establecer los permisos de propietario de vuelta al usuario del bot (opcional pero recomendado)
-          // Se asume que el usuario que ejecuta el bot es el que debe ser propietario.
-          // Para saber el usuario, usaremos $USER o $LOGNAME (si está disponible)
-          await runCmd(`sudo chown $USER:$USER ${this.clientsDir} || sudo chown $LOGNAME:$LOGNAME ${this.clientsDir} || true`);
-          logger.ok('Clients dir created successfully with sudo and ownership set.');
+      await fs.mkdir(this.clientsDir, { recursive: true });
+      logger.debug('Clients dir ensured via fs.mkdir.', { dir: this.clientsDir });
 
-        } catch (sudoErr) {
-          logger.error('Unable to create clients dir even with sudo command', { dir: this.clientsDir, err: sudoErr.message });
-          throw new Error(`Fallo al crear ${this.clientsDir}: ${sudoErr.message}`);
-        }
+    } catch (err) {
+      // 2. Si hay un fallo de permisos (EACCES) o cualquier otro, usamos 'sudo mkdir'
+      //    para intentar arreglar la situación una última vez (requiere NOPASSWD).
+      //    Esto actúa como un "auto-arreglo" si los permisos se corrompen.
+      if (err.code === 'EACCES' || err.code === 'EPERM') {
+         logger.warn('Permission denied creating clients dir. Attempting system fix...', { dir: this.clientsDir });
+         try {
+            await runCmd(`sudo mkdir -p ${this.clientsDir}`);
+            await runCmd(`sudo chown -R $USER:$USER ${this.clientsDir} || sudo chown -R $LOGNAME:$LOGNAME ${this.clientsDir} || true`);
+            logger.info('Clients dir created/fixed successfully via sudo.');
+         } catch (fixErr) {
+            logger.error('CRITICAL: Failed to create/fix clients dir even with sudo.', { dir: this.clientsDir, err: fixErr.message });
+            throw new Error(`Fallo al crear ${this.clientsDir}: ${fixErr.message}. Verifica los permisos del usuario del bot en /etc/wireguard/clients.`);
+         }
       } else {
-        // 3. Otros errores (ej. disco lleno, nombre inválido)
+        // Otros errores graves
         logger.error('Unable to create clients dir', { dir: this.clientsDir, err: err.message });
         throw err;
       }
     }
   }
+
 
   // --------------------------------------------------
   // UTIL: generar nombre de cliente a partir de telegram id
