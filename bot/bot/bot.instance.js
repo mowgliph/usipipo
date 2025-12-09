@@ -1,4 +1,12 @@
-'use strict';
+/**
+ * @fileoverview StartHandler.js — Manejador principal del menú inicial (v1.0.0)
+ * @version 1.0.0
+ * @author Team uSipipo
+ * @description Maneja /start y callback 'start' con limpieza de UI premium.
+ * Compatible con AuthHandler existente y UserManager singleton.
+ */
+ 
+ 'use strict';
 
 const { Telegraf } = require('telegraf');
 const config = require('../config/environment');
@@ -15,7 +23,8 @@ const {
 // Services
 const NotificationService = require('../services/notification.service');
 
-// Handlers
+// 🆕 Handlers
+const StartHandler = require('../handlers/start.handler');  // ⭐ NUEVO
 const AuthHandler = require('../handlers/auth.handler');
 const vpnHandler = require('../handlers/vpn.handler'); 
 const InfoHandler = require('../handlers/info.handler');
@@ -36,6 +45,8 @@ const bot = new Telegraf(config.TELEGRAM_TOKEN, {
 
 const notificationService = new NotificationService(bot);
 
+// 🆕 Instancias de handlers
+const startHandler = new StartHandler();
 const authHandler = new AuthHandler(notificationService);
 const infoHandler = new InfoHandler();
 const adminHandler = new AdminHandler(notificationService);
@@ -47,13 +58,17 @@ const adminHandler = new AdminHandler(notificationService);
 bot.use(logUserAction);
 
 // =====================================================================================
-// 🟢 USER COMMANDS
+// 🟢 USER COMMANDS — MIGRANTES A START HANDLER
 // =====================================================================================
 
-bot.command('start', (ctx) => authHandler.handleStart(ctx));
+// ⭐ /start → StartHandler (nuevo estándar premium)
+bot.command('start', (ctx) => startHandler.handleStart(ctx));
+
+// ❌ REMOVIDO: authHandler.handleStart(ctx) ← Reemplazado por StartHandler
+
 bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
 bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
-bot.command('help', (ctx) => authHandler.handleHelp(ctx));
+bot.command('help', (ctx) => infoHandler.handleHelp(ctx));  // ✅ Migrado a InfoHandler
 bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx));
 
 // Comandos VPN específicos
@@ -88,9 +103,10 @@ bot.command('forceadmin', async (ctx) => {
     const userManager = require('../services/userManager.service');
     await userManager.syncAdminFromEnv();
 
-    // Actualizado a sintaxis Markdown V1
     await ctx.reply(
-      `✅ *Admin sincronizado correctamente*\n\n🆔 \`${config.ADMIN_ID}\``
+      `✅ *Admin sincronizado correctamente*
+
+🆔 `${config.ADMIN_ID}``
     );
   } catch (error) {
     await ctx.reply(`❌ Error: ${error.message}`);
@@ -100,6 +116,9 @@ bot.command('forceadmin', async (ctx) => {
 // =====================================================================================
 // 🟦 APP-STYLE NAVIGATION MENUS (UI / Botones)
 // =====================================================================================
+
+// ⭐ BOTÓN "Volver al Inicio" → StartHandler
+bot.action('start', (ctx) => startHandler.handleStart(ctx));  // ⭐ NUEVO: Reemplaza redirecciones
 
 // ----------- USER MAIN NAVIGATION -----------
 bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));
@@ -113,7 +132,7 @@ bot.action('outline_menu', requireAuth, (ctx) => vpnHandler.actionOutlineMenu(ct
 bot.action('create_wg', requireAuth, (ctx) => vpnHandler.handleCreateWireGuard(ctx));
 bot.action('wg_show', requireAuth, (ctx) => vpnHandler.actionWgShowConfig(ctx));
 bot.action('wg_download', requireAuth, (ctx) => vpnHandler.actionWgDownload(ctx));
-bot.action('wg_qr', requireAuth, (ctx) => vpnHandler.actionWgShowQr(ctx));
+bot.action('wg_qr', requireAuth, (ctx) => vpnHandler.actionWgQr(ctx));
 bot.action('wg_usage', requireAuth, (ctx) => vpnHandler.actionWgUsage(ctx));
 bot.action('wg_delete', requireAuth, (ctx) => vpnHandler.actionWgDelete(ctx));
 bot.action('create_outline', requireAuth, (ctx) => vpnHandler.handleCreateOutline(ctx));
@@ -195,7 +214,7 @@ bot.catch(async (err, ctx) => {
 });
 
 // =====================================================================================
-// 🟨 TEXT HANDLER → fallback al menú VPN
+// 🟨 TEXT HANDLER → fallback al menú principal
 // =====================================================================================
 
 bot.on('text', async (ctx) => {
@@ -208,17 +227,9 @@ bot.on('text', async (ctx) => {
       return ctx.reply(messages.UNKNOWN_COMMAND(admin));
     }
     
-    // Si existe el menú de selección VPN en keyboards.js
-    if (keyboards.vpnSelectionMenu) {
-       return ctx.reply(
-          messages.GENERIC_TEXT_PROMPT(ctx.from?.first_name),
-          keyboards.vpnSelectionMenu()
-       );
-    } else {
-       // Fallback simple
-       return ctx.reply('Use /help para ver los comandos.');
-    }
-
+    // ⭐ FALLBACK → StartHandler (menú principal)
+    return startHandler.handleStart(ctx);
+    
   } catch (err) {
     logger.error('text_handler', err, { userId });
   }

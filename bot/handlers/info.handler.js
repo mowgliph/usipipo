@@ -1,7 +1,8 @@
 /**
  * @fileoverview Manejador de comandos de información (estado del servidor, ayuda, lista de comandos).
- * @version 1.0.0
+ * @version 1.0.1
  * @author Team uSipipo
+ * @description Implementa la limpieza de la UI (eliminación del mensaje de interacción previa).
  */
 
 'use strict';
@@ -30,19 +31,50 @@ class InfoHandler {
       disable_web_page_preview: true, // Recomendado para evitar previsualizaciones no deseadas
     };
   }
+  
+  /**
+   * 🆕 Método auxiliar para eliminar el mensaje de la interacción previa (comando o botón).
+   * @private
+   * @param {object} ctx - Objeto de contexto de Telegraf.
+   */
+  async _cleanPreviousMessage(ctx) {
+    let chatId = ctx.chat?.id;
+    let messageId;
+
+    if (ctx.callbackQuery) {
+      // Si es un callback de un botón, el mensaje a eliminar es el mensaje del botón.
+      messageId = ctx.callbackQuery.message?.message_id;
+    } else if (ctx.message) {
+      // Si es un comando o texto, el mensaje a eliminar es el mensaje del usuario.
+      messageId = ctx.message.message_id;
+    }
+
+    if (chatId && messageId) {
+      try {
+        await ctx.deleteMessage(messageId);
+        logger.debug(`Mensaje ${messageId} eliminado en chat ${chatId}.`);
+      } catch (e) {
+        // Ignoramos errores comunes como "Message to delete not found" (si ya fue eliminado)
+        // o si el bot no tiene permisos de administrador.
+        logger.debug('No se pudo eliminar el mensaje previo:', e.message);
+      }
+    }
+  }
 
   // ==========================================================================
   // 🖥️ ESTADO DEL SERVIDOR (/status)
   // ==========================================================================
   /**
    * Maneja la solicitud del estado del servidor.
-   * Obtiene la información del servicio Outline y la presenta al usuario.
    * @param {object} ctx - Objeto de contexto de Telegraf.
    */
   async handleServerStatus(ctx) {
     const userId = ctx.from?.id;
 
-    // Responde al callbackQuery si existe para eliminar el estado de carga
+    // 1. Limpieza de UI: Eliminar el mensaje del comando o botón
+    await this._cleanPreviousMessage(ctx);
+    
+    // 2. Responde al callbackQuery si existe para eliminar el estado de carga
     if (ctx.callbackQuery) {
       await ctx.answerCbQuery().catch(e => logger.debug('Error al responder a cbQuery en status:', e.message));
     }
@@ -57,13 +89,11 @@ class InfoHandler {
           outlineInfo = await OutlineService.getServerInfo();
           logData.service_ok = true;
         } else {
-          // Fallback en caso de que el método aún no esté disponible o se llame mal
           outlineInfo = { version: 'N/A', status: 'Unavailable', error: true };
           logData.service_ok = false;
         }
       } catch (serviceErr) {
         logger.warn('OutlineService.getServerInfo ha fallado', serviceErr.message, logData);
-        // Marcador de error para el mensaje al usuario
         outlineInfo = { error: true, status: 'Error' };
         logData.service_ok = false;
       }
@@ -98,6 +128,10 @@ class InfoHandler {
     const userIdString = userId?.toString();
     const authorized = isAuthorized(userIdString);
 
+    // 1. Limpieza de UI: Eliminar el mensaje del comando o botón
+    await this._cleanPreviousMessage(ctx);
+
+    // 2. Responde al callbackQuery si existe
     if (ctx.callbackQuery) {
       await ctx.answerCbQuery().catch(e => logger.debug('Error al responder a cbQuery en help:', e.message));
     }
@@ -135,12 +169,15 @@ class InfoHandler {
     const userId = ctx.from?.id;
     const admin = isAdmin(userId);
 
+    // 1. Limpieza de UI: Eliminar el mensaje del comando o botón
+    await this._cleanPreviousMessage(ctx);
+
+    // 2. Responde al callbackQuery si existe
     if (ctx.callbackQuery) {
       await ctx.answerCbQuery().catch(e => logger.debug('Error al responder a cbQuery en commands:', e.message));
     }
 
     try {
-      // messages.COMMANDS_LIST ya maneja la lógica de incluir comandos de admin
       await ctx.reply(
         messages.COMMANDS_LIST(admin),
         this._getReplyOptions(keyboards.backButton())

@@ -1,3 +1,11 @@
+/**
+ * @fileoverview AuthHandler.js — Manejador de autenticación y perfil de usuario (v1.1.0)
+ * @version 1.1.0
+ * @author Team uSipipo
+ * @description Gestiona perfil (/miinfo), solicitudes de acceso, estado de cuenta y ayuda.
+ * StartHandler.js maneja ahora /start y callback 'start' (migrado v1.0.0).
+ */
+
 'use strict';
 
 const { isAuthorized, isAdmin } = require('../middleware/auth.middleware');
@@ -12,39 +20,7 @@ class AuthHandler {
   }
 
   // ============================================================================
-  // 🎛️ START — Vista principal tipo App
-  // ============================================================================
-  async handleStart(ctx) {
-    try {
-      const userId = ctx.from.id.toString();
-      const name = ctx.from.first_name || 'Usuario';
-
-      const authorized = isAuthorized(userId);
-
-      // messages.js ya devuelve texto formateado en Markdown V1 y escapado
-      const msg = authorized
-        ? messages.WELCOME_AUTHORIZED(name)
-        : messages.WELCOME_UNAUTHORIZED(name);
-
-      const keyboard = authorized
-        ? keyboards.homeAuthorized()
-        : keyboards.homeUnauthorized();
-
-      // FIX: Se añade parse_mode: 'Markdown' para que se vean las negritas
-      // Se combina el teclado con las opciones extra
-      await ctx.reply(msg, {
-        parse_mode: 'Markdown',
-        ...keyboard
-      });
-
-    } catch (err) {
-      logger.error('handleStart error', err);
-      ctx.reply('❌ Error al iniciar el menú.');
-    }
-  }
-
-  // ============================================================================
-  // 👤 MI INFO
+  // 👤 MI INFO (/miinfo, botón "Mi Info")
   // ============================================================================
   async handleUserInfo(ctx) {
     try {
@@ -58,7 +34,7 @@ class AuthHandler {
       
       await ctx.reply(msg, {
         parse_mode: 'Markdown',
-        ...keyboards.userInfoMenu() // Se usa la función que añadimos en keyboards.js
+        ...keyboards.userInfoMenu()
       });
     } catch (err) {
       logger.error('handleUserInfo error', err);
@@ -66,11 +42,10 @@ class AuthHandler {
   }
 
   // ============================================================================
-  // 📧 SOLICITAR ACCESO (botón)
+  // 📧 SOLICITAR ACCESO (botón "Solicitar Acceso")
   // ============================================================================
   async handleAccessRequest(ctx) {
     try {
-      // FIX CRÍTICO: Verificar explícitamente si es un callbackQuery antes de responder
       if (ctx.callbackQuery) await ctx.answerCbQuery('Solicitando...').catch(() => {});
       
       const user = ctx.from;
@@ -85,18 +60,16 @@ class AuthHandler {
   }
 
   // ============================================================================
-  // 📊 ESTADO DEL USUARIO
+  // 📊 ESTADO DEL USUARIO (/status, botón "Verificar Estado")
   // ============================================================================
   async handleCheckStatus(ctx) {
     try {
-      // FIX CRÍTICO: Evita el error "answerCbQuery isn't available for message"
       if (ctx.callbackQuery) await ctx.answerCbQuery().catch(() => {});
       
       const user = ctx.from;
       const userId = user.id.toString();
       const info = userManager.getUser(userId);
 
-      // 1. Usuario no existe en la DB
       if (!info) {
         const msg = messages.STATUS_NOT_REGISTERED 
           ? messages.STATUS_NOT_REGISTERED(user) 
@@ -108,9 +81,6 @@ class AuthHandler {
         });
       }
 
-      // 2. Verificar estado
-      // Nota: Reemplazamos keyboards.minimalBack() por keyboards.backButton()
-      // para evitar crash, ya que minimalBack no existía en el archivo anterior.
       switch (info.status) {
         case 'active':
           const msgActive = messages.STATUS_ACTIVE 
@@ -145,34 +115,11 @@ class AuthHandler {
   }
 
   // ============================================================================
-  // ❓ AYUDA
-  // ============================================================================
-  async handleHelp(ctx) {
-    try {
-      if (ctx.callbackQuery) await ctx.answerCbQuery().catch(() => {});
-
-      const authorized = isAuthorized(ctx.from.id.toString());
-      const msg = authorized ? messages.HELP_AUTHORIZED : messages.HELP_UNAUTHORIZED;
-
-      // Aseguramos que msg sea string para evitar errores si messages.js falla
-      const finalMsg = typeof msg === 'string' ? msg : 'ℹ️ *Sección de Ayuda*';
-
-      return ctx.reply(finalMsg, {
-        parse_mode: 'Markdown',
-        ...keyboards.helpMenu()
-      });
-    } catch (err) {
-      logger.error('handleHelp error', err);
-    }
-  }
-
-  // ============================================================================
-  // 👥 (ADMIN) — Vista rápida de usuarios 
+  // 👥 (ADMIN) — Vista rápida de usuarios (/users)
   // ============================================================================
   async handleListUsers(ctx) {
     const userId = ctx.from.id.toString();
     if (!isAdmin(userId)) {
-      // Enviamos sin markdown si es un mensaje simple de error, o con markdown si messages.js lo soporta
       return ctx.reply(messages.ADMIN_ONLY || '⛔ Acceso denegado', { parse_mode: 'Markdown' });
     }
 
@@ -181,7 +128,6 @@ class AuthHandler {
       const stats = userManager.getUserStats();
       const msg = messages.ADMIN_USER_LIST(users, stats);
 
-      // Usamos backButton() porque adminBackMenu() no existía en keyboards.js
       return ctx.reply(msg, {
         parse_mode: 'Markdown',
         ...keyboards.backButton()

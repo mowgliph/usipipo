@@ -32,8 +32,6 @@
 ├── install.sh
 ├── issues.txt
 ├── logs
-│   ├── install_20251207.log
-│   └── install_20251207_203627.log
 ├── ol_server.sh
 ├── package.json
 ├── pm2.config.js
