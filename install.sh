@@ -408,17 +408,28 @@ install_wireguard() {
         # source the params (use a subshell to avoid polluting environment)
         local WG_SERVER_PUB_IP WG_SERVER_PUB_NIC WG_SERVER_WG_NIC WG_SERVER_WG_IPV4 WG_SERVER_WG_IPV6 WG_SERVER_PORT WG_SERVER_PRIV_KEY WG_SERVER_PUB_KEY CLIENT_DNS_1 CLIENT_DNS_2 ALLOWED_IPS
         # read values safely
-        WG_SERVER_PUB_IP=$(run_sudo awk -F'=' '/^SERVER_PUB_IP=/{print $2}' "$params_file" | tr -d '"' || true)
-        WG_SERVER_PUB_NIC=$(run_sudo awk -F'=' '/^SERVER_PUB_NIC=/{print $2}' "$params_file" | tr -d '"' || true)
-        WG_SERVER_WG_NIC=$(run_sudo awk -F'=' '/^SERVER_WG_NIC=/{print $2}' "$params_file" | tr -d '"' || true)
-        WG_SERVER_WG_IPV4=$(run_sudo awk -F'=' '/^SERVER_WG_IPV4=/{print $2}' "$params_file" | tr -d '"' || true)
-        WG_SERVER_WG_IPV6=$(run_sudo awk -F'=' '/^SERVER_WG_IPV6=/{print $2}' "$params_file" | tr -d '"' || true)
-        WG_SERVER_PORT=$(run_sudo awk -F'=' '/^SERVER_PORT=/{print $2}' "$params_file" | tr -d '"' || true)
-        WG_SERVER_PRIV_KEY=$(run_sudo awk -F'=' '/^SERVER_PRIV_KEY=/{print $2}' "$params_file" | tr -d '"' || true)
-        WG_SERVER_PUB_KEY=$(run_sudo awk -F'=' '/^SERVER_PUB_KEY=/{print $2}' "$params_file" | tr -d '"' || true)
-        CLIENT_DNS_1=$(run_sudo awk -F'=' '/^CLIENT_DNS_1=/{print $2}' "$params_file" | tr -d '"' || true)
-        CLIENT_DNS_2=$(run_sudo awk -F'=' '/^CLIENT_DNS_2=/{print $2}' "$params_file" | tr -d '"' || true)
-        ALLOWED_IPS=$(run_sudo awk -F'=' '/^ALLOWED_IPS=/{print $2}' "$params_file" | tr -d '"' || true)
+        WG_SERVER_PUB_IP=$(run_sudo grep '^SERVER_PUB_IP=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        WG_SERVER_PUB_NIC=$(run_sudo grep '^SERVER_PUB_NIC=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        WG_SERVER_WG_NIC=$(run_sudo grep '^SERVER_WG_NIC=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        WG_SERVER_WG_IPV4=$(run_sudo grep '^SERVER_WG_IPV4=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        WG_SERVER_WG_IPV6=$(run_sudo grep '^SERVER_WG_IPV6=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        WG_SERVER_PORT=$(run_sudo grep '^SERVER_PORT=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        WG_SERVER_PRIV_KEY=$(run_sudo grep '^SERVER_PRIV_KEY=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        WG_SERVER_PUB_KEY=$(run_sudo grep '^SERVER_PUB_KEY=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        CLIENT_DNS_1=$(run_sudo grep '^CLIENT_DNS_1=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        CLIENT_DNS_2=$(run_sudo grep '^CLIENT_DNS_2=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        ALLOWED_IPS=$(run_sudo grep '^ALLOWED_IPS=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+        
+        # Validar que la clave pública tenga longitud correcta (44 chars)
+        if [[ -n "$WG_SERVER_PUB_KEY" && ${#WG_SERVER_PUB_KEY} -lt 44 ]]; then
+            log_warn "Clave pública extraída parece truncada (${#WG_SERVER_PUB_KEY} chars). Intentando obtener del sistema..."
+            WG_SERVER_PUB_KEY=$(run_sudo wg show "$WG_SERVER_WG_NIC" public-key 2>/dev/null || true)
+            if [[ -z "$WG_SERVER_PUB_KEY" ]]; then
+                log_err "No se pudo obtener la clave pública del sistema. El .env quedará sin clave válida."
+            else
+                log_ok "Clave pública obtenida del sistema: ${WG_SERVER_PUB_KEY:0:10}..."
+            fi
+        fi
 
         # Write into .env
         [ -n "$WG_SERVER_WG_NIC" ] && env_set "WG_INTERFACE" "$WG_SERVER_WG_NIC"
@@ -534,15 +545,26 @@ install_wireguard_extract_only() {
         return 1
     fi
     local WG_SERVER_WG_NIC WG_SERVER_WG_IPV4 WG_SERVER_WG_IPV6 WG_SERVER_PORT WG_SERVER_PRIV_KEY WG_SERVER_PUB_KEY CLIENT_DNS_1 CLIENT_DNS_2 ALLOWED_IPS
-    WG_SERVER_WG_NIC=$(run_sudo awk -F'=' '/^SERVER_WG_NIC=/{print $2}' "$params_file" | tr -d '"' || true)
-    WG_SERVER_WG_IPV4=$(run_sudo awk -F'=' '/^SERVER_WG_IPV4=/{print $2}' "$params_file" | tr -d '"' || true)
-    WG_SERVER_WG_IPV6=$(run_sudo awk -F'=' '/^SERVER_WG_IPV6=/{print $2}' "$params_file" | tr -d '"' || true)
-    WG_SERVER_PORT=$(run_sudo awk -F'=' '/^SERVER_PORT=/{print $2}' "$params_file" | tr -d '"' || true)
-    WG_SERVER_PRIV_KEY=$(run_sudo awk -F'=' '/^SERVER_PRIV_KEY=/{print $2}' "$params_file" | tr -d '"' || true)
-    WG_SERVER_PUB_KEY=$(run_sudo awk -F'=' '/^SERVER_PUB_KEY=/{print $2}' "$params_file" | tr -d '"' || true)
-    CLIENT_DNS_1=$(run_sudo awk -F'=' '/^CLIENT_DNS_1=/{print $2}' "$params_file" | tr -d '"' || true)
-    CLIENT_DNS_2=$(run_sudo awk -F'=' '/^CLIENT_DNS_2=/{print $2}' "$params_file" | tr -d '"' || true)
-    ALLOWED_IPS=$(run_sudo awk -F'=' '/^ALLOWED_IPS=/{print $2}' "$params_file" | tr -d '"' || true)
+    WG_SERVER_WG_NIC=$(run_sudo grep '^SERVER_WG_NIC=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    WG_SERVER_WG_IPV4=$(run_sudo grep '^SERVER_WG_IPV4=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    WG_SERVER_WG_IPV6=$(run_sudo grep '^SERVER_WG_IPV6=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    WG_SERVER_PORT=$(run_sudo grep '^SERVER_PORT=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    WG_SERVER_PRIV_KEY=$(run_sudo grep '^SERVER_PRIV_KEY=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    WG_SERVER_PUB_KEY=$(run_sudo grep '^SERVER_PUB_KEY=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    CLIENT_DNS_1=$(run_sudo grep '^CLIENT_DNS_1=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    CLIENT_DNS_2=$(run_sudo grep '^CLIENT_DNS_2=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    ALLOWED_IPS=$(run_sudo grep '^ALLOWED_IPS=' "$params_file" | cut -d= -f2- | tr -d '"' || true)
+    
+    # Validar que la clave pública tenga longitud correcta (44 chars)
+    if [[ -n "$WG_SERVER_PUB_KEY" && ${#WG_SERVER_PUB_KEY} -lt 44 ]]; then
+        log_warn "Clave pública extraída parece truncada (${#WG_SERVER_PUB_KEY} chars). Intentando obtener del sistema..."
+        WG_SERVER_PUB_KEY=$(run_sudo wg show "$WG_SERVER_WG_NIC" public-key 2>/dev/null || true)
+        if [[ -z "$WG_SERVER_PUB_KEY" ]]; then
+            log_err "No se pudo obtener la clave pública del sistema. El .env quedará sin clave válida."
+        else
+            log_ok "Clave pública obtenida del sistema: ${WG_SERVER_PUB_KEY:0:10}..."
+        fi
+    fi
 
     [ -n "$WG_SERVER_WG_NIC" ] && env_set "WG_INTERFACE" "$WG_SERVER_WG_NIC"
     [ -n "$WG_SERVER_WG_IPV4" ] && env_set "WG_SERVER_IPV4" "$WG_SERVER_WG_IPV4"

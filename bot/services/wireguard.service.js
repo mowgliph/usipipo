@@ -59,7 +59,7 @@ class WireGuardService {
   async _ensureTools() {
     // Chequeo simple: wg must be available
     try {
-      await runCmd('which wg || true');
+      await runCmd('which wg');
     } catch (err) {
       logger.warn('wg not found or check failed', { err: err.message });
     }
@@ -154,7 +154,7 @@ class WireGuardService {
       throw new Error('No se pudo determinar la red base para asignar IP (WG_SERVER_IPV4 absent)');
     }
 
-    // parse used ips from AllowedIPs entries
+    // parse used ips from AllowedIPs entries (solo IPv4 por ahora)
     const conf = await this._readWgConf();
     const regex = new RegExp(`AllowedIPs\\s*=\\s*${base.replace(/\./g,'\\.')}\\.(\\d+)\\/32`, 'g');
     const used = new Set();
@@ -166,7 +166,17 @@ class WireGuardService {
     // search from 2..254
     for (let i = 2; i < 255; i++) {
       if (!used.has(i)) {
-        return `${base}.${i}`;
+        // Devolver objeto con IPv4 y potencial IPv6
+        const result = { ipv4: `${base}.${i}` };
+        
+        // Si hay configuración IPv6, calcular dirección IPv6
+        if (config.WG_SERVER_IPV6) {
+          // Ejemplo: WG_SERVER_IPV6 = "fd42:42:42::1"
+          const ipv6Base = config.WG_SERVER_IPV6.split('::')[0]; // "fd42:42:42"
+          result.ipv6 = `${ipv6Base}::${i}`;
+        }
+        
+        return result;
       }
     }
 
@@ -177,8 +187,13 @@ class WireGuardService {
   // GENERAR CONFIG CLIENT
   // --------------------------------------------------
   _buildClientConfig({ privateKey, clientIP, publicServerKey, presharedKey }) {
-    const dns = config.SERVER_IPV4 || '8.8.8.8';
-    const endpoint = `${config.SERVER_IPV4}:${config.WG_SERVER_PORT || '51820'}`;
+    // CORREGIDO: Usar DNS del .env en lugar de SERVER_IPV4
+    const dns1 = config.WG_CLIENT_DNS_1 || '1.1.1.1';
+    const dns2 = config.WG_CLIENT_DNS_2 || '1.0.0.1';
+    const dns = dns2 ? `${dns1}, ${dns2}` : dns1;
+    
+    // CORREGIDO: Usar WG_ENDPOINT del .env o construir con SERVER_IP
+    const endpoint = config.WG_ENDPOINT || `${config.SERVER_IP || config.SERVER_IPV4}:${config.WG_SERVER_PORT || '51820'}`;
 
     const clientConf =
 `[Interface]
@@ -247,7 +262,7 @@ PersistentKeepalive = 25
     }
 
     // ------------------------------------------------------------------------------------------
-    // 🚀 CORRECCIÓN DEL ERROR DE CLAVE PÚBLICA (Longitud incorrecta)
+    // 🚀 OBTENCIÓN DINÁMICA DE LA CLAVE PÚBLICA DEL SERVIDOR
     // Se obtiene la clave pública del servidor (44 caracteres) de forma dinámica si no está en config.
     // ------------------------------------------------------------------------------------------
     let finalServerPubKey = config.WG_SERVER_PUBKEY; // 1. Intentamos leerla de la configuración
@@ -269,9 +284,16 @@ PersistentKeepalive = 25
         throw new Error(`Clave pública del servidor inválida (Longitud: ${finalServerPubKey ? finalServerPubKey.length : 0}). Revisa la interfaz ${this.interface}.`);
     }
 
+    // CORREGIDO: asignar IP (obtener objeto con ipv4 e ipv6)
+    const ips = await this.getNextAvailableIP();
+    const clientIP = ips.ipv4;
+    const clientIPv6 = ips.ipv6 || null;
 
-    // asignar IP
-    const clientIP = await this.getNextAvailableIP();
+    // Construir AllowedIPs para el peer
+    let allowedIPs = `${clientIP}/32`;
+    if (clientIPv6) {
+      allowedIPs += `, ${clientIPv6}/128`;
+    }
 
     // añadir peer block al conf
     // bloque con marcador para facilitar eliminación:
@@ -279,7 +301,7 @@ PersistentKeepalive = 25
     // [Peer]...
     const peerBlock =
 `\n### CLIENT ${this._clientNameForUser(uid)}\n[Peer]\nPublicKey = ${publicKey}\n` +
-`PresharedKey = ${presharedKey || ''}\nAllowedIPs = ${clientIP}/32\n`;
+`PresharedKey = ${presharedKey || ''}\nAllowedIPs = ${allowedIPs}\n`;
 
     try {
       // append safe: read, append, write atomic
@@ -287,32 +309,46 @@ PersistentKeepalive = 25
       const newConf = conf + '\n' + peerBlock;
       await this._writeWgConfAtomic(newConf);
 
-      // apply live via 'wg set <iface> peer <pubkey> allowed-ips <clientIP>/32'
-      await runCmd(`wg set ${this.interface} peer ${publicKey} allowed-ips ${clientIP}/32`);
+      // CORREGIDO: apply live con allowedIPs (puede incluir IPv6)
+      const cmd = `wg set ${this.interface} peer ${publicKey} allowed-ips ${allowedIPs}`;
+      if (presharedKey) {
+        await runCmd(`${cmd} preshared-key <(echo "${presharedKey}")`);
+      } else {
+        await runCmd(cmd);
+      }
     } catch (err) {
       logger.error('addPeer failed', err);
       throw new Error('Error agregando peer al servidor WireGuard: ' + err.message);
     }
 
-    // generar cliente .conf
+    // CORREGIDO: generar cliente .conf con IPv6 si existe
     const clientConf = this._buildClientConfig({
       privateKey,
       clientIP,
       publicServerKey: finalServerPubKey,
       presharedKey
     });
+    
+    // Si hay IPv6, añadirla a la sección [Interface]
+    let finalClientConfig = clientConf;
+    if (clientIPv6) {
+      // Reemplazar la línea Address para incluir IPv6
+      finalClientConfig = finalClientConfig.replace(
+        `Address = ${clientIP}/24`,
+        `Address = ${clientIP}/24, ${clientIPv6}/128`
+      );
+    }
 
     const clientName = `${this._clientNameForUser(uid)}`;
     const fileName = `${this.interface}-${clientName}.conf`;
     const filePath = path.join(this.clientsDir, fileName);
 
     try {
-      await fs.writeFile(filePath, clientConf, { mode: 0o600 });
+      await fs.writeFile(filePath, finalClientConfig, { mode: 0o600 });
     } catch (err) {
       logger.error('write client file failed', err);
       throw new Error('No se pudo escribir el archivo de configuración del cliente: ' + err.message);
     }
-
 
     // intentar generar QR ASCII con qrencode si está disponible
     let qrAscii = null;
@@ -320,7 +356,7 @@ PersistentKeepalive = 25
       // qrencode -t UTF8 -o - "clientConf"
       // usamos spawn para manejar stdin
       const qr = spawn('qrencode', ['-t', 'UTF8', '-o', '-'], { stdio: ['pipe', 'pipe', 'ignore'] });
-      qr.stdin.write(clientConf);
+      qr.stdin.write(finalClientConfig);
       qr.stdin.end();
 
       // leer stdout (ASCII)
@@ -341,13 +377,14 @@ PersistentKeepalive = 25
         clientName,
         ip: clientIP,
         clientFilePath: filePath,
-        clientConfig: clientConf,
+        clientConfig: finalClientConfig,  // Usar finalClientConfig (con IPv6 si aplica)
         publicKey,
         createdAt: new Date().toISOString()
       };
+      if (clientIPv6) {
+        u.wg.ipv6 = clientIPv6;
+      }
       // Ensure exists in map
-      userManager.users = userManager.users || new Map(Object.entries({})); // defensive, if exported directly
-      // userManager is a module with internal map; we have set/get functions; use addUser if not existing
       if (!userManager.getUser(uid)) {
         // add a minimal user record
         await userManager.addUser(uid, 'system', `TG ${uid}`);
@@ -362,12 +399,13 @@ PersistentKeepalive = 25
       // no detener la creación: el peer ya está en el servidor, pero avisamos
     }
 
-    logger.info('createClientForUser success', { userId: uid, clientName, ip: clientIP });
+    logger.info('createClientForUser success', { userId: uid, clientName, ip: clientIP, ipv6: clientIPv6 });
 
     return {
       clientName,
       ip: clientIP,
-      clientConfig: clientConf,
+      ipv6: clientIPv6,
+      clientConfig: finalClientConfig,
       clientFilePath: filePath,
       qr: qrAscii,
       publicKey,
@@ -484,7 +522,7 @@ PersistentKeepalive = 25
       // buscar bloque del cliente por marcador
       const regex = new RegExp(`\\n### CLIENT ${clientName}[\\s\\S]*?\\n(?=(### CLIENT|$))`, 'g');
       const match = conf.match(new RegExp(`### CLIENT ${clientName}[\\s\\S]*?PublicKey\\s*=\\s*([A-Za-z0-9+/=]+)`));
-      const pubkey = match ? match[1] : null;
+      let pubkey = match ? match[1] : null;
 
       // eliminar bloque (si existe)
       const newConf = conf.replace(regex, '\n');
