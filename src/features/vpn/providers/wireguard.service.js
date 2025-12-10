@@ -1,650 +1,703 @@
 'use strict';
 
-/**
- * services/wireguard.service.js
- *
- * Servicio que integra WireGuard con el instalador oficial (wg_server.sh)
- * - No usa Docker
- * - Usa `wg`, `wg-quick`, `qrencode` (opcional)
- * - Guarda archivos de cliente en /etc/wireguard/clients/
- * - Enlaza clientes con usuarios en userManager (user.wg = {...})
- * - Restricción: 1 cliente por usuario normal (admins ilimitados)
- * - Cuota por cliente: 10 GB (configurable via DEFAULT_QUOTA_BYTES)
- *
- * REQUISITOS:
- * - El proceso Node debe poder ejecutar `wg` y editar /etc/wireguard/wg0.conf
- * - Tener `qrencode` instalado para generar ASCII QR (opcional)
- */
-
-const { exec, spawn } = require('child_process');
+const { exec } = require('child_process');
 const util = require('util');
-const execPromise = util.promisify(exec);
-
 const fs = require('fs').promises;
 const path = require('path');
 
-const config = require('../config/environment');
-const logger = require('../utils/logger');
-const userManager = require('./userManager.service');
+const execPromise = util.promisify(exec);
 
-const WG_INTERFACE = config.WG_INTERFACE || 'wg0';
-const WG_CONF_PATH = path.join(config.WG_PATH || '/etc/wireguard', `${WG_INTERFACE}.conf`);
-const CLIENTS_DIR = path.join(config.WG_PATH || '/etc/wireguard', 'clients');
-const DEFAULT_QUOTA_BYTES = Number(process.env.WG_DEFAULT_QUOTA_BYTES) || 10 * 1024 * 1024 * 1024; // 10 GB
+// ✅ NUEVAS IMPORTACIONES - Arquitectura refactorizada
+const config = require('../../config/environment');
+const logger = require('../../core/utils/logger');
+const managerService = require('../../shared/services/manager.service');
+const { formatBytes, escapeMarkdown } = require('../../core/utils/formatters');
 
-// Helper para ejecutar comandos con logging
-async function runCmd(cmd, opts = {}) {
-  try {
-    logger.debug('runCmd', { cmd });
-    const { stdout, stderr } = await execPromise(cmd, opts);
-    return { stdout: stdout ? stdout.trim() : '', stderr: stderr ? stderr.trim() : '' };
-  } catch (err) {
-    logger.error('runCmd error', { cmd, message: err.message });
-    throw err;
-  }
-}
+/**
+ * ============================================================================
+ * 🛡️ WIREGUARD SERVICE - Refactorizado MVP 2025
+ * ============================================================================
+ *
+ * ✅ CORRECCIONES APLICADAS:
+ * 1. Eliminado singleton (ahora es clase normal)
+ * 2. Integrado con manager.service (fuente única de verdad)
+ * 3. Separación clara de responsabilidades
+ * 4. Manejo de errores mejorado
+ * 5. Compatible con nueva arquitectura
+ *
+ * 🎯 PATRÓN: Adapter para VPN Repository
+ * ============================================================================
+ */
 
 class WireGuardService {
   constructor() {
-    this.interface = WG_INTERFACE;
-    this.confPath = WG_CONF_PATH;
-    this.clientsDir = CLIENTS_DIR;
-    this.defaultQuota = DEFAULT_QUOTA_BYTES;
+    this.interface = config.WG_INTERFACE || 'wg0';
+    this.confPath = config.WG_CONF_PATH || `/etc/wireguard/${this.interface}.conf`;
+    this.clientsDir = config.WG_CLIENTS_DIR || `/etc/wireguard/clients`;
+    this.defaultQuota = parseInt(process.env.WG_DEFAULT_QUOTA_BYTES) || (10 * 1024 * 1024 * 1024); // 10GB
+
+    // Cache para performance
+    this._cache = {
+      serverPublicKey: null,
+      serverConfig: null,
+      lastUpdate: null
+    };
   }
 
-  // --------------------------------------------------
-  // UTIL: comprobar que wg está disponible
-  // --------------------------------------------------
+  // ============================================================================
+  // 🔧 MÉTODOS DE CONFIGURACIÓN Y VALIDACIÓN
+  // ============================================================================
 
-  async _ensureTools() {
-    // Chequeo simple: wg must be available
-    try {
-      await runCmd('which wg');
-    } catch (err) {
-      logger.warn('wg not found or check failed', { err: err.message });
-    }
-    
-    // 1. Intentamos crear el directorio. Si el install.sh se ejecutó, esto debería
-    //    funcionar sin problemas porque la carpeta ya existe y es propiedad del BOT_USER.
-    try {
-      await fs.mkdir(this.clientsDir, { recursive: true });
-      logger.debug('Clients dir ensured via fs.mkdir.', { dir: this.clientsDir });
+  async validateEnvironment() {
+    const checks = [
+      { cmd: 'which wg', name: 'WireGuard CLI' },
+      { cmd: 'which wg-quick', name: 'WG-Quick' },
+      { cmd: `test -f ${this.confPath} && echo "exists"`, name: 'Config File' }
+    ];
 
-    } catch (err) {
-      // 2. Si hay un fallo de permisos (EACCES) o cualquier otro, usamos 'sudo mkdir'
-      //    para intentar arreglar la situación una última vez (requiere NOPASSWD).
-      //    Esto actúa como un "auto-arreglo" si los permisos se corrompen.
-      if (err.code === 'EACCES' || err.code === 'EPERM') {
-         logger.warn('Permission denied creating clients dir. Attempting system fix...', { dir: this.clientsDir });
-         try {
-            await runCmd(`sudo mkdir -p ${this.clientsDir}`);
-            await runCmd(`sudo chown -R $USER:$USER ${this.clientsDir} || sudo chown -R $LOGNAME:$LOGNAME ${this.clientsDir} || true`);
-            logger.info('Clients dir created/fixed successfully via sudo.');
-         } catch (fixErr) {
-            logger.error('CRITICAL: Failed to create/fix clients dir even with sudo.', { dir: this.clientsDir, err: fixErr.message });
-            throw new Error(`Fallo al crear ${this.clientsDir}: ${fixErr.message}. Verifica los permisos del usuario del bot en /etc/wireguard/clients.`);
-         }
-      } else {
-        // Otros errores graves
-        logger.error('Unable to create clients dir', { dir: this.clientsDir, err: err.message });
-        throw err;
-      }
-    }
-  }
+    const results = [];
 
-
-  // --------------------------------------------------
-  // UTIL: generar nombre de cliente a partir de telegram id
-  // --------------------------------------------------
-  _clientNameForUser(userId) {
-    return `tg_${String(userId).replace(/\D/g, '')}`;
-  }
-
-  // --------------------------------------------------
-  // UTIL: leer wg0.conf
-  // --------------------------------------------------
-  async _readWgConf() {
-    try {
-      const content = await fs.readFile(this.confPath, 'utf8');
-      return content;
-    } catch (err) {
-      logger.error('readWgConf', err);
-      throw new Error(`No se pudo leer ${this.confPath}: ${err.message}`);
-    }
-  }
-
-  // --------------------------------------------------
-  // UTIL: escribir wg0.conf temporal y reemplazar
-  // --------------------------------------------------
-  async _writeWgConfAtomic(content) {
-    const tmp = `${this.confPath}.tmp`;
-    await fs.writeFile(tmp, content, 'utf8');
-    await fs.rename(tmp, this.confPath);
-  }
-
-  // --------------------------------------------------
-  // GET NEXT AVAILABLE IP
-  // --------------------------------------------------
-  async getNextAvailableIP() {
-    // base IP derivation: try config.WG_SERVER_IPV4 base like "10.13.13"
-    const baseFromEnv = (config.WG_SERVER_IPV4 || '').trim();
-    let base;
-    if (baseFromEnv) {
-      // can be "10.13.13.1/24" or "10.13.13.0/24"
-      const m = baseFromEnv.match(/^(\d+\.\d+\.\d+)/);
-      base = m ? m[1] : null;
-    }
-
-    if (!base) {
-      // fallback: try to read from conf Address in Interface
+    for (const check of checks) {
       try {
-        const conf = await this._readWgConf();
-        const m = conf.match(/Address\s*=\s*([\d.]+)\/\d+/);
-        if (m) {
-          const parts = m[1].split('.');
-          parts.pop();
-          base = parts.join('.');
-        }
-      } catch (_) {
-        base = null;
+        await execPromise(check.cmd);
+        results.push({ [check.name]: 'OK' });
+      } catch (error) {
+        results.push({ [check.name]: 'FAILED', error: error.message });
       }
     }
 
-    if (!base) {
-      throw new Error('No se pudo determinar la red base para asignar IP (WG_SERVER_IPV4 absent)');
+    const allOk = results.every(r => Object.values(r)[0] === 'OK');
+
+    if (!allOk) {
+      logger.error('[WireGuard] Validación de entorno fallida', { results });
+      throw new Error('WireGuard no está correctamente instalado o configurado');
     }
 
-    // parse used ips from AllowedIPs entries (solo IPv4 por ahora)
-    const conf = await this._readWgConf();
-    const regex = new RegExp(`AllowedIPs\\s*=\\s*${base.replace(/\./g,'\\.')}\\.(\\d+)\\/32`, 'g');
-    const used = new Set();
-    let match;
-    while ((match = regex.exec(conf)) !== null) {
-      used.add(Number(match[1]));
-    }
-
-    // search from 2..254
-    for (let i = 2; i < 255; i++) {
-      if (!used.has(i)) {
-        // Devolver objeto con IPv4 y potencial IPv6
-        const result = { ipv4: `${base}.${i}` };
-        
-        // Si hay configuración IPv6, calcular dirección IPv6
-        if (config.WG_SERVER_IPV6) {
-          // Ejemplo: WG_SERVER_IPV6 = "fd42:42:42::1"
-          const ipv6Base = config.WG_SERVER_IPV6.split('::')[0]; // "fd42:42:42"
-          result.ipv6 = `${ipv6Base}::${i}`;
-        }
-        
-        return result;
-      }
-    }
-
-    throw new Error('No hay IPs disponibles en el rango');
+    logger.info('[WireGuard] Entorno validado correctamente');
+    return true;
   }
 
-  // --------------------------------------------------
-  // GENERAR CONFIG CLIENT
-  // --------------------------------------------------
-  _buildClientConfig({ privateKey, clientIP, publicServerKey, presharedKey }) {
-    const dns1 = config.WG_CLIENT_DNS_1 || '1.1.1.1';
-    const dns2 = config.WG_CLIENT_DNS_2 || '1.0.0.1';
-    const dns = dns2 ? `${dns1}, ${dns2}` : dns1;
-    
-    const endpoint = config.WG_ENDPOINT || `${config.SERVER_IP || config.SERVER_IPV4}:${config.WG_SERVER_PORT || '51820'}`;
-  
-    const clientConf =
-  `[Interface]
-  PrivateKey = ${privateKey}
-  Address = ${clientIP}/24
-  DNS = ${dns}
-  MTU = 1420
-  
-  [Peer]
-  PublicKey = ${publicServerKey}
-  PresharedKey = ${presharedKey}
-  Endpoint = ${endpoint}
-  AllowedIPs = 0.0.0.0/0, ::/0
-  PersistentKeepalive = 15
-  `;
-    return clientConf;
-  }
-
-
-  // --------------------------------------------------
-  // CREAR CLIENTE PARA UN USUARIO
-  // --------------------------------------------------
-  /**
-   * createClientForUser(userId)
-   * - verifica límites
-   * - genera claves
-   * - asigna IP
-   * - añade Peer a wg0.conf y aplica live via wg set
-   * - guarda .conf en clientsDir
-   * - registra en userManager (user.wg = {...})
-   *
-   * Retorna: {
-   *   clientName, ip, clientConfig, clientFilePath, qr (ascii|null), publicKey, presharedKey
-   * }
-   */
-  async createClientForUser(userId) {
-    await this._ensureTools();
-
-    const uid = String(userId);
-    const user = userManager.getUser(uid) || null;
-    const isAdmin = userManager.isAdmin(uid);
-
-    // Restricción: 1 cliente por usuario (si no admin)
-    const existing = this.getUserClient(uid);
-    if (existing && !isAdmin) {
-      throw new Error('Ya existe una configuración WireGuard para este usuario. Elimina la actual para crear otra.');
-    }
-
-    // generar claves
-    let privateKey, publicKey, presharedKey;
+  async getServerInfo() {
     try {
-      const { stdout: priv } = await execPromise('wg genkey');
-      privateKey = priv.trim();
-      const pubProc = await execPromise(`echo "${privateKey}" | wg pubkey`);
-      publicKey = pubProc.stdout.trim();
+      const [status, dump, configContent] = await Promise.all([
+        execPromise(`wg show ${this.interface}`),
+        execPromise(`wg show ${this.interface} dump`),
+        fs.readFile(this.confPath, 'utf8').catch(() => '')
+      ]);
 
-      try {
-        const { stdout: pskOut } = await execPromise('wg genpsk');
-        presharedKey = pskOut.trim();
-      } catch (err) {
-        // psk optional
-        presharedKey = '';
-        logger.debug('psk generation failed (optional)', { err: err.message });
-      }
-    } catch (err) {
-      logger.error('Key generation failed', err);
-      throw new Error('Error generando claves WireGuard: ' + err.message);
-    }
+      const lines = dump.stdout.trim().split('\n');
+      const peerCount = Math.max(0, lines.length - 1); // Excluye header
 
-    // ------------------------------------------------------------------------------------------
-    // 🚀 OBTENCIÓN DINÁMICA DE LA CLAVE PÚBLICA DEL SERVIDOR
-    // Se obtiene la clave pública del servidor (44 caracteres) de forma dinámica si no está en config.
-    // ------------------------------------------------------------------------------------------
-    let finalServerPubKey = config.WG_SERVER_PUBKEY; // 1. Intentamos leerla de la configuración
+      // Parsear IP del servidor
+      const serverIpMatch = configContent.match(/Address\s*=\s*([\d\.\/:]+)/);
+      const serverIp = serverIpMatch ? serverIpMatch[1] : 'No configurada';
 
-    if (!finalServerPubKey || finalServerPubKey.length !== 44) {
-      // 2. Si es inválida o no existe, la pedimos directamente al sistema WireGuard.
-      try {
-        // 'this.interface' suele ser 'wg0'
-        const { stdout } = await execPromise(`wg show ${this.interface} public-key`);
-        finalServerPubKey = stdout.trim();
-      } catch (e) {
-        logger.error('Fallo al obtener Server Public Key', e);
-        throw new Error('No se pudo obtener la clave pública del servidor. El túnel no funcionará.');
-      }
-    }
+      // Obtener clave pública del servidor
+      const pubKeyMatch = configContent.match(/# Server Public Key:?\s*([A-Za-z0-9+/=]+)/);
+      let serverPubKey = pubKeyMatch ? pubKeyMatch[1] : null;
 
-    // 3. Verificación final de seguridad antes de continuar.
-    if (!finalServerPubKey || finalServerPubKey.length !== 44) {
-        throw new Error(`Clave pública del servidor inválida (Longitud: ${finalServerPubKey ? finalServerPubKey.length : 0}). Revisa la interfaz ${this.interface}.`);
-    }
-
-    // CORREGIDO: asignar IP (obtener objeto con ipv4 e ipv6)
-    const ips = await this.getNextAvailableIP();
-    const clientIP = ips.ipv4;
-    const clientIPv6 = ips.ipv6 || null;
-    
-    // Construir AllowedIPs para el peer (SIN ESPACIO después de la coma)
-    let allowedIPs = `${clientIP}/32`;
-    if (clientIPv6) {
-      allowedIPs += `,${clientIPv6}/128`; // 🟢 Sin espacio
-    }
-    
-    // añadir peer block al conf
-    const peerBlock =
-    `\n### CLIENT ${this._clientNameForUser(uid)}\n[Peer]\nPublicKey = ${publicKey}\n` +
-    `PresharedKey = ${presharedKey || ''}\nAllowedIPs = ${allowedIPs}\n`;
-    
-    try {
-      const conf = await this._readWgConf();
-      const newConf = conf + '\n' + peerBlock;
-      await this._writeWgConfAtomic(newConf);
-    
-      // 🟢 CORRECCIÓN: Sin comillas ni espacios extras
-      if (presharedKey) {
-        const tmpFile = `/tmp/wg_psk_${Date.now()}_${Math.random().toString(36).substr(2)}`;
-        await fs.writeFile(tmpFile, presharedKey, { mode: 0o600 });
+      if (!serverPubKey) {
+        // Intentar obtener dinámicamente
         try {
-          await runCmd(`wg set ${this.interface} peer ${publicKey} allowed-ips ${allowedIPs} preshared-key ${tmpFile}`);
+          const { stdout } = await execPromise(`wg show ${this.interface} public-key`);
+          serverPubKey = stdout.trim();
+        } catch (error) {
+          serverPubKey = 'No disponible';
+        }
+      }
+
+      return {
+        interface: this.interface,
+        serverIp,
+        serverPublicKey: serverPubKey ? `${serverPubKey.substring(0, 16)}...` : 'No disponible',
+        peerCount,
+        status: status.stdout.includes('listening') ? '🟢 Activo' : '🔴 Inactivo',
+        lastHandshake: lines.length > 1 ? 'Reciente' : 'Nunca',
+        totalPeers: peerCount
+      };
+    } catch (error) {
+      logger.error('[WireGuard] Error obteniendo info del servidor', error);
+      return {
+        interface: this.interface,
+        status: '🔴 Error',
+        error: error.message
+      };
+    }
+  }
+
+  // ============================================================================
+  // 👤 MÉTODOS DE GESTIÓN DE CLIENTES (INTEGRADO CON MANAGER)
+  // ============================================================================
+
+  async createClient(userId, options = {}) {
+    const startTime = Date.now();
+    const user = managerService.getCompleteUser(userId);
+
+    if (!user) {
+      throw new Error(`Usuario ${userId} no encontrado en el sistema`);
+    }
+
+    // Validar que no tenga cliente existente
+    if (user.wg && user.wg.clientName && !user.wg.suspended) {
+      throw new Error('El usuario ya tiene una configuración WireGuard activa');
+    }
+
+    try {
+      await this.validateEnvironment();
+
+      // 1. Generar claves
+      const { privateKey, publicKey, presharedKey } = await this._generateKeys();
+
+      // 2. Obtener IP disponible
+      const ipAssignment = await this._getAvailableIP();
+
+      // 3. Obtener clave pública del servidor
+      const serverPubKey = await this._getServerPublicKey();
+
+      // 4. Crear configuración del cliente
+      const clientConfig = this._buildClientConfig({
+        privateKey,
+        clientIp: ipAssignment.ipv4,
+        clientIpv6: ipAssignment.ipv6,
+        serverPublicKey: serverPubKey,
+        presharedKey,
+        dns: config.WG_CLIENT_DNS || '1.1.1.1, 1.0.0.1',
+        endpoint: `${config.SERVER_IP || config.SERVER_IPV4}:${config.WG_SERVER_PORT || 51820}`,
+        mtu: config.WG_MTU || 1420
+      });
+
+      // 5. Añadir peer al servidor
+      await this._addPeerToServer({
+        publicKey,
+        presharedKey,
+        allowedIps: ipAssignment.ipv6
+          ? `${ipAssignment.ipv4}/32,${ipAssignment.ipv6}/128`
+          : `${ipAssignment.ipv4}/32`
+      });
+
+      // 6. Guardar archivo de configuración
+      const clientName = `tg_${String(userId).replace(/\D/g, '')}`;
+      const filePath = await this._saveClientConfig(clientName, clientConfig);
+
+      // 7. Generar QR si está disponible qrencode
+      let qrCode = null;
+      try {
+        qrCode = await this._generateQRCode(clientConfig);
+      } catch (error) {
+        logger.debug('[WireGuard] QR code no generado', { error: error.message });
+      }
+
+      // 8. Actualizar en manager.service
+      const wgData = {
+        clientName,
+        ipv4: ipAssignment.ipv4,
+        ipv6: ipAssignment.ipv6 || null,
+        publicKey,
+        presharedKey: presharedKey || null,
+        configFilePath: filePath,
+        configContent: clientConfig,
+        qrCode,
+        createdAt: new Date().toISOString(),
+        suspended: false,
+        suspendedAt: null,
+        lastSeen: null,
+        dataReceived: 0,
+        dataSent: 0
+      };
+
+      await managerService.setWireGuardData(userId, wgData);
+
+      const duration = Date.now() - startTime;
+      logger.info('[WireGuard] Cliente creado exitosamente', {
+        userId,
+        clientName,
+        duration: `${duration}ms`,
+        ip: ipAssignment.ipv4
+      });
+
+      return {
+        success: true,
+        clientName,
+        ipv4: ipAssignment.ipv4,
+        ipv6: ipAssignment.ipv6,
+        config: clientConfig,
+        qrCode,
+        filePath,
+        downloadUrl: `/download/wg/${clientName}.conf` // Para API futura
+      };
+
+    } catch (error) {
+      logger.error('[WireGuard] Error creando cliente', {
+        userId,
+        error: error.message,
+        stack: error.stack
+      });
+
+      // Limpiar recursos en caso de error
+      await this._cleanupFailedCreation(userId).catch(() => {});
+
+      throw new Error(`Error creando cliente WireGuard: ${error.message}`);
+    }
+  }
+
+  async getClient(userId) {
+    const user = managerService.getCompleteUser(userId);
+
+    if (!user || !user.wg) {
+      return null;
+    }
+
+    try {
+      // Obtener estadísticas actualizadas
+      const stats = await this._getClientStats(user.wg.publicKey);
+
+      return {
+        ...user.wg,
+        stats: {
+          dataReceived: stats.rx,
+          dataSent: stats.tx,
+          total: stats.rx + stats.tx,
+          lastHandshake: stats.lastHandshake
+        },
+        quota: {
+          limit: this.defaultQuota,
+          used: stats.rx + stats.tx,
+          percentage: ((stats.rx + stats.tx) / this.defaultQuota * 100).toFixed(1),
+          exceeded: (stats.rx + stats.tx) >= this.defaultQuota
+        }
+      };
+    } catch (error) {
+      // Si no podemos obtener stats, devolver datos básicos
+      return user.wg;
+    }
+  }
+
+  async deleteClient(userId) {
+    const user = managerService.getCompleteUser(userId);
+
+    if (!user || !user.wg) {
+      throw new Error('Usuario no tiene configuración WireGuard');
+    }
+
+    const { clientName, publicKey, configFilePath } = user.wg;
+
+    try {
+      // 1. Remover peer del servidor
+      if (publicKey) {
+        await execPromise(`wg set ${this.interface} peer ${publicKey} remove`);
+      }
+
+      // 2. Remover del archivo de configuración
+      await this._removePeerFromConfig(clientName);
+
+      // 3. Eliminar archivo de configuración
+      if (configFilePath) {
+        await fs.unlink(configFilePath).catch(() => {});
+      }
+
+      // 4. Actualizar manager.service
+      await managerService.removeVpnData(userId, 'wg');
+
+      logger.info('[WireGuard] Cliente eliminado', { userId, clientName });
+
+      return {
+        success: true,
+        message: `Cliente WireGuard ${clientName} eliminado correctamente`
+      };
+
+    } catch (error) {
+      logger.error('[WireGuard] Error eliminando cliente', {
+        userId,
+        error: error.message
+      });
+
+      throw new Error(`Error eliminando cliente: ${error.message}`);
+    }
+  }
+
+  async suspendClient(userId, reason = 'Cuota excedida') {
+    const user = managerService.getCompleteUser(userId);
+
+    if (!user || !user.wg) {
+      throw new Error('Usuario no tiene configuración WireGuard');
+    }
+
+    try {
+      // 1. Remover peer temporalmente
+      await execPromise(`wg set ${this.interface} peer ${user.wg.publicKey} remove`);
+
+      // 2. Actualizar estado en manager
+      await managerService.setWireGuardData(userId, {
+        ...user.wg,
+        suspended: true,
+        suspendedAt: new Date().toISOString(),
+        suspensionReason: reason
+      });
+
+      logger.warn('[WireGuard] Cliente suspendido', {
+        userId,
+        clientName: user.wg.clientName,
+        reason
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('[WireGuard] Error suspendiendo cliente', {
+        userId,
+        error: error.message
+      });
+
+      throw new Error(`Error suspendiendo cliente: ${error.message}`);
+    }
+  }
+
+  async resumeClient(userId) {
+    const user = managerService.getCompleteUser(userId);
+
+    if (!user || !user.wg || !user.wg.suspended) {
+      throw new Error('Usuario no tiene configuración WireGuard suspendida');
+    }
+
+    try {
+      // 1. Re-añadir peer al servidor
+      const allowedIps = user.wg.ipv6
+        ? `${user.wg.ipv4}/32,${user.wg.ipv6}/128`
+        : `${user.wg.ipv4}/32`;
+
+      await execPromise(
+        `wg set ${this.interface} peer ${user.wg.publicKey} allowed-ips ${allowedIps}`
+      );
+
+      // 2. Actualizar estado en manager
+      await managerService.setWireGuardData(userId, {
+        ...user.wg,
+        suspended: false,
+        suspendedAt: null,
+        suspensionReason: null
+      });
+
+      logger.info('[WireGuard] Cliente reanudado', {
+        userId,
+        clientName: user.wg.clientName
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('[WireGuard] Error reanudando cliente', {
+        userId,
+        error: error.message
+      });
+
+      throw new Error(`Error reanudando cliente: ${error.message}`);
+    }
+  }
+
+  // ============================================================================
+  // 📊 MÉTODOS DE MONITOREO Y ESTADÍSTICAS
+  // ============================================================================
+
+  async getAllClientsStats() {
+    try {
+      const { stdout } = await execPromise(`wg show ${this.interface} dump`);
+      const lines = stdout.trim().split('\n').slice(1); // Saltar encabezado
+
+      const stats = {};
+      const users = managerService.getAllUsers();
+
+      for (const line of lines) {
+        const [publicKey, , , allowedIps, lastHandshake, rx, tx] = line.split('\t');
+
+        // Buscar usuario por IP
+        const ip = allowedIps.split(',')[0].replace('/32', '');
+        const user = users.find(u => u.wg && u.wg.ipv4 === ip);
+
+        if (user) {
+          stats[user.id] = {
+            publicKey: publicKey.substring(0, 16) + '...',
+            ip,
+            lastHandshake: lastHandshake !== '0'
+              ? new Date(parseInt(lastHandshake) * 1000).toLocaleString()
+              : 'Nunca',
+            dataReceived: parseInt(rx),
+            dataSent: parseInt(tx),
+            total: parseInt(rx) + parseInt(tx),
+            quotaPercentage: ((parseInt(rx) + parseInt(tx)) / this.defaultQuota * 100).toFixed(2)
+          };
+        }
+      }
+
+      return stats;
+    } catch (error) {
+      logger.error('[WireGuard] Error obteniendo estadísticas', error);
+      return {};
+    }
+  }
+
+  async checkAllQuotas() {
+    const clients = await this.getAllClientsStats();
+    const exceeded = [];
+
+    for (const [userId, stats] of Object.entries(clients)) {
+      if (stats.total >= this.defaultQuota) {
+        exceeded.push({
+          userId,
+          ...stats,
+          exceededBy: formatBytes(stats.total - this.defaultQuota)
+        });
+      }
+    }
+
+    return {
+      totalClients: Object.keys(clients).length,
+      quotaExceeded: exceeded.length,
+      exceededClients: exceeded
+    };
+  }
+
+  // ============================================================================
+  // 🔒 MÉTODOS PRIVADOS (IMPLEMENTACIÓN INTERNA)
+  // ============================================================================
+
+  async _generateKeys() {
+    try {
+      const privateKey = (await execPromise('wg genkey')).stdout.trim();
+      const publicKey = (await execPromise(`echo "${privateKey}" | wg pubkey`)).stdout.trim();
+
+      let presharedKey = null;
+      try {
+        presharedKey = (await execPromise('wg genpsk')).stdout.trim();
+      } catch (error) {
+        logger.debug('[WireGuard] PSK no generado (opcional)', { error: error.message });
+      }
+
+      return { privateKey, publicKey, presharedKey };
+    } catch (error) {
+      logger.error('[WireGuard] Error generando claves', error);
+      throw new Error('Error generando claves criptográficas');
+    }
+  }
+
+  async _getAvailableIP() {
+    try {
+      const configContent = await fs.readFile(this.confPath, 'utf8');
+      const baseIp = config.WG_SERVER_IPV4_NETWORK || '10.13.13.0';
+      const baseParts = baseIp.split('.').slice(0, 3).join('.');
+
+      // Buscar IPs usadas
+      const usedIps = new Set();
+      const regex = new RegExp(`AllowedIPs\\s*=\\s*${baseParts.replace(/\./g, '\\.')}\\.(\\d+)/32`, 'g');
+      let match;
+
+      while ((match = regex.exec(configContent)) !== null) {
+        usedIps.add(parseInt(match[1]));
+      }
+
+      // Encontrar IP libre (2-254)
+      for (let i = 2; i < 255; i++) {
+        if (!usedIps.has(i)) {
+          const result = { ipv4: `${baseParts}.${i}` };
+
+          // Si hay IPv6 configurado
+          if (config.WG_SERVER_IPV6_NETWORK) {
+            const ipv6Base = config.WG_SERVER_IPV6_NETWORK.split('::')[0];
+            result.ipv6 = `${ipv6Base}::${i}`;
+          }
+
+          return result;
+        }
+      }
+
+      throw new Error('No hay direcciones IP disponibles en la red');
+    } catch (error) {
+      logger.error('[WireGuard] Error obteniendo IP disponible', error);
+      throw new Error('Error asignando dirección IP');
+    }
+  }
+
+  async _getServerPublicKey() {
+    if (this._cache.serverPublicKey && this._cache.lastUpdate &&
+        (Date.now() - this._cache.lastUpdate < 30000)) { // Cache 30 segundos
+      return this._cache.serverPublicKey;
+    }
+
+    try {
+      // Primero intentar de config
+      if (config.WG_SERVER_PUBKEY && config.WG_SERVER_PUBKEY.length === 44) {
+        this._cache.serverPublicKey = config.WG_SERVER_PUBKEY;
+        this._cache.lastUpdate = Date.now();
+        return this._cache.serverPublicKey;
+      }
+
+      // Obtener dinámicamente
+      const { stdout } = await execPromise(`wg show ${this.interface} public-key`);
+      const pubKey = stdout.trim();
+
+      if (pubKey.length !== 44) {
+        throw new Error('Clave pública del servidor inválida');
+      }
+
+      this._cache.serverPublicKey = pubKey;
+      this._cache.lastUpdate = Date.now();
+
+      return pubKey;
+    } catch (error) {
+      logger.error('[WireGuard] Error obteniendo clave pública del servidor', error);
+      throw new Error('No se pudo obtener la clave pública del servidor');
+    }
+  }
+
+  _buildClientConfig({ privateKey, clientIp, clientIpv6, serverPublicKey, presharedKey, dns, endpoint, mtu }) {
+    const addresses = clientIpv6
+      ? `${clientIp}/24, ${clientIpv6}/128`
+      : `${clientIp}/24`;
+
+    return `[Interface]
+PrivateKey = ${privateKey}
+Address = ${addresses}
+DNS = ${dns}
+MTU = ${mtu}
+
+[Peer]
+PublicKey = ${serverPublicKey}
+${presharedKey ? `PresharedKey = ${presharedKey}` : ''}
+Endpoint = ${endpoint}
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25`;
+  }
+
+  async _addPeerToServer({ publicKey, presharedKey, allowedIps }) {
+    try {
+      let cmd = `wg set ${this.interface} peer ${publicKey} allowed-ips ${allowedIps}`;
+
+      if (presharedKey) {
+        // Usar archivo temporal para PSK
+        const tmpFile = `/tmp/wg_psk_${Date.now()}`;
+        await fs.writeFile(tmpFile, presharedKey, { mode: 0o600 });
+        cmd += ` preshared-key ${tmpFile}`;
+
+        try {
+          await execPromise(cmd);
         } finally {
           await fs.unlink(tmpFile).catch(() => {});
         }
       } else {
-        await runCmd(`wg set ${this.interface} peer ${publicKey} allowed-ips ${allowedIPs}`);
+        await execPromise(cmd);
       }
-    } catch (err) {
-      logger.error('addPeer failed', err);
-      throw new Error('Error agregando peer al servidor WireGuard: ' + err.message);
+
+      // Añadir al archivo de configuración persistente
+      await this._appendPeerToConfig(publicKey, presharedKey, allowedIps);
+
+    } catch (error) {
+      logger.error('[WireGuard] Error añadiendo peer al servidor', {
+        publicKey: publicKey.substring(0, 16) + '...',
+        error: error.message
+      });
+      throw new Error('Error añadiendo cliente al servidor WireGuard');
     }
+  }
 
-
-    // CORREGIDO: generar cliente .conf con IPv6 si existe
-    const clientConf = this._buildClientConfig({
-      privateKey,
-      clientIP,
-      publicServerKey: finalServerPubKey,
-      presharedKey
-    });
-    
-    // Si hay IPv6, añadirla a la sección [Interface]
-    let finalClientConfig = clientConf;
-    if (clientIPv6) {
-      // Reemplazar la línea Address para incluir IPv6
-      finalClientConfig = finalClientConfig.replace(
-        `Address = ${clientIP}/24`,
-        `Address = ${clientIP}/24, ${clientIPv6}/128`
-      );
-    }
-
-    const clientName = `${this._clientNameForUser(uid)}`;
+  async _saveClientConfig(clientName, configContent) {
     const fileName = `${this.interface}-${clientName}.conf`;
     const filePath = path.join(this.clientsDir, fileName);
 
     try {
-      await fs.writeFile(filePath, finalClientConfig, { mode: 0o600 });
-    } catch (err) {
-      logger.error('write client file failed', err);
-      throw new Error('No se pudo escribir el archivo de configuración del cliente: ' + err.message);
-    }
-
-    // intentar generar QR ASCII con qrencode si está disponible
-    let qrAscii = null;
-    try {
-      // qrencode -t UTF8 -o - "clientConf"
-      // usamos spawn para manejar stdin
-      const qr = spawn('qrencode', ['-t', 'UTF8', '-o', '-'], { stdio: ['pipe', 'pipe', 'ignore'] });
-      qr.stdin.write(finalClientConfig);
-      qr.stdin.end();
-
-      // leer stdout (ASCII)
-      const chunks = [];
-      for await (const chunk of qr.stdout) chunks.push(chunk);
-      const out = Buffer.concat(chunks).toString('utf8');
-      qrAscii = out.trim();
-    } catch (err) {
-      // qrencode no disponible o fallo -> no crítico
-      logger.debug('qrencode not available or failed', { message: err.message });
-      qrAscii = null;
-    }
-
-    // Guardar mapping en userManager
-    try {
-      const u = userManager.getUser(uid) || { id: uid, addedAt: new Date().toISOString(), role: 'user', status: 'active' };
-      u.wg = {
+      await fs.mkdir(this.clientsDir, { recursive: true });
+      await fs.writeFile(filePath, configContent, { mode: 0o600 });
+      return filePath;
+    } catch (error) {
+      logger.error('[WireGuard] Error guardando configuración del cliente', {
         clientName,
-        ip: clientIP,
-        clientFilePath: filePath,
-        clientConfig: finalClientConfig,  // Usar finalClientConfig (con IPv6 si aplica)
-        publicKey,
-        createdAt: new Date().toISOString()
-      };
-      if (clientIPv6) {
-        u.wg.ipv6 = clientIPv6;
-      }
-      // Ensure exists in map
-      if (!userManager.getUser(uid)) {
-        // add a minimal user record
-        await userManager.addUser(uid, 'system', `TG ${uid}`);
-      }
-      // merge wg into existing user stored in userManager
-      const stored = userManager.getUser(uid);
-      stored.wg = u.wg;
-      await userManager.saveUsers();
-
-    } catch (err) {
-      logger.error('userManager mapping failed', err);
-      // no detener la creación: el peer ya está en el servidor, pero avisamos
-    }
-
-    logger.info('createClientForUser success', { userId: uid, clientName, ip: clientIP, ipv6: clientIPv6 });
-
-    return {
-      clientName,
-      ip: clientIP,
-      ipv6: clientIPv6,
-      clientConfig: finalClientConfig,
-      clientFilePath: filePath,
-      qr: qrAscii,
-      publicKey,
-      presharedKey
-    };
-  }
-
-  // --------------------------------------------------
-  // OBTENER CLIENTE VINCULADO A USUARIO
-  // --------------------------------------------------
-  getUserClient(userId) {
-    const u = userManager.getUser(String(userId));
-    if (!u) return null;
-    return u.wg || null;
-  }
-
-  // --------------------------------------------------
-  // LISTAR CLIENTES (parse wg show dump)
-  // --------------------------------------------------
-  async listClients() {
-    try {
-      // wg show wg0 dump
-      const { stdout } = await execPromise(`wg show ${this.interface} dump`);
-      const rows = stdout.split('\n').slice(1).filter(Boolean);
-      const clients = rows.map(line => {
-        const cols = line.split('\t');
-        // Format: publickey\tprivatekey?...\t... allowedips\tlastHandshake?\trx\ttx
-        // Defensive parsing based on typical `wg show <iface> dump`:
-        const publicKey = cols[0] || '';
-        const allowed = cols[3] || '';
-        const lastSeen = cols[4] || '0';
-        const rx = Number(cols[5] || 0);
-        const tx = Number(cols[6] || 0);
-
-        return {
-          publicKey: publicKey.slice(0, 10) + '...',
-          ip: allowed.replace('/32', ''),
-          lastSeen,
-          dataReceived: rx,
-          dataSent: tx
-        };
+        error: error.message
       });
-
-      logger.info('listClients', { count: clients.length });
-      return clients;
-    } catch (err) {
-      logger.error('listClients error', err);
-      throw new Error('No se pudo listar clientes WireGuard: ' + err.message);
+      throw new Error('Error guardando archivo de configuración');
     }
   }
 
-  // --------------------------------------------------
-  // OBTENER USO POR NOMBRE DE CLIENTE (usa wg show dump)
-  // --------------------------------------------------
-  async getClientUsageByName(clientName) {
+  async _generateQRCode(configContent) {
     try {
-      // find user mapping with wg.clientName = clientName
-      // We will search userManager for matching clientName
-      const all = userManager.getAllUsers();
-      let pubkey = null;
-      for (const u of all) {
-        if (u.wg && u.wg.clientName === clientName) {
-          pubkey = u.wg.publicKey;
-          break;
-        }
-      }
-
-      if (!pubkey) {
-        // fallback: parse wg show dump and find by AllowedIPs or by marker in conf
-        const conf = await this._readWgConf();
-        const match = conf.match(new RegExp(`### CLIENT ${clientName}[\\s\\S]*?PublicKey\\s*=\\s*([A-Za-z0-9+/=]+)`));
-        if (match) pubkey = match[1];
-      }
-
-      if (!pubkey) {
-        throw new Error('No se encontró la clave pública del cliente');
-      }
-
-      return await this.getClientUsageByPublicKey(pubkey);
-    } catch (err) {
-      logger.error('getClientUsageByName', err);
-      throw err;
+      const { stdout } = await execPromise(
+        `echo "${configContent.replace(/"/g, '\\"')}" | qrencode -t ANSIUTF8`
+      );
+      return stdout;
+    } catch (error) {
+      throw new Error('qrencode no disponible o falló');
     }
   }
 
-  async getClientUsageByPublicKey(publicKey) {
+  async _getClientStats(publicKey) {
     try {
       const { stdout } = await execPromise(`wg show ${this.interface} dump`);
-      const rows = stdout.split('\n').slice(1);
-      for (const line of rows) {
-        if (!line.trim()) continue;
+      const lines = stdout.trim().split('\n');
+
+      for (const line of lines) {
         const cols = line.split('\t');
-        const pk = cols[0];
-        if (pk === publicKey) {
-          const rx = Number(cols[5] || 0);
-          const tx = Number(cols[6] || 0);
-          return { rx, tx, total: rx + tx };
+        if (cols[0] === publicKey) {
+          return {
+            rx: parseInt(cols[5] || 0),
+            tx: parseInt(cols[6] || 0),
+            lastHandshake: cols[4] !== '0'
+              ? new Date(parseInt(cols[4]) * 1000).toLocaleString()
+              : null
+          };
         }
       }
-      return { rx: 0, tx: 0, total: 0 };
-    } catch (err) {
-      logger.error('getClientUsageByPublicKey', err);
-      throw new Error('No se pudo obtener el uso del cliente: ' + err.message);
+
+      return { rx: 0, tx: 0, lastHandshake: null };
+    } catch (error) {
+      logger.debug('[WireGuard] Error obteniendo stats del cliente', {
+        publicKey: publicKey.substring(0, 16) + '...',
+        error: error.message
+      });
+      return { rx: 0, tx: 0, lastHandshake: null };
     }
   }
 
-  // --------------------------------------------------
-  // ELIMINAR CLIENTE POR NOMBRE (revoca peer y quita bloque del conf)
-  // --------------------------------------------------
-  async deleteClientByName(clientName) {
+  async _appendPeerToConfig(publicKey, presharedKey, allowedIps) {
     try {
-      const conf = await this._readWgConf();
+      const timestamp = new Date().toISOString();
+      const comment = `\n# Peer added by uSipipo VPN Bot at ${timestamp}`;
+      const peerBlock = `[Peer]\nPublicKey = ${publicKey}\n`;
+      const presharedLine = presharedKey ? `PresharedKey = ${presharedKey}\n` : '';
+      const allowedLine = `AllowedIPs = ${allowedIps}\n`;
 
-      // buscar bloque del cliente por marcador
-      const regex = new RegExp(`\\n### CLIENT ${clientName}[\\s\\S]*?\\n(?=(### CLIENT|$))`, 'g');
-      const match = conf.match(new RegExp(`### CLIENT ${clientName}[\\s\\S]*?PublicKey\\s*=\\s*([A-Za-z0-9+/=]+)`));
-      let pubkey = match ? match[1] : null;
+      const content = comment + '\n' + peerBlock + presharedLine + allowedLine;
 
-      // eliminar bloque (si existe)
-      const newConf = conf.replace(regex, '\n');
+      await fs.appendFile(this.confPath, content, 'utf8');
 
-      if (newConf === conf) {
-        // no encontrado por bloque, intentar buscar por client file mapping
-        const all = userManager.getAllUsers();
-        let clientUserId = null;
-        for (const u of all) {
-          if (u.wg && u.wg.clientName === clientName) {
-            clientUserId = u.id;
-            break;
-          }
-        }
-        if (!pubkey && clientUserId) {
-          pubkey = userManager.getUser(clientUserId).wg?.publicKey || null;
-        }
-      }
-
-      // escribir conf sin el bloque
-      await this._writeWgConfAtomic(newConf);
-
-      // aplicar live: remove peer if pubkey known
-      if (pubkey) {
-        try {
-          await runCmd(`wg set ${this.interface} peer ${pubkey} remove`);
-        } catch (err) {
-          logger.warn('wg remove peer failed', { pubkey, err: err.message });
-        }
-      }
-
-      // borrar archivo cliente si existe
-      const fileName = `${this.interface}-${clientName}.conf`;
-      const filePath = path.join(this.clientsDir, fileName);
-      try {
-        await fs.unlink(filePath);
-      } catch (_) {
-        // no crítico
-      }
-
-      // eliminar mapping en userManager
-      const allUsers = userManager.getAllUsers();
-      for (const u of allUsers) {
-        if (u.wg && u.wg.clientName === clientName) {
-          delete u.wg;
-        }
-      }
-      await userManager.saveUsers();
-
-      logger.warn('deleteClientByName success', { clientName });
-      return true;
-    } catch (err) {
-      logger.error('deleteClientByName error', err);
-      throw new Error('No se pudo eliminar el cliente: ' + err.message);
+      logger.debug('[WireGuard] Peer añadido al archivo de configuración', {
+        publicKey: publicKey.substring(0, 16) + '...'
+      });
+    } catch (error) {
+      logger.warn('[WireGuard] Error escribiendo en archivo de configuración', {
+        error: error.message
+      });
+      // No lanzamos error porque el peer ya está activo en memoria
     }
   }
 
-  // --------------------------------------------------
-  // hasQuotaExceededForUser
-  // --------------------------------------------------
-  async hasQuotaExceededForUser(userId) {
+  async _removePeerFromConfig(clientName) {
     try {
-      const client = this.getUserClient(userId);
-      if (!client) return false; // no client => no quota
-
-      const usage = await this.getClientUsageByName(client.clientName);
-      return (usage.total || 0) >= this.defaultQuota;
-    } catch (err) {
-      logger.error('hasQuotaExceededForUser', err);
-      // en caso de error, no forzar quota
-      return false;
+      let content = await fs.readFile(this.confPath, 'utf8');
+      // Buscar y remover sección del peer
+      const regex = new RegExp(`# Peer.*${clientName}[\\s\\S]*?(?=\\n\\[|$)`, 'g');
+      content = content.replace(regex, '');
+      await fs.writeFile(this.confPath, content, 'utf8');
+    } catch (error) {
+      logger.warn('[WireGuard] Error limpiando archivo de configuración', {
+        clientName,
+        error: error.message
+      });
     }
   }
 
-  // --------------------------------------------------
-  // enforceQuotaForUser -> revoca cliente y suspende usuario si excede y no admin
-  // --------------------------------------------------
-  async enforceQuotaForUser(userId) {
+  async _cleanupFailedCreation(userId) {
     try {
-      const uid = String(userId);
-      const user = userManager.getUser(uid);
-      if (!user) return { enforced: false, reason: 'no_user' };
-
-      if (user.role === 'admin') return { enforced: false, reason: 'is_admin' };
-
-      const exceeded = await this.hasQuotaExceededForUser(uid);
-      if (!exceeded) return { enforced: false, reason: 'within_quota' };
-
-      const client = this.getUserClient(uid);
-      if (client && client.clientName) {
-        await this.deleteClientByName(client.clientName);
-      }
-
-      // suspend user
-      await userManager.suspendUser(uid);
-
-      logger.warn('Quota enforced: user suspended', { userId: uid });
-      return { enforced: true };
-    } catch (err) {
-      logger.error('enforceQuotaForUser', err);
-      return { enforced: false, error: err.message };
+      await managerService.removeVpnData(userId, 'wg');
+    } catch (error) {
+      logger.debug('[WireGuard] Cleanup falló', { userId, error: error.message });
     }
-  }
-
-  // --------------------------------------------------
-  // Método utilitario: check and enforce for all users (puede usarse por cron)
-  // --------------------------------------------------
-  async enforceQuotaForAllUsers() {
-    const users = userManager.getAllUsers();
-    const results = [];
-    for (const u of users) {
-      try {
-        const res = await this.enforceQuotaForUser(u.id);
-        results.push({ id: u.id, result: res });
-      } catch (err) {
-        results.push({ id: u.id, error: err.message });
-      }
-    }
-    return results;
   }
 }
 
-module.exports = new WireGuardService();
+// Exportar como clase, no como singleton
+module.exports = WireGuardService;
