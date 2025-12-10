@@ -4,38 +4,20 @@
  * ============================================================================
  * 🧩 FORMATTERS — uSipipo VPN Manager
  * Lógica centralizada para presentación de datos y sanitización.
+ * 
+ * 📦 DEPENDENCIAS:
+ *   - markdown.js (fuente única de Markdown V1)
+ *   - constants.js (para emojis y configuraciones)
+ * 
+ * 🎯 OBJETIVO: Formatear datos específicos del negocio VPN usando Markdown V1
+ * 
+ * ⚠️ IMPORTANTE: Este archivo NO re-exporta funciones de markdown.
+ *    Todos los módulos deben importar markdown.js directamente.
  * ============================================================================
  */
 
-// ============================================================================
-// 📝 TELEGRAM MARKDOWN UTILITIES (Integrated)
-// ============================================================================
-
-/**
- * Escapa caracteres reservados para Telegram Markdown V1.
- * En V1 solo escapamos: _ * ` [
- */
-function escapeMarkdown(text) {
-  if (text === null || text === undefined) return '';
-  return String(text).replace(/[[_*`]/g, '\\$&');
-}
-
-function bold(text) {
-  return `*${escapeMarkdown(text)}*`;
-}
-
-// 👇 ESTA ERA LA FUNCIÓN QUE FALTABA
-function italic(text) {
-  return `_${escapeMarkdown(text)}_`;
-}
-
-function code(text) {
-  return `\`${String(text).replace(/`/g, '\\`')}\``; // Solo escapa backticks internos
-}
-
-function pre(text, language = '') {
-  return `\`\`\`${language}\n${String(text).replace(/`/g, '\\`')}\n\`\`\``;
-}
+const markdown = require('./markdown');
+const constants = require('../../config/constants');
 
 // ============================================================================
 // 📏 DATA FORMATTING
@@ -68,44 +50,80 @@ function truncate(text, maxLength = 50) {
 }
 
 // ============================================================================
-// 📋 LIST FORMATTERS
+// 📋 LIST FORMATTERS (VPN-SPECIFIC)
 // ============================================================================
 
 function formatWireGuardClients(clients) {
   const safeClients = Array.isArray(clients) ? clients : [];
-  if (safeClients.length === 0) return `📭 ${escapeMarkdown('No hay clientes WireGuard activos.')}`;
+  if (safeClients.length === 0) {
+    return `${constants.EMOJI.WARNING} ${markdown.escapeMarkdown('No hay clientes WireGuard activos.')}`;
+  }
 
-  let msg = `🔐 ${bold('WireGuard')} - ${safeClients.length} cliente(s)\n\n`;
+  let msg = `${constants.EMOJI.VPN} ${markdown.bold('WireGuard')} - ${safeClients.length} cliente(s)\n\n`;
 
   safeClients.forEach((c, i) => {
     const ip = c.ip || 'IP Desconocida';
-    const lastSeen = c.lastSeen ? escapeMarkdown(c.lastSeen) : 'N/A';
-    msg += `${i + 1}. IP: ${code(ip)}\n`;
+    const lastSeen = c.lastSeen ? markdown.escapeMarkdown(c.lastSeen) : 'N/A';
+    msg += `${i + 1}. IP: ${markdown.code(ip)}\n`;
     msg += `   🕒 Última vez: ${lastSeen}\n`;
-    msg += `   📉 Descarga: ${escapeMarkdown(c.dataReceived || '0')} - 📈 Subida: ${escapeMarkdown(c.dataSent || '0')}\n\n`;
+    msg += `   📉 Descarga: ${markdown.escapeMarkdown(c.dataReceived || '0')} - 📈 Subida: ${markdown.escapeMarkdown(c.dataSent || '0')}\n\n`;
   });
   return msg.trim();
 }
 
 function formatOutlineKeys(keys) {
   const safeKeys = Array.isArray(keys) ? keys : [];
-  if (safeKeys.length === 0) return `📭 ${escapeMarkdown('No hay claves Outline activas.')}`;
+  if (safeKeys.length === 0) {
+    return `${constants.EMOJI.WARNING} ${markdown.escapeMarkdown('No hay claves Outline activas.')}`;
+  }
 
-  let msg = `🌐 ${bold('Outline')} - ${safeKeys.length} clave(s)\n\n`;
+  let msg = `${constants.EMOJI.SERVER} ${markdown.bold('Outline')} - ${safeKeys.length} clave(s)\n\n`;
 
   safeKeys.forEach((k, i) => {
-    msg += `${i + 1}. ID: ${code(k.id)} - ${escapeMarkdown(k.name || 'Sin nombre')}\n`;
+    msg += `${i + 1}. ID: ${markdown.code(k.id)} - ${markdown.escapeMarkdown(k.name || 'Sin nombre')}\n`;
   });
   return msg.trim();
 }
 
 function formatClientsList(wgClients, outlineKeys) {
-  let msg = `${bold('📊 CLIENTES ACTIVOS')}\n\n`;
+  let msg = `${markdown.bold('📊 CLIENTES ACTIVOS')}\n\n`;
   msg += formatWireGuardClients(wgClients) + '\n';
   msg += '━━━━━━━━━━━━━━━━━━\n';
   msg += formatOutlineKeys(outlineKeys);
   return msg.trim();
 }
+
+// ============================================================================
+// 📊 VPN CONFIG FORMATTERS
+// ============================================================================
+
+function formatWireGuardConfig(config) {
+  if (!config || typeof config !== 'object') return '';
+  
+  const lines = [
+    '[Interface]',
+    `PrivateKey = ${config.privateKey}`,
+    `Address = ${config.address}`,
+    `DNS = ${config.dns || '1.1.1.1'}`,
+    '',
+    '[Peer]',
+    `PublicKey = ${config.serverPublicKey}`,
+    `Endpoint = ${config.endpoint}`,
+    `AllowedIPs = ${config.allowedIps}`,
+    'PersistentKeepalive = 25'
+  ];
+  
+  return lines.join('\n');
+}
+
+function formatOutlineAccessUrl(keyData) {
+  if (!keyData || !keyData.accessUrl) return 'URL no disponible';
+  return markdown.link('🔗 Enlace de conexión Outline', keyData.accessUrl);
+}
+
+// ============================================================================
+// 🔧 UTILITY FUNCTIONS
+// ============================================================================
 
 function sanitizeInput(input) {
   if (!input || typeof input !== 'string') return '';
@@ -117,24 +135,20 @@ function sanitizeInput(input) {
 // ============================================================================
 
 module.exports = {
-  // Markdown Helpers
-  escapeMarkdown,
-  escapeHtml: escapeMarkdown, // Alias de seguridad
-  bold,
-  italic, // 👈 AHORA SÍ SE EXPORTA
-  code,
-  pre,
-
   // Data Formatters
   formatBytes,
   formatTimestamp,
   truncate,
-
-  // List Formatters
+  
+  // VPN List Formatters
   formatWireGuardClients,
   formatOutlineKeys,
   formatClientsList,
-
+  
+  // VPN Config Formatters
+  formatWireGuardConfig,
+  formatOutlineAccessUrl,
+  
   // Utils
   sanitizeInput
 };

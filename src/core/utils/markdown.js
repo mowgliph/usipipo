@@ -77,6 +77,18 @@ const userMention = (name, id) => {
   return `[${escapeMarkdown(name)}](tg://user?id=${id})`;
 };
 
+/**
+ * Formato combinado: Negrita + Código
+ * Para destacar valores técnicos importantes
+ * 
+ * @example
+ * highlightCode('192.168.1.1') → *`192.168.1.1`*
+ */
+const highlightCode = (text) => {
+  return bold(code(text));
+};
+
+
 module.exports = {
   escapeMarkdown,
   bold,
@@ -84,5 +96,6 @@ module.exports = {
   code,
   pre,
   link,
-  userMention
+  userMention,
+  highlightCode
 };
