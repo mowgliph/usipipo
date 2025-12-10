@@ -288,36 +288,30 @@ PersistentKeepalive = 25
     const ips = await this.getNextAvailableIP();
     const clientIP = ips.ipv4;
     const clientIPv6 = ips.ipv6 || null;
-
-    // Construir AllowedIPs para el peer
+    
+    // Construir AllowedIPs para el peer (SIN ESPACIO después de la coma)
     let allowedIPs = `${clientIP}/32`;
     if (clientIPv6) {
-      allowedIPs += `, ${clientIPv6}/128`;
+      allowedIPs += `,${clientIPv6}/128`; // 🟢 Sin espacio
     }
-
+    
     // añadir peer block al conf
-    // bloque con marcador para facilitar eliminación:
-    // ### CLIENT tg_<id>
-    // [Peer]...
     const peerBlock =
-`\n### CLIENT ${this._clientNameForUser(uid)}\n[Peer]\nPublicKey = ${publicKey}\n` +
-`PresharedKey = ${presharedKey || ''}\nAllowedIPs = ${allowedIPs}\n`;
-
+    `\n### CLIENT ${this._clientNameForUser(uid)}\n[Peer]\nPublicKey = ${publicKey}\n` +
+    `PresharedKey = ${presharedKey || ''}\nAllowedIPs = ${allowedIPs}\n`;
+    
     try {
-      // append safe: read, append, write atomic
       const conf = await this._readWgConf();
       const newConf = conf + '\n' + peerBlock;
       await this._writeWgConfAtomic(newConf);
     
-      // CORREGIDO: apply live con allowedIPs (puede incluir IPv6)
+      // 🟢 CORRECCIÓN: Sin comillas ni espacios extras
       if (presharedKey) {
-        // Usar un archivo temporal para el preshared key
         const tmpFile = `/tmp/wg_psk_${Date.now()}_${Math.random().toString(36).substr(2)}`;
         await fs.writeFile(tmpFile, presharedKey, { mode: 0o600 });
         try {
           await runCmd(`wg set ${this.interface} peer ${publicKey} allowed-ips ${allowedIPs} preshared-key ${tmpFile}`);
         } finally {
-          // Limpiar archivo temporal
           await fs.unlink(tmpFile).catch(() => {});
         }
       } else {
@@ -327,6 +321,7 @@ PersistentKeepalive = 25
       logger.error('addPeer failed', err);
       throw new Error('Error agregando peer al servidor WireGuard: ' + err.message);
     }
+
 
     // CORREGIDO: generar cliente .conf con IPv6 si existe
     const clientConf = this._buildClientConfig({
