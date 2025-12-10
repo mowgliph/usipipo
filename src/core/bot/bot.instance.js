@@ -8,7 +8,7 @@
 'use strict';
 
 const { Telegraf } = require('telegraf');
-const config = require('../config/environment');
+const config = require('../../config/environment');
 const logger = require('../utils/logger');
 
 // Middlewares
