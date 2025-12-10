@@ -114,10 +114,12 @@ CLIENT_DNS_2=$CLIENT_DNS_2
 ALLOWED_IPS=$ALLOWED_IPS
 " > /etc/wireguard/params
 
+    # 🟢 AÑADIR MTU AQUÍ
     echo "[Interface]
 Address = ${SERVER_WG_IPV4}/24,${SERVER_WG_IPV6}/64
 ListenPort = ${SERVER_PORT}
 PrivateKey = ${SERVER_PRIV_KEY}
+MTU = 1420
 PostUp = iptables -I INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
 PostUp = iptables -t nat -A POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
 PostDown = iptables -D INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
@@ -132,6 +134,8 @@ PostDown = iptables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
 
     newClient
 }
+
+
 function newClient() {
     source /etc/wireguard/params
 
@@ -172,16 +176,19 @@ function newClient() {
 
     CLIENT_FILE="${HOME_DIR}/${SERVER_WG_NIC}-client-${CLIENT_NAME}.conf"
 
+    # 🟢 AÑADIR MTU Y PERSISTENTKEEPALIVE AQUÍ
     echo "[Interface]
 PrivateKey = ${CLIENT_PRIV_KEY}
 Address = ${CLIENT_WG_IPV4}/32,${CLIENT_WG_IPV6}/128
 DNS = ${CLIENT_DNS_1},${CLIENT_DNS_2}
+MTU = 1420
 
 [Peer]
 PublicKey = ${SERVER_PUB_KEY}
 PresharedKey = ${CLIENT_PSK}
 Endpoint = ${ENDPOINT}
 AllowedIPs = ${ALLOWED_IPS}
+PersistentKeepalive = 15
 " > "${CLIENT_FILE}"
 
     echo "### Client ${CLIENT_NAME}
@@ -200,6 +207,7 @@ AllowedIPs = ${CLIENT_WG_IPV4}/32,${CLIENT_WG_IPV6}/128
         qrencode -t ansiutf8 < "${CLIENT_FILE}"
     fi
 }
+
 
 function listClients() {
     NUMBER_OF_CLIENTS=$(grep -c -E "^### Client" "/etc/wireguard/${SERVER_WG_NIC}.conf")

@@ -745,6 +745,35 @@ EOF
     log_ok "✔ Permisos y directorios de WireGuard configurados correctamente."
 }
 
+# =============================================================================
+# Aplicar MTU correcto después de instalar WireGuard (fix post-install)
+# =============================================================================
+fix_wireguard_mtu() {
+    log "🔧 Aplicando MTU=1420 a configuración de WireGuard..."
+    
+    local wg_conf="/etc/wireguard/wg0.conf"
+    
+    if run_sudo test -f "$wg_conf"; then
+        # Verificar si MTU ya existe
+        if ! run_sudo grep -q "^MTU" "$wg_conf"; then
+            log "Añadiendo MTU=1420 a ${wg_conf}..."
+            
+            # Insertar MTU después de PrivateKey (línea más segura)
+            run_sudo sed -i '/^PrivateKey/a MTU = 1420' "$wg_conf"
+            
+            log_ok "MTU añadido. Reiniciando WireGuard..."
+            run_sudo wg-quick down wg0 2>/dev/null || true
+            run_sudo wg-quick up wg0
+            
+            log_ok "✅ WireGuard reiniciado con MTU correcto"
+        else
+            log_ok "MTU ya está configurado en ${wg_conf}"
+        fi
+    else
+        log_warn "Archivo ${wg_conf} no encontrado. Saltando corrección de MTU."
+    fi
+}
+
 
 # =============================================================================
 # Menu
@@ -773,6 +802,7 @@ show_menu() {
         2) install_outline ;;
         3) 
             install_wireguard
+            fix_wireguard_mtu
             configure_bot_permissions
             ;;
         4) extract_vpn_vars ;;
