@@ -308,13 +308,20 @@ PersistentKeepalive = 25
       const conf = await this._readWgConf();
       const newConf = conf + '\n' + peerBlock;
       await this._writeWgConfAtomic(newConf);
-
+    
       // CORREGIDO: apply live con allowedIPs (puede incluir IPv6)
-      const cmd = `wg set ${this.interface} peer ${publicKey} allowed-ips ${allowedIPs}`;
       if (presharedKey) {
-        await runCmd(`${cmd} preshared-key <(echo "${presharedKey}")`);
+        // Usar un archivo temporal para el preshared key
+        const tmpFile = `/tmp/wg_psk_${Date.now()}_${Math.random().toString(36).substr(2)}`;
+        await fs.writeFile(tmpFile, presharedKey, { mode: 0o600 });
+        try {
+          await runCmd(`wg set ${this.interface} peer ${publicKey} allowed-ips ${allowedIPs} preshared-key ${tmpFile}`);
+        } finally {
+          // Limpiar archivo temporal
+          await fs.unlink(tmpFile).catch(() => {});
+        }
       } else {
-        await runCmd(cmd);
+        await runCmd(`wg set ${this.interface} peer ${publicKey} allowed-ips ${allowedIPs}`);
       }
     } catch (err) {
       logger.error('addPeer failed', err);
