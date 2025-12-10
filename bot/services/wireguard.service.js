@@ -187,29 +187,29 @@ class WireGuardService {
   // GENERAR CONFIG CLIENT
   // --------------------------------------------------
   _buildClientConfig({ privateKey, clientIP, publicServerKey, presharedKey }) {
-    // CORREGIDO: Usar DNS del .env en lugar de SERVER_IPV4
     const dns1 = config.WG_CLIENT_DNS_1 || '1.1.1.1';
     const dns2 = config.WG_CLIENT_DNS_2 || '1.0.0.1';
     const dns = dns2 ? `${dns1}, ${dns2}` : dns1;
     
-    // CORREGIDO: Usar WG_ENDPOINT del .env o construir con SERVER_IP
     const endpoint = config.WG_ENDPOINT || `${config.SERVER_IP || config.SERVER_IPV4}:${config.WG_SERVER_PORT || '51820'}`;
-
+  
     const clientConf =
-`[Interface]
-PrivateKey = ${privateKey}
-Address = ${clientIP}/24
-DNS = ${dns}
-
-[Peer]
-PublicKey = ${publicServerKey}
-PresharedKey = ${presharedKey}
-Endpoint = ${endpoint}
-AllowedIPs = 0.0.0.0/0, ::/0
-PersistentKeepalive = 25
-`;
+  `[Interface]
+  PrivateKey = ${privateKey}
+  Address = ${clientIP}/24
+  DNS = ${dns}
+  MTU = 1420
+  
+  [Peer]
+  PublicKey = ${publicServerKey}
+  PresharedKey = ${presharedKey}
+  Endpoint = ${endpoint}
+  AllowedIPs = 0.0.0.0/0, ::/0
+  PersistentKeepalive = 15
+  `;
     return clientConf;
   }
+
 
   // --------------------------------------------------
   // CREAR CLIENTE PARA UN USUARIO
