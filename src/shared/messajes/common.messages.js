@@ -157,6 +157,49 @@ function getLogsInfoMessage() {
          `• Resolución de problemas\n\n` +
          `No se almacenan datos personales sensibles.`;
 }
+// ============================================================================
+// 🚨 QUOTA MESSAGES
+// ============================================================================
+
+function getQuotaWarningWG({ percentage, clientName, usedBytes, limitBytes }) {
+  const usedGB = (usedBytes / (1024 * 1024 * 1024)).toFixed(2);
+  const limitGB = (limitBytes / (1024 * 1024 * 1024)).toFixed(2);
+  return `${constants.EMOJI.WARNING} *Advertencia de Cuota - WireGuard*\n\n` +
+         `Cliente: ${markdown.code(clientName)}\n` +
+         `Uso: ${usedGB} GB / ${limitGB} GB (${percentage}%)\n\n` +
+         `Has alcanzado el ${percentage}% de tu límite de datos.\n` +
+         `Considera reducir el uso o contactar al administrador.`;
+}
+
+function getQuotaExceededWG({ clientName, usedBytes, limitBytes }) {
+  const usedGB = (usedBytes / (1024 * 1024 * 1024)).toFixed(2);
+  const limitGB = (limitBytes / (1024 * 1024 * 1024)).toFixed(2);
+  return `${constants.EMOJI.ERROR} *Cuota Excedida - WireGuard Suspendido*\n\n` +
+         `Cliente: ${markdown.code(clientName)}\n` +
+         `Uso: ${usedGB} GB / ${limitGB} GB\n\n` +
+         `Has excedido tu límite de datos. El servicio ha sido suspendido.\n` +
+         `Contacta al administrador para reactivar o aumentar la cuota.`;
+}
+
+function getQuotaWarningOutline({ percentage, keyName, usedBytes, limitBytes }) {
+  const usedGB = (usedBytes / (1024 * 1024 * 1024)).toFixed(2);
+  const limitGB = (limitBytes / (1024 * 1024 * 1024)).toFixed(2);
+  return `${constants.EMOJI.WARNING} *Advertencia de Cuota - Outline*\n\n` +
+         `Clave: ${markdown.code(keyName)}\n` +
+         `Uso: ${usedGB} GB / ${limitGB} GB (${percentage}%)\n\n` +
+         `Has alcanzado el ${percentage}% de tu límite de datos.\n` +
+         `Considera reducir el uso o contactar al administrador.`;
+}
+
+function getQuotaExceededOutline({ keyName, usedBytes, limitBytes }) {
+  const usedGB = (usedBytes / (1024 * 1024 * 1024)).toFixed(2);
+  const limitGB = (limitBytes / (1024 * 1024 * 1024)).toFixed(2);
+  return `${constants.EMOJI.ERROR} *Cuota Excedida - Outline Suspendido*\n\n` +
+         `Clave: ${markdown.code(keyName)}\n` +
+         `Uso: ${usedGB} GB / ${limitGB} GB\n\n` +
+         `Has excedido tu límite de datos. El servicio ha sido suspendido.\n` +
+         `Contacta al administrador para reactivar o aumentar la cuota.`;
+}
 
 // ============================================================================
 // 📦 EXPORTS
@@ -167,25 +210,31 @@ module.exports = {
   getWelcomeMessage,
   getAuthorizedWelcomeMessage,
   getUnauthorizedMessage,
-  
+
   // Error Messages
   getGenericErrorMessage,
   getNotFoundMessage,
   getAccessDeniedMessage,
   getAdminOnlyMessage,
-  
+
   // Information Messages
   getSystemStatusMessage,
   getHelpMessage,
   getCommandsListMessage,
-  
+
   // Confirmation Messages
   getOperationSuccessMessage,
   getOperationFailedMessage,
   getConfirmationMessage,
-  
+
   // System Messages
   getMaintenanceMessage,
   getUpdateMessage,
-  getLogsInfoMessage
+  getLogsInfoMessage,
+
+  // Quota Messages
+  getQuotaWarningWG,
+  getQuotaExceededWG,
+  getQuotaWarningOutline,
+  getQuotaExceededOutline
 };

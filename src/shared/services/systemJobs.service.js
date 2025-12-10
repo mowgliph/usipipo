@@ -14,13 +14,14 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-const WireGuardService = require('./wireguard.service');
-const OutlineService = require('./outline.service');
-const userManager = require('./userManager.service');
-const logger = require('../utils/logger');
+const WireGuardService = require('../../features/vpn/providers/wireguard.service');
+const OutlineService = require('../../features/vpn/providers/outline.service');
+const managerService = require('./manager.service');
+const logger = require('../../core/utils/logger');
+const markdown = require('../../core/utils/markdown');
 
 // UI Helpers del bot
-const messages = require('../utils/messages');
+const messages = require('../messages/common.messages.js');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const STORE_FILE = path.join(DATA_DIR, 'usage_store.json');
@@ -50,6 +51,10 @@ class SystemJobsService {
     };
 
     this.store = { wg: {}, outline: {}, meta: { lastRun: null } };
+
+    // Protection against concurrent executions
+    this.isRunningWG = false;
+    this.isRunningOutline = false;
   }
 
   // ============================================================================
@@ -58,6 +63,9 @@ class SystemJobsService {
 
   async initialize() {
     await this.#loadStore();
+
+    // Cleanup old entries on startup
+    await this.cleanupOldEntries();
 
     // Ejecutar inmediatamente
     this.runWireGuardJob();
@@ -89,6 +97,7 @@ class SystemJobsService {
       await fs.mkdir(DATA_DIR, { recursive: true });
       const raw = await fs.readFile(STORE_FILE, 'utf8').catch(() => null);
       this.store = raw ? JSON.parse(raw) : { wg: {}, outline: {}, meta: {} };
+      await this.#migrateStore();
     } catch (err) {
       logger.error('[SystemJobs] Error cargando store', err);
       this.store = { wg: {}, outline: {}, meta: {} };
@@ -109,14 +118,105 @@ class SystemJobsService {
   }
 
   // ============================================================================
+  // MIGRATION & CLEANUP
+  // ============================================================================
+
+  async #migrateStore() {
+    // Migration logic if store format changes
+    if (!this.store.meta) {
+      this.store.meta = { lastRun: null };
+      logger.info('[SystemJobs] Migrated store to include meta');
+    }
+    // Add more migrations as needed
+  }
+
+  async cleanupOldEntries(daysOld = 30) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysOld);
+    const cutoffISO = cutoff.toISOString();
+
+    let cleanedWG = 0;
+    let cleanedOutline = 0;
+
+    // Clean WG entries
+    for (const [clientName, entry] of Object.entries(this.store.wg)) {
+      if (entry.lastUpdated && entry.lastUpdated < cutoffISO) {
+        delete this.store.wg[clientName];
+        cleanedWG++;
+      }
+    }
+
+    // Clean Outline entries
+    for (const [keyId, entry] of Object.entries(this.store.outline)) {
+      if (entry.lastUpdated && entry.lastUpdated < cutoffISO) {
+        delete this.store.outline[keyId];
+        cleanedOutline++;
+      }
+    }
+
+    if (cleanedWG > 0 || cleanedOutline > 0) {
+      await this.#saveStore();
+      logger.info('[SystemJobs] Limpieza de entradas antiguas completada', {
+        wgEntriesRemoved: cleanedWG,
+        outlineEntriesRemoved: cleanedOutline,
+        daysOld
+      });
+    }
+
+    return { wg: cleanedWG, outline: cleanedOutline };
+  }
+
+  getStoreStats() {
+    const wgCount = Object.keys(this.store.wg).length;
+    const outlineCount = Object.keys(this.store.outline).length;
+    const totalEntries = wgCount + outlineCount;
+
+    let totalUsageWG = 0;
+    let totalUsageOutline = 0;
+
+    for (const entry of Object.values(this.store.wg)) {
+      totalUsageWG += entry.cumulative || 0;
+    }
+
+    for (const entry of Object.values(this.store.outline)) {
+      totalUsageOutline += entry.cumulative || 0;
+    }
+
+    return {
+      wg: {
+        entries: wgCount,
+        totalUsage: totalUsageWG,
+        averageUsage: wgCount > 0 ? totalUsageWG / wgCount : 0
+      },
+      outline: {
+        entries: outlineCount,
+        totalUsage: totalUsageOutline,
+        averageUsage: outlineCount > 0 ? totalUsageOutline / outlineCount : 0
+      },
+      total: {
+        entries: totalEntries,
+        totalUsage: totalUsageWG + totalUsageOutline
+      },
+      meta: this.store.meta
+    };
+  }
+
+  // ============================================================================
   // WIREGUARD QUOTA MONITOR
   // ============================================================================
 
   async runWireGuardJob() {
-    logger.info('[SystemJobs] Ejecutando WireGuard quota-job');
-    await this.#loadStore();
+    if (this.isRunningWG) {
+      logger.warn('[SystemJobs] WireGuard job ya está ejecutándose, saltando');
+      return;
+    }
+    this.isRunningWG = true;
 
-    const users = userManager.getAllUsers();
+    try {
+      logger.info('[SystemJobs] Ejecutando WireGuard quota-job');
+      await this.#loadStore();
+
+      const users = managerService.getAllUsers();
 
     for (const user of users) {
       const userId = String(user.id);
@@ -147,6 +247,7 @@ class SystemJobsService {
 
         entry.cumulative += delta;
         entry.last = current;
+        entry.lastUpdated = new Date().toISOString();
 
         await this.#saveStore();
 
@@ -162,8 +263,11 @@ class SystemJobsService {
       }
     }
 
-    this.store.meta.lastRun = new Date().toISOString();
-    await this.#saveStore();
+      this.store.meta.lastRun = new Date().toISOString();
+      await this.#saveStore();
+    } finally {
+      this.isRunningWG = false;
+    }
   }
 
   async #suspendWireGuardClient(user, entry) {
@@ -173,14 +277,17 @@ class SystemJobsService {
     try {
       await WireGuardService.deleteClient(userId);
 
-      user.wg.suspended = true;
-      user.wg.suspendedAt = new Date().toISOString();
-      await userManager.saveUsers();
+      const wgData = { ...user.wg, suspended: true, suspendedAt: new Date().toISOString() };
+      await managerService.setWireGuardData(userId, wgData);
 
       // Notificar usuario
       await this.notificationService.sendDirectMessage(
         userId,
-        messages.QUOTA_WG_EXCEEDED(clientName)
+        messages.getQuotaExceededWG({
+          clientName,
+          usedBytes: entry.cumulative,
+          limitBytes: this.limits.wireguard
+        })
       );
 
       // Notificar admin
@@ -207,8 +314,15 @@ class SystemJobsService {
   // ============================================================================
 
   async runOutlineJob() {
-    logger.info('[SystemJobs] Ejecutando Outline quota-job');
-    await this.#loadStore();
+    if (this.isRunningOutline) {
+      logger.warn('[SystemJobs] Outline job ya está ejecutándose, saltando');
+      return;
+    }
+    this.isRunningOutline = true;
+
+    try {
+      logger.info('[SystemJobs] Ejecutando Outline quota-job');
+      await this.#loadStore();
 
     let keys = [];
     try {
@@ -241,6 +355,7 @@ class SystemJobsService {
 
         entry.cumulative += delta;
         entry.last = used;
+        entry.lastUpdated = new Date().toISOString();
         await this.#saveStore();
 
         if (entry.cumulative >= this.limits.outline) {
@@ -251,26 +366,32 @@ class SystemJobsService {
       }
     }
 
-    this.store.meta.lastRun = new Date().toISOString();
-    await this.#saveStore();
+      this.store.meta.lastRun = new Date().toISOString();
+      await this.#saveStore();
+    } finally {
+      this.isRunningOutline = false;
+    }
   }
 
   async #suspendOutlineKey(entry, key) {
     try {
       await OutlineService.deleteKey(key.id);
 
-      // Reflejar en userManager
-      const u = userManager.getUser(String(entry.userId));
+      // Reflejar en managerService
+      const u = managerService.getCompleteUser(String(entry.userId));
       if (u && u.outline && u.outline.keyId === key.id) {
-        u.outline.suspended = true;
-        u.outline.suspendedAt = new Date().toISOString();
-        await userManager.saveUsers();
+        const outlineData = { ...u.outline, suspended: true, suspendedAt: new Date().toISOString() };
+        await managerService.setOutlineData(entry.userId, outlineData);
       }
 
       // Notificar usuario
       await this.notificationService.sendDirectMessage(
         entry.userId,
-        messages.QUOTA_OUTLINE_EXCEEDED(key.name)
+        messages.getQuotaExceededOutline({
+          keyName: key.name,
+          usedBytes: entry.cumulative,
+          limitBytes: this.limits.outline
+        })
       );
 
       // Notificar admin
