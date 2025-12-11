@@ -1,165 +1,197 @@
 'use strict';
 
-const { Markup } = require('telegraf');
-
 /**
  * ============================================================================
- * ⌨️ HELP KEYBOARDS - Teclados para navegación de ayuda
+ * ⌨️ HELP KEYBOARDS - uSipipo VPN Bot
  * ============================================================================
- * Teclados inline organizados por categorías para fácil navegación.
- * Diseño intuitivo y responsive para Telegram.
+ * Teclados inline para navegación en el sistema de ayuda.
  * ============================================================================
  */
 
-class HelpKeyboards {
-  // ==========================================================================
-  // 🎯 TECLADO PRINCIPAL
-  // ==========================================================================
-  
-  static mainHelpKeyboard() {
-    return Markup.inlineKeyboard([
-      [
-        Markup.button.callback('🔐 VPN General', 'help_vpn_general'),
-        Markup.button.callback('🛡️ WireGuard', 'help_vpn_wireguard')
-      ],
-      [
-        Markup.button.callback('🌐 Outline', 'help_vpn_outline'),
-        Markup.button.callback('👤 Perfil Usuario', 'help_user_profile')
-      ],
-      [
-        Markup.button.callback('📊 Cuotas', 'help_user_quota'),
-        Markup.button.callback('🔧 Problemas', 'help_troubleshooting')
-      ],
-      [
-        Markup.button.callback('🛡️ Seguridad', 'help_security'),
-        Markup.button.callback('📞 Contacto', 'help_contact')
-      ],
-      [
-        Markup.button.callback('👮 Admin', 'help_admin'),
-        Markup.button.callback('❌ Cerrar', 'help_close')
-      ]
+const { Markup } = require('telegraf');
+
+// ============================================================================
+// 🏠 MENÚ PRINCIPAL DE AYUDA
+// ============================================================================
+
+function getMainHelpKeyboard(isAdmin = false) {
+  const buttons = [
+    [
+      Markup.button.callback('🔐 VPN', 'help_vpn'),
+      Markup.button.callback('👤 Perfil', 'help_profile')
+    ],
+    [
+      Markup.button.callback('ℹ️ Sistema', 'help_system'),
+      Markup.button.callback('🔧 Problemas', 'help_troubleshooting')
+    ],
+    [
+      Markup.button.callback('📋 Comandos', 'help_commands')
+    ]
+  ];
+
+  if (isAdmin) {
+    buttons.splice(2, 0, [
+      Markup.button.callback('👑 Admin', 'help_admin')
     ]);
   }
 
-  // ==========================================================================
-  // 🔐 TECLADOS VPN
-  // ==========================================================================
-  
-  static vpnCategoryKeyboard() {
-    return Markup.inlineKeyboard([
-      [
-        Markup.button.callback('🔐 General', 'help_vpn_general'),
-        Markup.button.callback('🛡️ WireGuard', 'help_vpn_wireguard')
-      ],
-      [
-        Markup.button.callback('🌐 Outline', 'help_vpn_outline'),
-        Markup.button.callback('↩️ Volver', 'help_back_main')
-      ]
-    ]);
-  }
+  buttons.push([
+    Markup.button.callback('🏠 Menú Principal', 'back_to_menu')
+  ]);
 
-  // ==========================================================================
-  // 👤 TECLADOS USUARIO
-  // ==========================================================================
-  
-  static userCategoryKeyboard() {
-    return Markup.inlineKeyboard([
-      [
-        Markup.button.callback('👤 Perfil', 'help_user_profile'),
-        Markup.button.callback('📊 Cuotas', 'help_user_quota')
-      ],
-      [
-        Markup.button.callback('↩️ Volver', 'help_back_main')
-      ]
-    ]);
-  }
-
-  // ==========================================================================
-  // 🛠️ TECLADOS TÉCNICOS
-  // ==========================================================================
-  
-  static technicalCategoryKeyboard() {
-    return Markup.inlineKeyboard([
-      [
-        Markup.button.callback('🔧 Problemas', 'help_troubleshooting'),
-        Markup.button.callback('🛡️ Seguridad', 'help_security')
-      ],
-      [
-        Markup.button.callback('↩️ Volver', 'help_back_main')
-      ]
-    ]);
-  }
-
-  // ==========================================================================
-  // 📞 TECLADOS CONTACTO
-  // ==========================================================================
-  
-  static contactCategoryKeyboard() {
-    return Markup.inlineKeyboard([
-      [
-        Markup.button.callback('📞 Contacto', 'help_contact'),
-        Markup.button.callback('👮 Admin', 'help_admin')
-      ],
-      [
-        Markup.button.callback('↩️ Volver', 'help_back_main')
-      ]
-    ]);
-  }
-
-  // ==========================================================================
-  // 👮 TECLADO ADMIN
-  // ==========================================================================
-  
-  static adminCategoryKeyboard() {
-    return Markup.inlineKeyboard([
-      [
-        Markup.button.callback('👮 Comandos Admin', 'help_admin')
-      ],
-      [
-        Markup.button.callback('↩️ Volver', 'help_back_main')
-      ]
-    ]);
-  }
-
-  // ==========================================================================
-  // 🔙 TECLADO DE REGRESO (Genérico)
-  // ==========================================================================
-  
-  static backToMainKeyboard() {
-    return Markup.inlineKeyboard([
-      [Markup.button.callback('↩️ Volver al Menú Principal', 'help_back_main')]
-    ]);
-  }
-
-  // ==========================================================================
-  // 🎯 TECLADO DE CIERRE
-  // ==========================================================================
-  
-  static closeHelpKeyboard() {
-    return Markup.inlineKeyboard([
-      [Markup.button.callback('❌ Cerrar Centro de Ayuda', 'help_close')]
-    ]);
-  }
-
-  // ==========================================================================
-  // 🔧 MÉTODOS UTILITARIOS
-  // ==========================================================================
-  
-  static getKeyboardForSection(section) {
-    const keyboardMap = {
-      'vpn_general': this.vpnCategoryKeyboard(),
-      'vpn_wireguard': this.vpnCategoryKeyboard(),
-      'vpn_outline': this.vpnCategoryKeyboard(),
-      'user_profile': this.userCategoryKeyboard(),
-      'user_quota': this.userCategoryKeyboard(),
-      'troubleshooting': this.technicalCategoryKeyboard(),
-      'security': this.technicalCategoryKeyboard(),
-      'contact': this.contactCategoryKeyboard(),
-      'admin': this.adminCategoryKeyboard()
-    };
-
-    return keyboardMap[section] || this.backToMainKeyboard();
-  }
+  return Markup.inlineKeyboard(buttons);
 }
 
-module.exports = HelpKeyboards;
+// ============================================================================
+// 🔙 BOTÓN DE REGRESO A AYUDA PRINCIPAL
+// ============================================================================
+
+function getBackToHelpKeyboard() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('◀️ Volver a Ayuda', 'help_main')],
+    [Markup.button.callback('🏠 Menú Principal', 'back_to_menu')]
+  ]);
+}
+
+// ============================================================================
+// 🔐 AYUDA VPN - NAVEGACIÓN
+// ============================================================================
+
+function getVPNHelpKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('📱 Descargar WireGuard', 'help_download_wg', true),
+      Markup.button.callback('📱 Descargar Outline', 'help_download_outline', true)
+    ],
+    [
+      Markup.button.callback('🎓 Tutorial WG', 'help_tutorial_wg'),
+      Markup.button.callback('🎓 Tutorial Outline', 'help_tutorial_outline')
+    ],
+    [
+      Markup.button.callback('❓ FAQ VPN', 'help_vpn_faq')
+    ],
+    [
+      Markup.button.callback('◀️ Volver a Ayuda', 'help_main')
+    ]
+  ]);
+}
+
+// ============================================================================
+// 🔧 SOLUCIÓN DE PROBLEMAS - NAVEGACIÓN
+// ============================================================================
+
+function getTroubleshootingKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('🔐 Problema WireGuard', 'help_issue_wg'),
+      Markup.button.callback('🌐 Problema Outline', 'help_issue_outline')
+    ],
+    [
+      Markup.button.callback('📊 Alto consumo', 'help_issue_data'),
+      Markup.button.callback('🤖 Bot no responde', 'help_issue_bot')
+    ],
+    [
+      Markup.button.callback('📞 Contactar Admin', 'help_contact_admin')
+    ],
+    [
+      Markup.button.callback('◀️ Volver a Ayuda', 'help_main')
+    ]
+  ]);
+}
+
+// ============================================================================
+// 👤 PERFIL - NAVEGACIÓN
+// ============================================================================
+
+function getProfileHelpKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('👁️ Ver mi perfil', 'profile_view'),
+      Markup.button.callback('⚙️ Configuración', 'settings_view')
+    ],
+    [
+      Markup.button.callback('📊 Mis estadísticas', 'stats_view')
+    ],
+    [
+      Markup.button.callback('◀️ Volver a Ayuda', 'help_main')
+    ]
+  ]);
+}
+
+// ============================================================================
+// 👑 ADMIN - NAVEGACIÓN (SOLO ADMINISTRADORES)
+// ============================================================================
+
+function getAdminHelpKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('👥 Gestión Usuarios', 'admin_users'),
+      Markup.button.callback('🔐 Gestión VPN', 'admin_vpn')
+    ],
+    [
+      Markup.button.callback('📋 Ver Logs', 'admin_logs'),
+      Markup.button.callback('📢 Broadcast', 'admin_broadcast')
+    ],
+    [
+      Markup.button.callback('💾 Backup', 'admin_backup'),
+      Markup.button.callback('🧹 Cleanup', 'admin_cleanup')
+    ],
+    [
+      Markup.button.callback('◀️ Volver a Ayuda', 'help_main')
+    ]
+  ]);
+}
+
+// ============================================================================
+// ℹ️ SISTEMA - NAVEGACIÓN
+// ============================================================================
+
+function getSystemHelpKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('📊 Estado Sistema', 'system_status'),
+      Markup.button.callback('ℹ️ Info Detallada', 'system_info')
+    ],
+    [
+      Markup.button.callback('🏓 Ping', 'system_ping')
+    ],
+    [
+      Markup.button.callback('◀️ Volver a Ayuda', 'help_main')
+    ]
+  ]);
+}
+
+// ============================================================================
+// 📋 LISTA DE COMANDOS - NAVEGACIÓN
+// ============================================================================
+
+function getCommandsListKeyboard() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('🔐 Comandos VPN', 'commands_vpn'),
+      Markup.button.callback('👤 Comandos Usuario', 'commands_user')
+    ],
+    [
+      Markup.button.callback('🖥️ Comandos Sistema', 'commands_system'),
+      Markup.button.callback('👑 Comandos Admin', 'commands_admin')
+    ],
+    [
+      Markup.button.callback('◀️ Volver a Ayuda', 'help_main')
+    ]
+  ]);
+}
+
+// ============================================================================
+// 📦 EXPORTS
+// ============================================================================
+
+module.exports = {
+  getMainHelpKeyboard,
+  getBackToHelpKeyboard,
+  getVPNHelpKeyboard,
+  getTroubleshootingKeyboard,
+  getProfileHelpKeyboard,
+  getAdminHelpKeyboard,
+  getSystemHelpKeyboard,
+  getCommandsListKeyboard
+};

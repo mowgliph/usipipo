@@ -1,238 +1,231 @@
-/**
- * @fileoverview bot.instance.js — Instancia principal del bot uSipipo VPN (v1.1.0)
- * @version 1.1.0
- * @author Team uSipipo
- * @description Bot Telegraf con handlers modulares, StartHandler premium y UI limpia.
- */
-
 'use strict';
 
+/**
+ * src/core/bot/bot.instance.js
+ *
+ * Inicializa el bot de Telegram, registra middlewares, servicios y handlers
+ * Detecta automáticamente todos los archivos *.handler.js dentro de src/features
+ * e intenta instanciarlos y registrar sus handlers si exportan una clase u objeto
+ * con método `registerHandlers`.
+ *
+ * Compatibilidad con el estilo CommonJS del proyecto.
+ */
+
 const { Telegraf } = require('telegraf');
-const config = require('../../config/environment');
+const fs = require('fs');
+const path = require('path');
+
+const env = require('../../config/environment');
 const logger = require('../utils/logger');
 
 // Middlewares
 const {
-  requireAuth,
-  requireAdmin,
-  logUserAction,
-  isAdmin
-} = require('../middleware/auth.middleware');
+  loggingMiddleware,
+  commandLoggingMiddleware,
+  callbackLoggingMiddleware
+} = require('../middleware/logging.middleware');
 
-// Services
-const NotificationService = require('../services/notification.service');
+const { errorMiddleware, withErrorHandling } = require('../middleware/error.middleware');
+const authMiddleware = require('../middleware/auth.middleware');
 
-// 🆕 Handlers
-const StartHandler = require('../handlers/start.handler');
-const AuthHandler = require('../handlers/auth.handler');
-const vpnHandler = require('../handlers/vpn.handler'); 
-const InfoHandler = require('../handlers/info.handler');
-const AdminHandler = require('../handlers/admin.handler');
+// Services (algunos services esperan la instancia del bot)
+const NotificationService = require('../../shared/services/notification.service');
+const managerService = require('../../shared/services/manager.service');
+const SystemJobsService = require('../../shared/services/systemJobs.service');
 
-// Keyboards & UI
-const keyboards = require('../utils/keyboards');
-const messages = require('../utils/messages');
+// ---------- CREAR INSTANCIA DEL BOT ----------
+const bot = new Telegraf(env.TELEGRAM_TOKEN || env.TELEGRAM_TOKEN);
 
-// =====================================================================================
-// 🔵 BOT INSTANCE
-// =====================================================================================
+// Exponer logger en context por conveniencia
+bot.context.logger = logger;
 
-const bot = new Telegraf(config.TELEGRAM_TOKEN, {
-  handlerTimeout: 90_000,
-  telegram: { parse_mode: 'Markdown' }
-});
+// Contenedor para services accesible desde handlers: ctx.services.*
+bot.context.services = {};
 
-const notificationService = new NotificationService(bot);
+// ---------- REGISTRO DE MIDDLEWARES ----------
+function registerCoreMiddlewares(instance) {
+  // Logging general
+  instance.use(async (ctx, next) => loggingMiddleware(ctx, next));
 
-// 🆕 Instancias de handlers
-const startHandler = new StartHandler();
-const authHandler = new AuthHandler(notificationService);
-const infoHandler = new InfoHandler();
-const adminHandler = new AdminHandler(notificationService);
+  // Command / Callback specific logging
+  instance.use(commandLoggingMiddleware);
+  instance.use(callbackLoggingMiddleware);
 
-// =====================================================================================
-// 🟣 GLOBAL MIDDLEWARE
-// =====================================================================================
-
-bot.use(logUserAction);
-
-// =====================================================================================
-// 🟢 USER COMMANDS — MIGRANTES A START HANDLER
-// =====================================================================================
-
-// ⭐ /start → StartHandler (nuevo estándar premium)
-bot.command('start', (ctx) => startHandler.handleStart(ctx));
-
-bot.command('miinfo', (ctx) => authHandler.handleUserInfo(ctx));
-bot.command('status', (ctx) => authHandler.handleCheckStatus(ctx));
-bot.command('help', (ctx) => infoHandler.handleHelp(ctx));
-bot.command('commands', (ctx) => infoHandler.handleCommandList(ctx));
-
-// Comandos VPN específicos
-bot.command('vpn', (ctx) => vpnHandler.cmdVpn(ctx));
-
-// =====================================================================================
-// 🟡 ADMIN COMMANDS
-// =====================================================================================
-
-bot.command('add', requireAdmin, (ctx) => adminHandler.handleAddUser(ctx));
-bot.command('rm', requireAdmin, (ctx) => adminHandler.handleRemoveUser(ctx));
-bot.command('sus', requireAdmin, (ctx) => adminHandler.handleSuspendUser(ctx));
-bot.command('react', requireAdmin, (ctx) => adminHandler.handleReactivateUser(ctx));
-bot.command('users', requireAdmin, (ctx) => adminHandler.handleListUsers(ctx));
-bot.command('stats', requireAdmin, (ctx) => adminHandler.handleStats(ctx));
-bot.command('broadcast', requireAdmin, (ctx) => adminHandler.handleBroadcast(ctx));
-bot.command('sms', requireAdmin, (ctx) => adminHandler.handleDirectMessage(ctx));
-bot.command('templates', requireAdmin, (ctx) => adminHandler.handleTemplates(ctx));
-
-// =====================================================================================
-// 🔴 SYSTEM COMMAND (emergency use only)
-// =====================================================================================
-
-bot.command('forceadmin', async (ctx) => {
-  const userId = ctx.from.id.toString();
-
-  if (userId !== config.ADMIN_ID) {
-    return ctx.reply('⛔ Solo el Admin principal definido en .env puede usar este comando.');
+  // Attach helper middlewares (non-blocking)
+  // logUserAction logs every request with user metadata
+  if (authMiddleware && typeof authMiddleware.logUserAction === 'function') {
+    instance.use(authMiddleware.logUserAction);
   }
 
-  try {
-    const userManager = require('../services/userManager.service');
-    await userManager.syncAdminFromEnv();
-
-    await ctx.reply(
-      `✅ *Admin sincronizado correctamente*
-🆔 \`${config.ADMIN_ID}\``);
-  } catch (error) {
-    await ctx.reply(`❌ Error: ${error.message}`);
-  }
-});
-
-// =====================================================================================
-// 🟦 APP-STYLE NAVIGATION MENUS (UI / Botones)
-// =====================================================================================
-
-// ⭐ BOTÓN "Volver al Inicio" → StartHandler
-bot.action('start', (ctx) => startHandler.handleStart(ctx));
-
-// ----------- USER MAIN NAVIGATION -----------
-bot.action('show_my_info', (ctx) => authHandler.handleUserInfo(ctx));
-bot.action('request_access', (ctx) => authHandler.handleAccessRequest(ctx));
-bot.action('check_status', (ctx) => authHandler.handleCheckStatus(ctx));
-
-// ----------- VPN ACTIONS -----------
-bot.action('vpn_menu', requireAuth, (ctx) => vpnHandler.actionVpnMenu(ctx));
-bot.action('wg_menu', requireAuth, (ctx) => vpnHandler.actionWgMenu(ctx));
-bot.action('outline_menu', requireAuth, (ctx) => vpnHandler.actionOutlineMenu(ctx));
-bot.action('create_wg', requireAuth, (ctx) => vpnHandler.handleCreateWireGuard(ctx));
-bot.action('wg_show', requireAuth, (ctx) => vpnHandler.actionWgShowConfig(ctx));
-bot.action('wg_download', requireAuth, (ctx) => vpnHandler.actionWgDownload(ctx));
-bot.action('wg_qr', requireAuth, (ctx) => vpnHandler.actionWgQr(ctx));
-bot.action('wg_usage', requireAuth, (ctx) => vpnHandler.actionWgUsage(ctx));
-bot.action('wg_delete', requireAuth, (ctx) => vpnHandler.actionWgDelete(ctx));
-bot.action('create_outline', requireAuth, (ctx) => vpnHandler.handleCreateOutline(ctx));
-bot.action('outline_show', requireAuth, (ctx) => vpnHandler.actionOutlineShow(ctx));
-bot.action('outline_usage', requireAuth, (ctx) => vpnHandler.actionOutlineUsage(ctx));
-bot.action('outline_delete', requireAuth, (ctx) => vpnHandler.actionOutlineDelete(ctx));
-bot.action('list_clients', requireAuth, (ctx) => vpnHandler.handleListClients(ctx));
-
-// ----------- SYSTEM / HELP -----------
-bot.action('server_status', requireAuth, (ctx) => infoHandler.handleServerStatus(ctx));
-bot.action('help', (ctx) => infoHandler.handleHelp(ctx));
-
-// =====================================================================================
-// 🔥 UNIVERSAL CONFIRMATION SYSTEM
-// =====================================================================================
-
-// Cancelar acción
-bot.action('cancel_action', async (ctx) => {
-  await ctx.answerCbQuery().catch(() => {});
-  return ctx.editMessageText('❌ Acción cancelada.');
-});
-
-// ----- ADMIN destructive confirmations -----
-
-bot.action(/^confirm_admin_rm_(.+)$/, requireAdmin, (ctx) => {
-  const userId = ctx.match[1];
-  return adminHandler.confirmRemoveUser(ctx, userId);
-});
-
-bot.action(/^confirm_admin_sus_(.+)$/, requireAdmin, (ctx) => {
-  const userId = ctx.match[1];
-  return adminHandler.confirmSuspendUser(ctx, userId);
-});
-
-bot.action(/^confirm_admin_react_(.+)$/, requireAdmin, (ctx) => {
-  const userId = ctx.match[1];
-  return adminHandler.confirmReactivateUser(ctx, userId);
-});
-
-// ----- VPN destructive confirmations -----
-
-bot.action(/^confirm_delete_wg_(.+)$/, requireAuth, (ctx) => {
-  const id = ctx.match[1];
-  return vpnHandler.confirmDeleteWireGuard(ctx, id);
-});
-
-bot.action(/^confirm_delete_outline_(.+)$/, requireAuth, (ctx) => {
-  const keyId = ctx.match[1];
-  return vpnHandler.confirmDeleteOutlineKey(ctx, keyId);
-});
-
-// =====================================================================================
-// 📢 BROADCAST dynamic confirm system
-// =====================================================================================
-
-bot.action(/^broadcast_(all|users|admins)_(.+)$/, requireAdmin, (ctx) => {
-  const [_, scope, id] = ctx.match;
-  return adminHandler.handleBroadcastConfirm(ctx, id, scope);
-});
-
-bot.action(/^broadcast_cancel_(.+)$/, requireAdmin, (ctx) => {
-  const id = ctx.match[1];
-  return adminHandler.handleBroadcastCancel(ctx, id);
-});
-
-// =====================================================================================
-// GLOBAL ERROR HANDLER
-// =====================================================================================
-
-bot.catch(async (err, ctx) => {
-  const userId = ctx.from?.id;
-  logger.error('bot.catch', err, { userId });
-
-  try {
-    await notificationService.notifyAdminError(err.message, { userId });
-  } catch (_) {}
-
-  await ctx.reply(messages.ERROR_GENERIC).catch(() => {});
-});
-
-// =====================================================================================
-// 🟨 TEXT HANDLER → (Solo maneja comandos desconocidos)
-// =====================================================================================
-
-bot.on('text', async (ctx) => {
-  const userId = ctx.from?.id;
-  const text = ctx.message?.text?.trim() || '';
-
-  try {
-    if (text.startsWith('/')) {
-      const admin = isAdmin(userId);
-      return ctx.reply(messages.UNKNOWN_COMMAND(admin));
+  // Global error catcher for telegraf (will forward to our errorMiddleware)
+  instance.catch(async (err, ctx) => {
+    try {
+      // errorMiddleware expects (error, ctx, next)
+      await errorMiddleware(err, ctx, () => Promise.resolve());
+    } catch (e) {
+      // fallback: log
+      logger.error('[Bot] Error dentro de errorMiddleware', e, { original: err?.message });
     }
-    
-    // ✅ CORRECCIÓN: Eliminado el fallback a startHandler.handleStart(ctx).
-    // Esto permite que el texto que no es un comando sea procesado 
-    // por otros handlers de estado (ej: vpnHandler esperando una respuesta).
-    
+  });
+
+  logger.info('[Bot] Middlewares core registrados');
+}
+
+// ---------- INICIALIZAR SERVICIOS ----------
+async function initServices(instance) {
+  // NotificationService necesita la instancia del bot
+  const notificationService = new NotificationService(instance);
+  instance.context.services.notificationService = notificationService;
+
+  // Manager service (ya viene como singleton o clase exportada)
+  instance.context.services.managerService = managerService;
+
+  // SystemJobs: pasar notificationService si el módulo lo requiere
+  try {
+    const sysJobs = new SystemJobsService(notificationService);
+    instance.context.services.systemJobs = sysJobs;
+
+    // Intentar inicializar system jobs, sin bloquear el arranque si falla.
+    if (typeof sysJobs.initialize === 'function') {
+      sysJobs.initialize().catch((err) => {
+        logger.warn('[Bot] systemJobs.initialize falló (continuando)', { err: err?.message });
+      });
+    }
   } catch (err) {
-    logger.error('text_handler', err, { userId });
+    logger.warn('[Bot] No se pudo inicializar SystemJobsService', { err: err?.message });
   }
-});
 
-// =====================================================================================
-// EXPORT
-// =====================================================================================
+  logger.info('[Bot] Services inicializados');
+}
 
-module.exports = { bot, notificationService };
+// ---------- CARGA DINÁMICA DE HANDLERS (features) ----------
+/**
+ * Busca recursivamente archivos *.handler.js en src/features y los registra.
+ */
+function loadFeatureHandlers(instance) {
+  const featuresDir = path.join(__dirname, '..', '..', 'features');
+
+  function walkAndCollectHandlers(dir) {
+    let results = [];
+    const list = fs.readdirSync(dir);
+    list.forEach((fileOrDir) => {
+      const fullPath = path.join(dir, fileOrDir);
+      const stat = fs.statSync(fullPath);
+      if (stat && stat.isDirectory()) {
+        results = results.concat(walkAndCollectHandlers(fullPath));
+      } else if (stat && stat.isFile() && fileOrDir.endsWith('.handler.js')) {
+        results.push(fullPath);
+      }
+    });
+    return results;
+  }
+
+  let handlerFiles = [];
+  try {
+    handlerFiles = walkAndCollectHandlers(featuresDir);
+  } catch (err) {
+    logger.warn('[Bot] No se pudo leer directorio de features o no existe', { err: err?.message });
+    return;
+  }
+
+  handlerFiles.forEach((hf) => {
+    try {
+      // require el handler
+      const mod = require(hf);
+
+      let instanceHandler = null;
+
+      // Si exporta una clase/constructor -> new Class(bot)
+      if (typeof mod === 'function') {
+        try {
+          instanceHandler = new mod(instance);
+        } catch (e) {
+          // Si falla al construir, quizás exporta una factory o es función util.
+          // comprobamos si tiene export default
+          if (mod.default && typeof mod.default === 'function') {
+            instanceHandler = new mod.default(instance);
+          }
+        }
+      } else if (mod && typeof mod.default === 'function') {
+        instanceHandler = new mod.default(instance);
+      } else if (mod && typeof mod.create === 'function') {
+        instanceHandler = mod.create(instance);
+      } else if (mod && typeof mod.registerHandlers === 'function') {
+        // Si el módulo ya es un objeto con registerHandlers, lo usamos (algunos handlers no necesitan instancia)
+        instanceHandler = mod;
+      }
+
+      if (instanceHandler && typeof instanceHandler.registerHandlers === 'function') {
+        // envolver métodos expuestos con control de errores si no lo hacen internamente
+        try {
+          instanceHandler.registerHandlers();
+          logger.success(`[Bot] Handler registrado -> ${path.relative(process.cwd(), hf)}`);
+        } catch (err) {
+          // si el handler define internamente try/catch, se usará; si no, registramos el error
+          logger.error('[Bot] Error registrando handler', err, { handler: hf });
+        }
+      } else {
+        logger.debug('[Bot] Archivo handler ignorado (no tiene registerHandlers export)', { file: hf });
+      }
+    } catch (err) {
+      logger.error('[Bot] Error cargando handler', err, { file: hf });
+    }
+  });
+}
+
+// ---------- UTILIDADES (wrap handlers con manejo de errores) ----------
+/**
+ * Helper para aplicar withErrorHandling a funciones concretas cuando las registres manualmente.
+ * Ej:
+ *   bot.command('start', wrap(async (ctx) => { ... }))
+ */
+function wrap(fn) {
+  if (!fn) return fn;
+  try {
+    return withErrorHandling(fn);
+  } catch (e) {
+    // fallback: devolver la función original
+    return fn;
+  }
+}
+
+// ---------- FUNCIÓN DE INICIALIZACIÓN PRINCIPAL ----------
+/**
+ * Inicializa todo y devuelve la instancia del bot lista para lanzar (launch).
+ */
+async function initBot() {
+  try {
+    // Middlewares core
+    registerCoreMiddlewares(bot);
+
+    // Inicializar servicios (notification, manager, systemJobs, etc)
+    await initServices(bot);
+
+    // Cargar handlers dinámicamente
+    loadFeatureHandlers(bot);
+
+    // Comandos básicos en bot.telegram (opcional)
+    try {
+      bot.telegram.setMyCommands([
+        { command: 'start', description: 'Iniciar el bot' },
+        { command: 'help', description: 'Ayuda' },
+        { command: 'menu', description: 'Mostrar menú' }
+      ]);
+    } catch (e) {
+      logger.debug('[Bot] setMyCommands falló (posible modo de test)', { err: e?.message });
+    }
+
+    logger.info('[Bot] Inicialización completa');
+    return bot;
+  } catch (err) {
+    logger.error('[Bot] Error inicializando bot', err);
+    throw err;
+  }
+}
+
+// Exportamos la instancia y la función initBot
+module.exports = {
+  bot,
+  initBot,
+  wrap
+};

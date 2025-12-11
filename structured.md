@@ -72,9 +72,10 @@
 │       ├── messajes
 │       │   └── common.messages.js
 │       └── services
+│           ├── manager.service.js
 │           ├── notification.service.js
 │           └── systemJobs.service.js
 ├── structured.md
 └── wg_server.sh
 
-22 directories, 56 files
+22 directories, 57 files

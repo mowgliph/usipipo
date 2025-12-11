@@ -1,199 +1,326 @@
-/**
- * @fileoverview Manejador de comandos de información (estado del servidor, ayuda, lista de comandos).
- * @version 1.0.1
- * @author Team uSipipo
- * @description Implementa la limpieza de la UI (eliminación del mensaje de interacción previa).
- */
-
 'use strict';
 
-const OutlineService = require('../services/outline.service');
-const messages = require('../utils/messages');
-const keyboards = require('../utils/keyboards');
-const { isAuthorized, isAdmin } = require('../middleware/auth.middleware');
-const logger = require('../utils/logger');
-
 /**
- * Clase que gestiona las respuestas a comandos de información.
- * Asegura el uso de parse_mode: 'Markdown' (V1) para todas las respuestas.
+ * ============================================================================
+ * 📡 INFO HANDLER - uSipipo VPN Bot
+ * ============================================================================
+ * Manejadores de comandos y callbacks para el módulo de información
+ * ============================================================================
  */
-class InfoHandler {
-  /**
-   * Asegura que las respuestas de texto usen 'Markdown' para compatibilidad con V1.
-   * @private
-   * @param {object} keyboard - Objeto de teclado inline o reply.
-   * @returns {object} Opciones de respuesta para ctx.reply.
-   */
-  _getReplyOptions(keyboard = {}) {
-    return {
-      parse_mode: 'Markdown',
-      ...keyboard,
-      disable_web_page_preview: true, // Recomendado para evitar previsualizaciones no deseadas
-    };
-  }
+
+const messages = require('./info.messages');
+const keyboards = require('./info.keyboard');
+const infoService = require('./info.service');
+const { requireAuth } = require('../../core/middleware/auth.middleware');
+const { withErrorHandling } = require('../../core/middleware/error.middleware');
+const logger = require('../../core/utils/logger');
+const markdown = require('../../core/utils/markdown');
+const constants = require('../../config/constants');
+
+// ============================================================================
+// 📋 COMANDO PRINCIPAL: /info
+// ============================================================================
+
+const handleInfoCommand = withErrorHandling(async (ctx) => {
+  logger.info('[InfoHandler] Comando /info ejecutado', {
+    userId: ctx.from.id,
+    username: ctx.from.username
+  });
+
+  const introMessage = `${constants.EMOJI.INFO} ${markdown.bold('Centro de Información')}\n\n` +
+                       `Selecciona una categoría para obtener más información:`;
+
+  await ctx.reply(introMessage, {
+    parse_mode: 'Markdown',
+    ...keyboards.getInfoMainKeyboard()
+  });
+});
+
+// ============================================================================
+// 🖥️ CALLBACKS: INFORMACIÓN DEL SISTEMA
+// ============================================================================
+
+const handleSystemInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('📊 Cargando información del sistema...');
+
+  const message = messages.getSystemInfoMessage();
   
-  /**
-   * 🆕 Método auxiliar para eliminar el mensaje de la interacción previa (comando o botón).
-   * @private
-   * @param {object} ctx - Objeto de contexto de Telegraf.
-   */
-  async _cleanPreviousMessage(ctx) {
-    let chatId = ctx.chat?.id;
-    let messageId;
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-    if (ctx.callbackQuery) {
-      // Si es un callback de un botón, el mensaje a eliminar es el mensaje del botón.
-      messageId = ctx.callbackQuery.message?.message_id;
-    } else if (ctx.message) {
-      // Si es un comando o texto, el mensaje a eliminar es el mensaje del usuario.
-      messageId = ctx.message.message_id;
-    }
+const handleServerInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('🌐 Cargando información del servidor...');
 
-    if (chatId && messageId) {
-      try {
-        await ctx.deleteMessage(messageId);
-        logger.debug(`Mensaje ${messageId} eliminado en chat ${chatId}.`);
-      } catch (e) {
-        // Ignoramos errores comunes como "Message to delete not found" (si ya fue eliminado)
-        // o si el bot no tiene permisos de administrador.
-        logger.debug('No se pudo eliminar el mensaje previo:', e.message);
-      }
-    }
-  }
+  const message = messages.getServerInfoMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-  // ==========================================================================
-  // 🖥️ ESTADO DEL SERVIDOR (/status)
-  // ==========================================================================
-  /**
-   * Maneja la solicitud del estado del servidor.
-   * @param {object} ctx - Objeto de contexto de Telegraf.
-   */
-  async handleServerStatus(ctx) {
-    const userId = ctx.from?.id;
+const handleNetworkInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('📡 Cargando información de red...');
 
-    // 1. Limpieza de UI: Eliminar el mensaje del comando o botón
-    await this._cleanPreviousMessage(ctx);
-    
-    // 2. Responde al callbackQuery si existe para eliminar el estado de carga
-    if (ctx.callbackQuery) {
-      await ctx.answerCbQuery().catch(e => logger.debug('Error al responder a cbQuery en status:', e.message));
-    }
+  const message = messages.getNetworkInfoMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-    try {
-      let outlineInfo = {};
-      const logData = { userId };
+// ============================================================================
+// 🔐 CALLBACKS: INFORMACIÓN VPN
+// ============================================================================
 
-      // Intento robusto para obtener la información del servidor
-      try {
-        if (typeof OutlineService.getServerInfo === 'function') {
-          outlineInfo = await OutlineService.getServerInfo();
-          logData.service_ok = true;
-        } else {
-          outlineInfo = { version: 'N/A', status: 'Unavailable', error: true };
-          logData.service_ok = false;
-        }
-      } catch (serviceErr) {
-        logger.warn('OutlineService.getServerInfo ha fallado', serviceErr.message, logData);
-        outlineInfo = { error: true, status: 'Error' };
-        logData.service_ok = false;
-      }
+const handleWireGuardInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('🔐 Cargando información de WireGuard...');
 
-      // El mensaje se formatea con el resultado y se envía.
-      await ctx.reply(
-        messages.SERVER_STATUS(outlineInfo),
-        this._getReplyOptions(keyboards.backButton())
-      );
+  const message = messages.getWireGuardInfoMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-      logger.info('server_status manejado con éxito', logData);
-    } catch (err) {
-      logger.error('Error al manejar server_status', err, { userId });
+const handleOutlineInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('🌐 Cargando información de Outline...');
 
-      // Mensaje de error formateado para el usuario
-      await ctx.reply(
-        messages.ERROR_SERVER_STATUS || '⚠️ *Error inesperado obteniendo estado del servidor.*',
-        this._getReplyOptions(keyboards.backButton())
-      );
-    }
-  }
+  const message = messages.getOutlineInfoMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-  // ==========================================================================
-  // ❓ AYUDA (/help)
-  // ==========================================================================
-  /**
-   * Muestra el menú de ayuda, adaptando el mensaje si el usuario está autorizado.
-   * @param {object} ctx - Objeto de contexto de Telegraf.
-   */
-  async handleHelp(ctx) {
-    const userId = ctx.from?.id;
-    const userIdString = userId?.toString();
-    const authorized = isAuthorized(userIdString);
+const handleComparisonInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('⚖️ Comparando protocolos...');
 
-    // 1. Limpieza de UI: Eliminar el mensaje del comando o botón
-    await this._cleanPreviousMessage(ctx);
+  const message = messages.getComparisonMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-    // 2. Responde al callbackQuery si existe
-    if (ctx.callbackQuery) {
-      await ctx.answerCbQuery().catch(e => logger.debug('Error al responder a cbQuery en help:', e.message));
-    }
+// ============================================================================
+// 🛡️ CALLBACKS: SEGURIDAD Y PRIVACIDAD
+// ============================================================================
 
-    // Selecciona el texto y el teclado basado en la autorización
-    const text = authorized ? messages.HELP_AUTHORIZED : messages.HELP_UNAUTHORIZED;
-    const keyboard = keyboards.helpMenu(); 
+const handleSecurityInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('🛡️ Cargando información de seguridad...');
 
-    try {
-      await ctx.reply(
-        text,
-        this._getReplyOptions(keyboard)
-      );
+  const message = messages.getSecurityInfoMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-      logger.info('help manejado con éxito', { userId, authorized });
-    } catch (err) {
-      logger.error('Error al manejar help', err, { userId });
-      
-      // Fallback robusto en caso de fallo
-      await ctx.reply(
-        'ℹ️ *Ayuda no disponible por el momento. Intente más tarde.*',
-        this._getReplyOptions()
-      );
-    }
-  }
+const handleDataPolicyInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('📋 Cargando política de datos...');
 
-  // ==========================================================================
-  // 📋 LISTA DE COMANDOS (/commands)
-  // ==========================================================================
-  /**
-   * Muestra la lista de comandos disponibles, incluyendo comandos de administrador si aplica.
-   * @param {object} ctx - Objeto de contexto de Telegraf.
-   */
-  async handleCommandList(ctx) {
-    const userId = ctx.from?.id;
-    const admin = isAdmin(userId);
+  const message = messages.getDataPolicyMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-    // 1. Limpieza de UI: Eliminar el mensaje del comando o botón
-    await this._cleanPreviousMessage(ctx);
+// ============================================================================
+// ❓ CALLBACKS: FAQ Y AYUDA
+// ============================================================================
 
-    // 2. Responde al callbackQuery si existe
-    if (ctx.callbackQuery) {
-      await ctx.answerCbQuery().catch(e => logger.debug('Error al responder a cbQuery en commands:', e.message));
-    }
+const handleFAQ = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('❓ Cargando preguntas frecuentes...');
 
-    try {
-      await ctx.reply(
-        messages.COMMANDS_LIST(admin),
-        this._getReplyOptions(keyboards.backButton())
-      );
+  const message = messages.getFAQMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
 
-      logger.info('command_list manejado con éxito', { userId, admin });
-    } catch (err) {
-      logger.error('Error al manejar command_list', err, { userId });
+const handleTroubleshooting = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('🔧 Cargando solución de problemas...');
 
-      // Mensaje de error para el usuario
-      await ctx.reply(
-        '⚠️ *Error al mostrar la lista de comandos. Intente de nuevo.*',
-        this._getReplyOptions(keyboards.backButton())
-      );
-    }
-  }
+  const message = messages.getTroubleshootingMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
+
+// ============================================================================
+// 📞 CALLBACKS: CONTACTO Y ACERCA DE
+// ============================================================================
+
+const handleContactInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('📞 Cargando información de contacto...');
+
+  const message = messages.getContactMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
+
+const handleAboutInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('ℹ️ Cargando información del bot...');
+
+  const message = messages.getAboutMessage();
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
+
+// ============================================================================
+// 📱 CALLBACK: DESCARGAS
+// ============================================================================
+
+const handleDownloadsInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery('📱 Abriendo enlaces de descarga...');
+
+  const message = `${constants.EMOJI.INFO} ${markdown.bold('Descargar Clientes VPN')}\n\n` +
+                  `Selecciona tu plataforma para descargar el cliente oficial:\n\n` +
+                  `${markdown.bold('🔐 WireGuard:')}\n` +
+                  `• iOS, Android, Windows, macOS, Linux\n\n` +
+                  `${markdown.bold('🌐 Outline:')}\n` +
+                  `• iOS, Android, Windows, macOS, Linux\n\n` +
+                  `_Haz clic en los botones de abajo para acceder a las descargas oficiales_`;
+  
+  await ctx.editMessageText(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getDownloadKeyboard()
+  });
+});
+
+// ============================================================================
+// 🔄 CALLBACK: VOLVER AL MENÚ PRINCIPAL
+// ============================================================================
+
+const handleBackToInfo = withErrorHandling(async (ctx) => {
+  await ctx.answerCbQuery();
+
+  const introMessage = `${constants.EMOJI.INFO} ${markdown.bold('Centro de Información')}\n\n` +
+                       `Selecciona una categoría para obtener más información:`;
+
+  await ctx.editMessageText(introMessage, {
+    parse_mode: 'Markdown',
+    ...keyboards.getInfoMainKeyboard()
+  });
+});
+
+// ============================================================================
+// 📊 COMANDO AVANZADO: /stats (solo para admins)
+// ============================================================================
+
+const handleStatsCommand = withErrorHandling(async (ctx) => {
+  const stats = infoService.formatSystemStatsForUser();
+  const health = await infoService.checkSystemHealth();
+
+  const healthEmoji = health.status === 'healthy' ? constants.EMOJI.SUCCESS :
+                      health.status === 'warning' ? constants.EMOJI.WARNING :
+                      constants.EMOJI.ERROR;
+
+  let message = `${constants.EMOJI.INFO} ${markdown.bold('Estadísticas del Sistema')}\n\n`;
+  
+  message += `${markdown.bold('🏥 Estado:')} ${healthEmoji} ${health.status}\n\n`;
+  
+  message += `${markdown.bold('👥 Usuarios:')}\n`;
+  message += `• Total: ${markdown.code(stats.users.total)}\n`;
+  message += `• Activos: ${markdown.code(stats.users.active)}\n`;
+  message += `• Suspendidos: ${markdown.code(stats.users.suspended)}\n`;
+  message += `• Administradores: ${markdown.code(stats.users.admins)}\n\n`;
+  
+  message += `${markdown.bold('🔐 WireGuard:')}\n`;
+  message += `• Activos: ${markdown.code(stats.vpn.wireguard.active)}\n`;
+  message += `• Suspendidos: ${markdown.code(stats.vpn.wireguard.suspended)}\n`;
+  message += `• Datos totales: ${markdown.code(stats.vpn.wireguard.totalData)}\n`;
+  message += `• Promedio: ${markdown.code(stats.vpn.wireguard.averageData)}\n\n`;
+  
+  message += `${markdown.bold('🌐 Outline:')}\n`;
+  message += `• Activos: ${markdown.code(stats.vpn.outline.active)}\n`;
+  message += `• Suspendidos: ${markdown.code(stats.vpn.outline.suspended)}\n`;
+  message += `• Datos totales: ${markdown.code(stats.vpn.outline.totalData)}\n`;
+  message += `• Promedio: ${markdown.code(stats.vpn.outline.averageData)}\n\n`;
+  
+  message += `${markdown.bold('🖥️ Sistema:')}\n`;
+  message += `• Uptime: ${markdown.code(stats.system.uptime)}\n`;
+  message += `• CPUs: ${markdown.code(stats.system.cpuCount)}\n`;
+  message += `• Memoria: ${markdown.code(stats.system.memoryUsage)}\n`;
+  message += `• Libre: ${markdown.code(stats.system.freeMemory)}`;
+
+  await ctx.reply(message, {
+    parse_mode: 'Markdown',
+    ...keyboards.getBackToInfoKeyboard()
+  });
+});
+
+// ============================================================================
+// 📦 REGISTRO DE HANDLERS
+// ============================================================================
+
+function registerInfoHandlers(bot) {
+  // Comando principal
+  bot.command('info', requireAuth, handleInfoCommand);
+  bot.command('stats', requireAuth, handleStatsCommand);
+
+  // Callbacks: Sistema
+  bot.action('info_system', requireAuth, handleSystemInfo);
+  bot.action('info_server', requireAuth, handleServerInfo);
+  bot.action('info_network', requireAuth, handleNetworkInfo);
+
+  // Callbacks: VPN
+  bot.action('info_wireguard', requireAuth, handleWireGuardInfo);
+  bot.action('info_outline', requireAuth, handleOutlineInfo);
+  bot.action('info_comparison', requireAuth, handleComparisonInfo);
+
+  // Callbacks: Seguridad
+  bot.action('info_security', requireAuth, handleSecurityInfo);
+  bot.action('info_policy', requireAuth, handleDataPolicyInfo);
+
+  // Callbacks: FAQ y Ayuda
+  bot.action('info_faq', requireAuth, handleFAQ);
+  bot.action('info_troubleshoot', requireAuth, handleTroubleshooting);
+
+  // Callbacks: Contacto y Acerca de
+  bot.action('info_contact', requireAuth, handleContactInfo);
+  bot.action('info_about', requireAuth, handleAboutInfo);
+
+  // Callbacks: Descargas
+  bot.action('info_download', requireAuth, handleDownloadsInfo);
+
+  // Callback: Volver
+  bot.action('info_main', requireAuth, handleBackToInfo);
+
+  logger.success('[InfoHandler] Handlers registrados correctamente');
 }
 
-module.exports = InfoHandler;
+// ============================================================================
+// 📦 EXPORTS
+// ============================================================================
+
+module.exports = {
+  registerInfoHandlers,
+  
+  // Export individual handlers for testing
+  handleInfoCommand,
+  handleSystemInfo,
+  handleServerInfo,
+  handleStatsCommand
+};
