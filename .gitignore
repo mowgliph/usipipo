@@ -1,52 +1,82 @@
-# Entorno y secretos
+# =============================================================================
+# PYTHON & VIRTUAL ENVIRONMENTS
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# =============================================================================
+# CONFIGURACIÓN Y SECRETOS (CRÍTICO)
+# =============================================================================
 .env
 .env.local
+.env.*
 credentials.env
 *.pem
 *.key
 *.crt
+# No subir authorized_users si se guarda localmente
 bot/data/authorized_users.json
-package-lock.json
-logs/*
+authorized_users.json
 
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# =============================================================================
+# BASE DE DATOS Y MIGRACIONES (ALEMBIC)
+# =============================================================================
+# No ignoramos la carpeta 'migrations/', pero sí archivos específicos si fuera necesario
+# NUNCA ignores los archivos .py dentro de migrations/versions
+*.db
+*.sqlite
 
-# Sistema operativo
+# =============================================================================
+# LOGS Y TEMPORALES DEL PROYECTO
+# =============================================================================
+logs/
+*.log
+# Basado en tu config.py
+temp/
+static/qr_codes/*
+static/configs/*
+# Mantener las carpetas pero vacías (opcional)
+!static/qr_codes/.gitkeep
+!static/configs/.gitkeep
+
+# =============================================================================
+# VPN (WIREGUARD & OUTLINE)
+# =============================================================================
+# Basado en tu config.py
+*.conf
+*.conf.bak
+wg0-server.conf
+outline_persist/
+
+# =============================================================================
+# SISTEMA OPERATIVO Y EDITORES
+# =============================================================================
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
-# Logs
-*.log
-npm-debug.log*
-
-# Docker
-docker-compose.override.yml
-
-# WireGuard
-wg0.conf.bak
-wg0-server.conf
-
-# Compilación
-dist/
-build/
-
-# Editor backups
-*~
 *.swp
 *.swo
+*~
 
-# Pi-hole
-/etc/pihole/
-/etc/dnsmasq.d/
-
-# Outline
-outline_persist/
-
-# PM2
-*.pm2 
+# =============================================================================
+# GESTORES DE PROCESOS (PM2 / PYKER)
+# =============================================================================
+*.pm2
+dump.rdb
