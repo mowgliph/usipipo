@@ -1,0 +1,29 @@
+# Framework y API
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.9
+
+# Telegram
+python-telegram-bot>=20.7
+
+# Base de datos y Auth
+supabase>=2.3.0
+pyjwt>=2.8.0
+
+# Inyección de Dependencias
+punq>=0.6.0
+
+# Utilidades
+loguru>=0.7.2
+qrcode[pil]>=7.4.2
+httpx>=0.26.0
+
+# VPN (Wrappers o herramientas)
+# outline-vpn-api>=2.0
+
+alembic==1.13.1
+sqlalchemy==2.0.25
+psycopg2==2.9.9
