@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # =========================================================================
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
+    DATABASE_URL: str = "" 
     
     # =========================================================================
     # VPN Network Info
