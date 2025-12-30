@@ -7,16 +7,15 @@ from config import settings
 from domain.interfaces.iuser_repository import IUserRepository
 from domain.interfaces.ikey_repository import IKeyRepository
 
-# Implementaciones de Infraestructura
-from infrastructure.persistence.supabase.user_repository import UserRepository
-from infrastructure.persistence.supabase.key_repository import KeyRepository
+# Implementaciones de Infraestructura (Nombres corregidos)
+from infrastructure.persistence.supabase.user_repository import SupabaseUserRepository
+from infrastructure.persistence.supabase.key_repository import SupabaseKeyRepository
 from infrastructure.api_clients.client_outline import OutlineClient
 from infrastructure.api_clients.client_wireguard import WireGuardClient
 
+# Repositorios y Servicios adicionales
 from infrastructure.persistence.supabase.ticket_repository import TicketRepository
 from application.services.support_service import SupportService
-
-# Servicio de Aplicación
 from application.services.vpn_service import VpnService
 
 @lru_cache()
@@ -28,16 +27,15 @@ def get_container() -> punq.Container:
     container.register(OutlineClient, scope=punq.Scope.singleton)
     container.register(WireGuardClient, scope=punq.Scope.singleton)
 
-    # 2. Registrar Repositorios (Mapeo de Interfaz -> Implementación)
-    # Esto permite que el Service pida 'IUserRepository' y reciba 'UserRepository'
-    container.register(IUserRepository, UserRepository)
-    container.register(IKeyRepository, KeyRepository)
-
-    # 3. Registrar el Servicio Principal (VpnService)
-    # Punq inyectará automáticamente los repositorios y clientes necesarios
-    container.register(VpnService)
+    # 2. Registrar Repositorios (Mapeo de Interfaz -> Implementación Corregida)
+    container.register(IUserRepository, SupabaseUserRepository)
+    container.register(IKeyRepository, SupabaseKeyRepository)
     
+    # Repositorios que no tienen interfaz (o registro directo)
     container.register(TicketRepository, scope=punq.Scope.singleton)
+
+    # 3. Registrar Servicios de Aplicación
+    container.register(VpnService)
     container.register(SupportService)
 
     return container
