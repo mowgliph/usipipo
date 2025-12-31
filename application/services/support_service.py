@@ -1,5 +1,6 @@
 from datetime import datetime
 import uuid
+from typing import List  # <--- FALTABA ESTA LÍNEA
 from domain.entities.ticket import Ticket
 from infrastructure.persistence.supabase.ticket_repository import TicketRepository
 
@@ -33,6 +34,7 @@ class SupportService:
         open_tickets = await self.ticket_repo.get_all_open()
         closed_users = []
         for ticket in open_tickets:
+            # Asumiendo que el método is_stale existe en la entidad Ticket
             if ticket.is_stale(48):
                 ticket.status = "closed"
                 await self.ticket_repo.save(ticket)
