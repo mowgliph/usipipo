@@ -93,6 +93,10 @@ class VpnService:
             "keys": keys
         }
 
+    async def get_user_keys(self, telegram_id: int) -> List[VpnKey]:
+      """Obtiene todas las llaves activas de un usuario."""
+      return await self.key_repo.get_by_user_id(telegram_id)
+
     async def revoke_key(self, key_id: uuid.UUID) -> bool:
         """Elimina una llave de la infraestructura y la marca como inactiva en BD."""
         key = await self.key_repo.get_by_id(key_id)

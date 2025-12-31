@@ -26,6 +26,11 @@ class User:
     # Esta lista se llenará con objetos VpnKey en el futuro
     keys: List = field(default_factory=list)
 
+    @property
+    def is_active(self) -> bool:
+        """Verifica si el usuario está activo."""
+        return self.status == UserStatus.ACTIVE
+    
     def can_create_more_keys(self) -> bool:
         """
         Lógica de negocio: Verifica si el usuario tiene permiso 

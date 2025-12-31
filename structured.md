@@ -1,100 +1,159 @@
 Estructura Completa del Proyecto: Bot + API de Gestión VPN
 
 🗂️ Estructura de Directorios y Archivos
-
-```
-usipipo/
-│
-├── bot.py                      # Punto de entrada del bot de Telegram (< 50 líneas)
-├── api.py                      # Punto de entrada de FastAPI (< 50 líneas)
-├── config.py                   # Configuración centralizada (< 150 líneas)
-├── requirements.txt            # Dependencias del proyecto
-├── .env.example                # Variables de entorno (plantilla)
-├── README.md                   # Documentación de despliegue
-│
-├── core/                       # Configuración central e inicio
-│   ├── __init__.py
-│   ├── container.py            # Contenedor de inyección de dependencias (punq)
-│   ├── bot_runner.py           # Inicializa y lanza el bot de Telegram
-│   └── lifespan.py             # Gestión del ciclo de vida (FastAPI)
-│
-├── api/                        # CAPA DE PRESENTACIÓN: FastAPI (Web)
-│   ├── __init__.py
-│   ├── dependencies.py         # Dependencias para inyección en endpoints
-│   └── v1/                     # Versión 1 de la API
-│       ├── __init__.py
-│       ├── router.py           # Router principal que incluye todos los endpoints
-│       └── endpoints/          # UN ARCHIVO POR CONJUNTO DE ENDPOINTS
-│           ├── __init__.py
-│           ├── auth.py         # POST /token, registro, etc.
-│           ├── users.py        # GET/PUT/PATCH /users
-│           ├── keys.py         # POST/GET/DELETE /vpn/keys
-│           └── health.py       # GET /health
-│
-├── telegram_bot/               # CAPA DE PRESENTACIÓN: Bot de Telegram
-│   ├── __init__.py
-│   └── handlers/               # UN ARCHIVO POR HANDLER/COMANDO
-│       ├── __init__.py         # Registra todos los handlers
-│       ├── start_handler.py    # Maneja /start
-│       ├── ayuda_handler.py    # Maneja /ayuda
-│       ├── nueva_clave_handler.py # Maneja /nuevaclave
-│       ├── listar_claves_handler.py
-│       ├── eliminar_clave_handler.py
-│       └── error_handler.py    # Manejo global de errores del bot
-│
-├── domain/                     # CAPA DE DOMINIO (Núcleo del negocio)
-│   ├── __init__.py
-│   ├── entities/               # Entidades de negocio
-│   │   ├── __init__.py
-│   │   ├── user.py             # class User:
-│   │   └── vpn_key.py          # class VpnKey:
-│   └── interfaces/             # Interfaces abstractas (ABSTRACCIONES)
-│       ├── __init__.py
-│       ├── ivpn_service.py     # Ej: class IVpnService(ABC):
-│       ├── iuser_repository.py # class IUserRepository(ABC):
-│       └── ikey_repository.py  # class IKeyRepository(ABC):
-│
-├── application/                # CAPA DE APLICACIÓN (Casos de uso)
-│   ├── __init__.py
-│   ├── services/               # Implementaciones de casos de uso
-│   │   ├── __init__.py
-│   │   ├── vpn_orchestrator.py # Orquesta Outline/WireGuard
-│   │   ├── user_service.py     # Lógica de usuarios
-│   │   └── common/             # FUNCIONES COMUNES PARA SERVICIOS
-│   │       ├── __init__.py
-│   │       ├── key_generator.py # Lógica genérica de creación de claves
-│   │       ├── quota_manager.py # Gestión de límites de datos
-│   │       └── formatters.py   # Formateo de respuestas
-│   └── ports/                  # Interfaces de salida (puertos)
-│       ├── __init__.py
-│       ├── outline_manager.py  # Adaptador que usa outline-vpn-api
-│       └── wireguard_manager.py # Adaptador que usa wireguard-tools
-│
-├── infrastructure/             # CAPA DE INFRAESTRUCTURA (Detalles externos)
-│   ├── __init__.py
-│   ├── persistence/            # Persistencia (Supabase/PostgreSQL)
-│   │   ├── __init__.py
-│   │   └── supabase/           # Implementación concreta para Supabase
-│   │       ├── __init__.py
-│   │       ├── supabase_client.py # Cliente configurado de Supabase
-│   │       ├── user_repository.py # Implementa IUserRepository
-│   │       ├── key_repository.py  # Implementa IKeyRepository
-│   │       └── models/          # Modelos de datos específicos de Supabase
-│   │           ├── __init__.py
-│   │           ├── supabase_user.py
-│   │           └── supabase_vpnkey.py
-│   └── api_clients/            # Clientes HTTP/low-level
-│       ├── __init__.py
-│       ├── outline_client.py   # Llama directamente a la API de Outline
-│       └── wireguard_client.py # Ejecuta comandos wg
-│
-└── utils/                      # Utilidades técnicas transversales
-    ├── __init__.py
-    ├── logger_setup.py         # Configuración estructurada de logging
-    ├── security.py             # Funciones de hashing, validación, JWT
-    ├── decorators.py           # Ej: @retry, @time_execution
-    └── exceptions.py           # Excepciones personalizadas del dominio
-```
+(venv) mowgli@usipipo:~/us$ tree -I *venv* -L 5
+.
+├── alembic.ini
+├── api
+│   ├── __init__.py
+│   └── v1
+│       ├── endpoints
+│       │   └── __init__.py
+│       └── __init__.py
+├── application
+│   ├── __init__.py
+│   ├── ports
+│   │   └── __init__.py
+│   ├── __pycache__
+│   │   └── __init__.cpython-313.pyc
+│   └── services
+│       ├── common
+│       │   ├── container.py
+│       │   ├── __init__.py
+│       │   └── __pycache__
+│       │       ├── container.cpython-313.pyc
+│       │       └── __init__.cpython-313.pyc
+│       ├── __init__.py
+│       ├── __pycache__
+│       │   ├── __init__.cpython-313.pyc
+│       │   ├── support_service.cpython-313.pyc
+│       │   └── vpn_service.cpython-313.pyc
+│       ├── support_service.py
+│       └── vpn_service.py
+├── config.py
+├── core
+│   ├── __init__.py
+│   └── lifespan.py
+├── domain
+│   ├── entities
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   ├── ticket.cpython-313.pyc
+│   │   │   ├── user.cpython-313.pyc
+│   │   │   └── vpn_key.cpython-313.pyc
+│   │   ├── ticket.py
+│   │   ├── user.py
+│   │   └── vpn_key.py
+│   ├── __init__.py
+│   ├── interfaces
+│   │   ├── ikey_repository.py
+│   │   ├── __init__.py
+│   │   ├── iuser_repository.py
+│   │   ├── ivpn_service.py
+│   │   └── __pycache__
+│   │       ├── ikey_repository.cpython-313.pyc
+│   │       ├── __init__.cpython-313.pyc
+│   │       └── iuser_repository.cpython-313.pyc
+│   └── __pycache__
+│       └── __init__.cpython-313.pyc
+├── example.env
+├── infrastructure
+│   ├── api_clients
+│   │   ├── client_outline.py
+│   │   ├── client_wireguard.py
+│   │   ├── __init__.py
+│   │   └── __pycache__
+│   │       ├── client_outline.cpython-313.pyc
+│   │       ├── client_wireguard.cpython-313.pyc
+│   │       └── __init__.cpython-313.pyc
+│   ├── __init__.py
+│   ├── jobs
+│   │   ├── __init__.py
+│   │   ├── ticket_cleaner.py
+│   │   └── usage_sync.py
+│   ├── persistence
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   └── __init__.cpython-313.pyc
+│   │   └── supabase
+│   │       ├── __init__.py
+│   │       ├── key_repository.py
+│   │       ├── models
+│   │       │   ├── base.py
+│   │       │   ├── __init__.py
+│   │       │   └── __pycache__
+│   │       ├── __pycache__
+│   │       │   ├── __init__.cpython-313.pyc
+│   │       │   ├── key_repository.cpython-313.pyc
+│   │       │   ├── supabase_client.cpython-313.pyc
+│   │       │   ├── ticket_repository.cpython-313.pyc
+│   │       │   └── user_repository.cpython-313.pyc
+│   │       ├── supabase_client.py
+│   │       ├── ticket_repository.py
+│   │       └── user_repository.py
+│   └── __pycache__
+│       └── __init__.cpython-313.pyc
+├── install.sh
+├── LICENCE
+├── main.py
+├── migrations
+│   ├── env.py
+│   ├── __pycache__
+│   │   └── env.cpython-313.pyc
+│   ├── README
+│   ├── script.py.mako
+│   └── versions
+│       ├── d617956ef9ba_init_db_usipipo.py
+│       └── __pycache__
+│           └── d617956ef9ba_init_db_usipipo.cpython-313.pyc
+├── ol_server.sh
+├── piker.json
+├── __pycache__
+│   └── config.cpython-313.pyc
+├── requirements.txt
+├── static
+│   ├── configs
+│   │   └── __init__.py
+│   ├── __init__.py
+│   └── qr_codes
+│       └── __init__.py
+├── structured.md
+├── telegram_bot
+│   ├── handlers
+│   │   ├── ayuda_handler.py
+│   │   ├── crear_llave_handler.py
+│   │   ├── __init__.py
+│   │   ├── keys_manager_handler.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-313.pyc
+│   │   │   └── start_handler.cpython-313.pyc
+│   │   ├── start_handler.py
+│   │   ├── status_handler.py
+│   │   └── support_handler.py
+│   ├── __init__.py
+│   ├── keyboard
+│   │   ├── __init__.py
+│   │   └── keyboard.py
+│   ├── messages
+│   │   ├── __init__.py
+│   │   ├── messages.py
+│   │   └── __pycache__
+│   │       └── __init__.cpython-313.pyc
+│   └── __pycache__
+│       └── __init__.cpython-313.pyc
+├── temp
+│   └── __init__.py
+├── templates
+│   └── __init__.py
+├── test_db.py
+├── To-Do.md
+├── utils
+│   ├── __init__.py
+│   └── qr_generator.py
+└── wg_server.sh
+47 directories, 103 files
+(venv) mowgli@usipipo:~/us$
 
 🔄 Flujo de Datos entre Capas
 

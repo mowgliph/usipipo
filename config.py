@@ -1,95 +1,577 @@
 """
 Configuración central de la aplicación uSipipo VPN Manager.
-Todas las variables se cargan desde el archivo .env
+Gestiona variables de entorno con validación estricta y valores seguros por defecto.
+
+Author: uSipipo Team
+Version: 2.0.0
+Last Updated: 2025-12-31
 """
+
 import os
-from typing import List, Optional
-from pydantic import field_validator, AnyHttpUrl
+import secrets
+from typing import List, Optional, Union
+from pathlib import Path
+
+from pydantic import (
+    Field,
+    field_validator,
+    model_validator,
+    AnyHttpUrl,
+    PostgresDsn,
+    validator
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from loguru import logger
+
 
 class Settings(BaseSettings):
-    # =========================================================================
-    # Configuración Base
-    # =========================================================================
-    PROJECT_NAME: str = "uSipipo VPN Manager"
-    APP_ENV: str = "development" # development | production
+    """
+    Configuración centralizada con validación automática.
+    Todas las variables se cargan desde .env con valores por defecto seguros.
+    """
     
     # =========================================================================
-    # Security & API
+    # APLICACIÓN BASE
     # =========================================================================
-    SECRET_KEY: str
-    API_HOST: str = "0.0.0.0"
-    API_PORT: int = 8000
-    # Pydantic parsea automáticamente strings separados por comas a listas
-    CORS_ORIGINS: List[str] = ["*"] 
-    
-    # =========================================================================
-    # Telegram Bot
-    # =========================================================================
-    TELEGRAM_TOKEN: str
-    AUTHORIZED_USERS: List[int] = [] # Ejemplo en .env: 12345,67890
-
-    # =========================================================================
-    # Supabase (Database)
-    # =========================================================================
-    SUPABASE_URL: str
-    SUPABASE_SERVICE_KEY: str
-    DATABASE_URL: str = "" 
-    
-    # =========================================================================
-    # VPN Network Info
-    # =========================================================================
-    SERVER_IP: str # IP Pública del VPS
-    
-    # WireGuard
-    WG_SERVER_PRIVKEY: Optional[str] = None
-    WG_SERVER_PORT: int = 51820
-    WG_INTERFACE: str = "wg0"
-    
-    # Outline
-    OUTLINE_API_URL: Optional[str] = None
-    OUTLINE_CERT_SHA256: Optional[str] = None
-
-    # =========================================================================
-    # Paths & System
-    # =========================================================================
-    LOG_LEVEL: str = "INFO"
-    TEMP_PATH: str = "./temp"
-    QR_CODE_PATH: str = "./static/qr_codes"
-    CLIENT_CONFIGS_PATH: str = "./static/configs"
-
-    # Configuración de Pydantic para leer .env
-    model_config = SettingsConfigDict(
-        env_file=".env", 
-        env_file_encoding="utf-8",
-        extra="ignore", # Ignorar variables extra en .env que no estén aquí
-        case_sensitive=True
+    PROJECT_NAME: str = Field(
+        default="uSipipo VPN Manager",
+        description="Nombre del proyecto"
     )
-
-    @property
-    def is_production(self) -> bool:
-        return self.APP_ENV.lower() == "production"
-
+    
+    APP_ENV: str = Field(
+        default="development",
+        description="Entorno de ejecución: development | production | staging"
+    )
+    
+    NODE_ENV: str = Field(
+        default="production",
+        description="Modo de Node.js (si aplica)"
+    )
+    
+    DEFAULT_LANG: str = Field(
+        default="es",
+        description="Idioma por defecto de la aplicación"
+    )
+    
+    # =========================================================================
+    # SEGURIDAD Y API
+    # =========================================================================
+    SECRET_KEY: str = Field(
+        ...,  # Campo REQUERIDO
+        min_length=32,
+        description="Clave secreta para JWT y encriptación (generada con openssl rand -hex 32)"
+    )
+    
+    ALGORITHM: str = Field(
+        default="HS256",
+        description="Algoritmo de firma JWT"
+    )
+    
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=30,
+        ge=5,
+        le=1440,
+        description="Tiempo de expiración del token en minutos"
+    )
+    
+    API_HOST: str = Field(
+        default="0.0.0.0",
+        description="Host donde escucha la API"
+    )
+    
+    API_PORT: int = Field(
+        default=8000,
+        ge=1024,
+        le=65535,
+        description="Puerto de la API"
+    )
+    
+    CORS_ORIGINS: List[str] = Field(
+        default=["*"],
+        description="Orígenes permitidos para CORS (usar dominios específicos en producción)"
+    )
+    
+    # =========================================================================
+    # TELEGRAM BOT
+    # =========================================================================
+    TELEGRAM_TOKEN: str = Field(
+        ...,  # REQUERIDO
+        min_length=30,
+        description="Token del bot de Telegram obtenido de @BotFather"
+    )
+    
+    AUTHORIZED_USERS: List[int] = Field(
+        default_factory=list,
+        description="Lista de IDs de usuarios autorizados para gestionar el bot"
+    )
+    
+    ADMIN_ID: int = Field(
+        ...,  # REQUERIDO
+        description="ID de Telegram del administrador principal"
+    )
+    
+    ADMIN_EMAIL: Optional[str] = Field(
+        default=None,
+        description="Email del administrador (opcional)"
+    )
+    
+    TELEGRAM_RATE_LIMIT: int = Field(
+        default=30,
+        ge=1,
+        description="Límite de peticiones por minuto por usuario en Telegram"
+    )
+    
+    TELEGRAM_WEBHOOK_URL: Optional[str] = Field(
+        default=None,
+        description="URL del webhook de Telegram (opcional, usar polling por defecto)"
+    )
+    
+    # =========================================================================
+    # SUPABASE / POSTGRESQL
+    # =========================================================================
+    SUPABASE_URL: str = Field(
+        ...,  # REQUERIDO
+        description="URL del proyecto de Supabase"
+    )
+    
+    SUPABASE_SERVICE_KEY: str = Field(
+        ...,  # REQUERIDO
+        min_length=100,
+        description="Service Role Key de Supabase (tiene privilegios totales)"
+    )
+    
+    SUPABASE_SECRET_KEY: str = Field(
+        ...,  # REQUERIDO
+        description="Secret Key de Supabase"
+    )
+    
+    SUPABASE_ANON_KEY: str = Field(
+        ...,  # REQUERIDO
+        description="Anon Key de Supabase"
+    )
+    
+    SUPABASE_JWT_SECRET: str = Field(
+        ...,  # REQUERIDO
+        description="JWT Secret de Supabase"
+    )
+    
+    DATABASE_URL: str = Field(
+        ...,  # REQUERIDO
+        description="URL completa de conexión PostgreSQL"
+    )
+    
+    DB_POOL_SIZE: int = Field(
+        default=10,
+        ge=5,
+        le=50,
+        description="Tamaño del pool de conexiones a la base de datos"
+    )
+    
+    DB_TIMEOUT: int = Field(
+        default=30,
+        ge=10,
+        le=120,
+        description="Timeout de conexión en segundos"
+    )
+    
+    # =========================================================================
+    # INFORMACIÓN DE RED DEL SERVIDOR
+    # =========================================================================
+    SERVER_IP: str = Field(
+        ...,  # REQUERIDO
+        description="IP pública principal del VPS"
+    )
+    
+    SERVER_IPV4: str = Field(
+        ...,  # REQUERIDO
+        description="Dirección IPv4 pública"
+    )
+    
+    SERVER_IPV6: Optional[str] = Field(
+        default=None,
+        description="Dirección IPv6 pública (opcional)"
+    )
+    
+    # =========================================================================
+    # WIREGUARD
+    # =========================================================================
+    WG_INTERFACE: str = Field(
+        default="wg0",
+        description="Nombre de la interfaz WireGuard"
+    )
+    
+    WG_SERVER_IPV4: str = Field(
+        default="10.88.88.1",
+        description="IP interna del servidor WireGuard (IPv4)"
+    )
+    
+    WG_SERVER_IPV6: str = Field(
+        default="fd42:42:42::1",
+        description="IP interna del servidor WireGuard (IPv6)"
+    )
+    
+    WG_SERVER_PORT: int = Field(
+        default=51820,
+        ge=1024,
+        le=65535,
+        description="Puerto UDP de WireGuard"
+    )
+    
+    WG_SERVER_PUBKEY: Optional[str] = Field(
+        default=None,
+        description="Clave pública del servidor WireGuard"
+    )
+    
+    WG_SERVER_PRIVKEY: Optional[str] = Field(
+        default=None,
+        description="Clave privada del servidor WireGuard (CONFIDENCIAL)"
+    )
+    
+    WG_ALLOWED_IPS: str = Field(
+        default="0.0.0.0/0,::/0",
+        description="IPs permitidas en configuraciones de clientes"
+    )
+    
+    WG_PATH: str = Field(
+        default="/etc/wireguard",
+        description="Ruta de configuraciones de WireGuard"
+    )
+    
+    WG_ENDPOINT: Optional[str] = Field(
+        default=None,
+        description="Endpoint público de WireGuard (se autoconstruye si no existe)"
+    )
+    
+    WG_CLIENT_DNS_1: str = Field(
+        default="1.1.1.1",
+        description="DNS primario para clientes WireGuard"
+    )
+    
+    WG_CLIENT_DNS_2: str = Field(
+        default="1.0.0.1",
+        description="DNS secundario para clientes WireGuard"
+    )
+    
+    # =========================================================================
+    # OUTLINE VPN (SHADOWBOX)
+    # =========================================================================
+    OUTLINE_API_URL: Optional[str] = Field(
+        default=None,
+        description="URL completa de la API de Outline (incluye secret)"
+    )
+    
+    OUTLINE_CERT_SHA256: Optional[str] = Field(
+        default=None,
+        description="SHA256 del certificado autofirmado de Outline"
+    )
+    
+    OUTLINE_API_PORT: Optional[int] = Field(
+        default=None,
+        ge=1024,
+        le=65535,
+        description="Puerto de la API de Outline"
+    )
+    
+    OUTLINE_KEYS_PORT: Optional[int] = Field(
+        default=None,
+        ge=1024,
+        le=65535,
+        description="Puerto de acceso de clientes Outline"
+    )
+    
+    OUTLINE_SERVER_IP: Optional[str] = Field(
+        default=None,
+        description="IP pública usada por Outline (normalmente igual a SERVER_IP)"
+    )
+    
+    OUTLINE_DASHBOARD_URL: Optional[str] = Field(
+        default=None,
+        description="URL del dashboard de Outline Manager"
+    )
+    
+    # =========================================================================
+    # LÍMITES Y CUOTAS
+    # =========================================================================
+    VPN_KEY_EXPIRE_DAYS: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        description="Días de validez de llaves VPN"
+    )
+    
+    MAX_KEYS_PER_USER: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        description="Máximo de llaves permitidas por usuario"
+    )
+    
+    API_RATE_LIMIT: int = Field(
+        default=60,
+        ge=10,
+        description="Límite de peticiones por minuto a la API"
+    )
+    
+    # =========================================================================
+    # LOGGING Y MONITOREO
+    # =========================================================================
+    LOG_LEVEL: str = Field(
+        default="INFO",
+        description="Nivel de logging: DEBUG | INFO | WARNING | ERROR | CRITICAL"
+    )
+    
+    LOG_FILE_PATH: str = Field(
+        default="./logs/vpn_manager.log",
+        description="Ruta del archivo de logs"
+    )
+    
+    ENABLE_METRICS: bool = Field(
+        default=False,
+        description="Habilitar recolección de métricas (Prometheus, etc.)"
+    )
+    
+    SENTRY_DSN: Optional[str] = Field(
+        default=None,
+        description="DSN de Sentry para tracking de errores (opcional)"
+    )
+    
+    # =========================================================================
+    # SEGURIDAD AVANZADA
+    # =========================================================================
+    ENABLE_IP_WHITELIST: bool = Field(
+        default=False,
+        description="Habilitar whitelist de IPs para la API"
+    )
+    
+    API_ALLOWED_IPS: List[str] = Field(
+        default_factory=list,
+        description="Lista de IPs permitidas si ENABLE_IP_WHITELIST=true"
+    )
+    
+    # =========================================================================
+    # RUTAS Y DIRECTORIOS
+    # =========================================================================
+    VPN_TEMPLATES_PATH: str = Field(
+        default="./templates",
+        description="Ruta de plantillas de configuración"
+    )
+    
+    TEMP_PATH: str = Field(
+        default="./temp",
+        description="Directorio temporal"
+    )
+    
+    QR_CODE_PATH: str = Field(
+        default="./static/qr_codes",
+        description="Directorio para códigos QR generados"
+    )
+    
+    CLIENT_CONFIGS_PATH: str = Field(
+        default="./static/configs",
+        description="Directorio para configuraciones de clientes"
+    )
+    
+    # =========================================================================
+    # CONFIGURACIÓN DE PYDANTIC
+    # =========================================================================
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",  # Ignorar variables extra no definidas
+        case_sensitive=True,
+        validate_assignment=True  # Validar también al asignar valores después de instanciar
+    )
+    
+    # =========================================================================
+    # VALIDADORES PERSONALIZADOS
+    # =========================================================================
+    
     @field_validator("AUTHORIZED_USERS", mode="before")
     @classmethod
-    def parse_list_int(cls, v):
-        """Parsea '123,456' a [123, 456] si viene como string del .env"""
-        if isinstance(v, str) and v.strip():
-            return [int(x) for x in v.split(",") if x.strip().isdigit()]
+    def parse_authorized_users(cls, v):
+        """Convierte string '123,456' a lista [123, 456]"""
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            # Limpiar corchetes si existen
+            v = v.strip("[]")
+            try:
+                return [int(x.strip()) for x in v.split(",") if x.strip()]
+            except ValueError:
+                logger.warning(f"Error parseando AUTHORIZED_USERS: {v}")
+                return []
         return v if isinstance(v, list) else []
-
+    
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
-    def parse_list_str(cls, v):
-        if isinstance(v, str) and v.strip():
-            return [x.strip() for x in v.split(",")]
+    def parse_cors_origins(cls, v):
+        """Convierte string de orígenes CORS a lista"""
+        if isinstance(v, str):
+            v = v.strip()
+            # Limpiar corchetes y comillas si existen
+            v = v.strip("[]").replace('"', '').replace("'", "")
+            if not v:
+                return ["*"]
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return v if isinstance(v, list) else ["*"]
+    
+    @field_validator("API_ALLOWED_IPS", mode="before")
+    @classmethod
+    def parse_allowed_ips(cls, v):
+        """Parsea lista de IPs permitidas"""
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            return [x.strip() for x in v.split(",") if x.strip()]
         return v if isinstance(v, list) else []
+    
+    @field_validator("LOG_LEVEL")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        """Valida que el nivel de log sea correcto"""
+        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        v = v.upper()
+        if v not in valid_levels:
+            logger.warning(f"LOG_LEVEL inválido '{v}', usando 'INFO'")
+            return "INFO"
+        return v
+    
+    @model_validator(mode="after")
+    def validate_environment(self):
+        """Validaciones cruzadas después de cargar todos los valores"""
+        
+        # Autocompletar WG_ENDPOINT si no existe
+        if not self.WG_ENDPOINT and self.SERVER_IP and self.WG_SERVER_PORT:
+            self.WG_ENDPOINT = f"{self.SERVER_IP}:{self.WG_SERVER_PORT}"
+            logger.info(f"WG_ENDPOINT autoconstruido: {self.WG_ENDPOINT}")
+        
+        # Autocompletar OUTLINE_SERVER_IP si no existe
+        if not self.OUTLINE_SERVER_IP and self.SERVER_IP:
+            self.OUTLINE_SERVER_IP = self.SERVER_IP
+            logger.info(f"OUTLINE_SERVER_IP autoconstruido: {self.OUTLINE_SERVER_IP}")
+        
+        # Advertir si se usa CORS_ORIGINS=* en producción
+        if self.is_production and "*" in self.CORS_ORIGINS:
+            logger.warning(
+                "⚠️ CORS_ORIGINS='*' en producción es un riesgo de seguridad. "
+                "Define dominios específicos."
+            )
+        
+        # Validar que ADMIN_ID esté en AUTHORIZED_USERS
+        if self.ADMIN_ID not in self.AUTHORIZED_USERS:
+            self.AUTHORIZED_USERS.append(self.ADMIN_ID)
+            logger.info(f"ADMIN_ID {self.ADMIN_ID} agregado automáticamente a AUTHORIZED_USERS")
+        
+        # Crear directorios si no existen
+        for path_attr in ["TEMP_PATH", "QR_CODE_PATH", "CLIENT_CONFIGS_PATH", "VPN_TEMPLATES_PATH"]:
+            path_value = getattr(self, path_attr)
+            Path(path_value).mkdir(parents=True, exist_ok=True)
+        
+        # Crear directorio de logs
+        log_dir = Path(self.LOG_FILE_PATH).parent
+        log_dir.mkdir(parents=True, exist_ok=True)
+        
+        return self
+    
+    # =========================================================================
+    # PROPIEDADES COMPUTADAS
+    # =========================================================================
+    
+    @property
+    def is_production(self) -> bool:
+        """Verifica si está en modo producción"""
+        return self.APP_ENV.lower() == "production"
+    
+    @property
+    def is_development(self) -> bool:
+        """Verifica si está en modo desarrollo"""
+        return self.APP_ENV.lower() == "development"
+    
+    @property
+    def database_config(self) -> dict:
+        """Retorna configuración de base de datos para SQLAlchemy"""
+        return {
+            "url": self.DATABASE_URL,
+            "pool_size": self.DB_POOL_SIZE,
+            "pool_timeout": self.DB_TIMEOUT,
+            "pool_pre_ping": True,  # Verificar conexiones antes de usar
+            "echo": self.is_development,  # Log SQL en desarrollo
+        }
+    
+    @property
+    def wireguard_enabled(self) -> bool:
+        """Verifica si WireGuard está configurado"""
+        return bool(
+            self.WG_SERVER_PUBKEY 
+            and self.WG_SERVER_PRIVKEY 
+            and self.WG_ENDPOINT
+        )
+    
+    @property
+    def outline_enabled(self) -> bool:
+        """Verifica si Outline está configurado"""
+        return bool(self.OUTLINE_API_URL)
+    
+    def get_vpn_protocols(self) -> List[str]:
+        """Retorna lista de protocolos VPN disponibles"""
+        protocols = []
+        if self.wireguard_enabled:
+            protocols.append("wireguard")
+        if self.outline_enabled:
+            protocols.append("outline")
+        return protocols
+    
+    def model_dump_safe(self) -> dict:
+        """Retorna configuración sin exponer secretos"""
+        data = self.model_dump()
+        sensitive_keys = [
+            "SECRET_KEY",
+            "TELEGRAM_TOKEN",
+            "WG_SERVER_PRIVKEY",
+            "SUPABASE_SERVICE_KEY",
+            "SUPABASE_SECRET_KEY",
+            "SUPABASE_JWT_SECRET",
+            "DATABASE_URL",
+            "OUTLINE_API_URL",
+            "SENTRY_DSN"
+        ]
+        for key in sensitive_keys:
+            if key in data:
+                data[key] = "***HIDDEN***"
+        return data
 
-# Instancia Global
-# Al instanciar, Pydantic lee el .env y lanza error si falta algo requerido (como SECRET_KEY)
+
+# =========================================================================
+# INSTANCIA GLOBAL (SINGLETON)
+# =========================================================================
+
+def get_settings() -> Settings:
+    """
+    Factory function para obtener la configuración.
+    Útil para inyección de dependencias en FastAPI.
+    """
+    return settings
+
+
 try:
     settings = Settings()
+    
+    # Log de inicio solo con información no sensible
+    logger.info(f"✅ Configuración cargada correctamente")
+    logger.info(f"📦 Proyecto: {settings.PROJECT_NAME}")
+    logger.info(f"🌍 Entorno: {settings.APP_ENV}")
+    logger.info(f"🔌 API: {settings.API_HOST}:{settings.API_PORT}")
+    logger.info(f"🛡️ Protocolos VPN disponibles: {', '.join(settings.get_vpn_protocols())}")
+    
+    if settings.is_production:
+        logger.info("🔒 Modo PRODUCCIÓN activado")
+    else:
+        logger.warning("⚠️ Modo DESARROLLO - No usar en producción")
+    
 except Exception as e:
-    print("❌ Error crítico de configuración (Revisa tu .env):")
-    print(e)
+    logger.critical(f"❌ Error crítico de configuración:")
+    logger.critical(f"   {str(e)}")
+    logger.critical("   Revisa tu archivo .env y compara con example.env")
     exit(1)
