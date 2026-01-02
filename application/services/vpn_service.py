@@ -38,10 +38,10 @@ class VpnService:
             access_data = infra_data["access_url"]
             external_id = infra_data["id"]
         elif key_type.lower() == "wireguard":
-            client_name = f"tg_{telegram_id}_{uuid.uuid4().hex[:4]}"
-            infra_data = await self.wireguard_client.create_client(client_name)
+            infra_data = await self.wireguard_client.create_peer(telegram_id, key_name)
             access_data = infra_data["config"]
-            external_id = client_name
+            # create_peer devuelve 'client_name' en su diccionario de respuesta
+            external_id = infra_data["client_name"] 
         else:
             raise ValueError("Tipo de llave no soportado")
 
