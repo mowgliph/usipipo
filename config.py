@@ -136,7 +136,7 @@ class Settings(BaseSettings):
     
     SUPABASE_SERVICE_KEY: str = Field(
         ...,  # REQUERIDO
-        min_length=100,
+        min_length=30,
         description="Service Role Key de Supabase (tiene privilegios totales)"
     )
     
