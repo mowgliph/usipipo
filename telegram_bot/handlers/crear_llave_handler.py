@@ -63,11 +63,15 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
 
         # 4. Entrega diferenciada
         if key_type == "outline":
+            # Escapar caracteres especiales para MarkdownV2
+            escaped_data = new_key.key_data.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('~', '\\~').replace('`', '\\`').replace('>', '\\>').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('|', '\\|').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!')
+            
             caption = (
-                f"{Messages.Keys.CREATED.format(type='OUTLINE')}\n\n"
+                f"✅ ¡Llave *OUTLINE* generada con éxito\\!\n\n"
                 f"Copia el siguiente código en tu aplicación Outline:\n"
-                f"```\n{new_key.key_data}\n```"
+                f"```\n{escaped_data}\n```"
             )
+            
             with open(qr_path, "rb") as photo:
                 await update.message.reply_photo(
                     photo=photo, 
@@ -80,12 +84,16 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
             conf_path = QrGenerator.save_conf_file(new_key.key_data, file_id)
             
             caption = (
-                f"{Messages.Keys.CREATED.format(type='WIREGUARD')}\n\n"
+                f"✅ ¡Llave **WIREGUARD** generada con éxito!\n\n"
                 "Escanea el QR en tu móvil o usa el archivo adjunto en tu PC."
             )
             
             with open(qr_path, "rb") as photo:
-                await update.message.reply_photo(photo=photo, caption=caption)
+                await update.message.reply_photo(
+                    photo=photo, 
+                    caption=caption,
+                    parse_mode="Markdown"
+                )
             
             with open(conf_path, "rb") as document:
                 await update.message.reply_document(
@@ -96,9 +104,10 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                 )
 
         await loading_msg.delete()
+        logger.info(f"✅ Llave {key_type} creada para usuario {telegram_id}")
 
     except Exception as e:
-        logger.error(f"Error en creación de llave: {e}")
+        logger.error(f"❌ Error en creación de llave: {e}")
         if loading_msg:
             await loading_msg.delete()
         await update.message.reply_text(
@@ -126,4 +135,9 @@ def get_creation_handler(vpn_service: VpnService) -> ConversationHandler:
                          lambda u, c: name_received(u, c, vpn_service))]
         },
         fallbacks=[CommandHandler("cancel", cancel_creation)],
+        # CORRECCIÓN: Agregar configuración explícita
+        per_message=False,
+        per_chat=True,
+        per_user=True,
+        allow_reentry=True
     )

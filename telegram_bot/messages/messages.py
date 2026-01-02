@@ -54,6 +54,41 @@ class Messages:
         ADMIN_MESSAGE_TO_USER = "👨‍💻 **Respuesta del Soporte:**\n{text}"
 
     class Errors:
-        GENERIC = "⚠️ Ocurrió un error inesperado: {error}"
-        LIMIT_REACHED = "🚫 Has alcanzado el límite máximo de llaves permitido."
-        NOT_FOUND = "❌ El recurso solicitado no existe."
+        GENERIC = (
+            "⚠️ **Error**\n\n"
+            "{error}\n\n"
+            "Si el problema persiste, contacta al soporte."
+        )
+        
+        NETWORK = (
+            "🌐 **Error de Conexión**\n\n"
+            "No se pudo conectar con el servidor. "
+            "Verifica tu conexión e intenta nuevamente."
+        )
+        
+        PERMISSION_DENIED = (
+            "🚫 **Acceso Denegado**\n\n"
+            "No tienes permisos para realizar esta acción."
+        )
+        
+        LIMIT_REACHED = (
+            "🛑 **Límite Alcanzado**\n\n"
+            "Has alcanzado el límite máximo de {resource}.\n"
+            "Elimina uno existente antes de crear otro."
+        )
+        
+        NOT_FOUND = (
+            "🔍 **No Encontrado**\n\n"
+            "El recurso solicitado no existe o fue eliminado."
+        )
+        
+        EXPIRED = (
+            "⏰ **Operación Expirada**\n\n"
+            "Esta acción ha caducado. Inicia el proceso nuevamente."
+        )
+        
+        MAINTENANCE = (
+            "🔧 **Mantenimiento**\n\n"
+            "El sistema está en mantenimiento temporalmente.\n"
+            "Intenta nuevamente en unos minutos."
+        )
