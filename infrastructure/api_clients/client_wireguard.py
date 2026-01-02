@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import uuid
 import ipaddress
 from pathlib import Path
 from typing import Optional, Dict, List
@@ -41,20 +42,20 @@ class WireGuardClient:
         """Calcula la siguiente IP disponible basada en el archivo .conf"""
         try:
             content = self.conf_path.read_text()
-            # Buscar el bloque [Interface] para saber la red base
             addr_match = re.search(r"Address\s*=\s*([\d.]+)", content)
             if not addr_match:
                 raise Exception("No se encontró la dirección base en wg0.conf")
             
             network = ipaddress.IPv4Interface(f"{addr_match.group(1)}/24").network
             
-            # Buscar todas las IPs ya asignadas
             used_ips = set(re.findall(r"AllowedIPs\s*=\s*([\d.]+)", content))
             
-            # Empezar desde la .2 (.1 es usualmente el servidor)
+            server_ip = network.network_address + 1
+            
             for ip in network.hosts():
-                if str(ip) not in used_ips and str(ip) != str(network.network + 1):
-                    return str(ip)
+                str_ip = str(ip)
+                if str_ip not in used_ips and str_ip != str(server_ip):
+                    return str_ip
             
             raise Exception("No hay IPs disponibles en el rango de WireGuard")
         except Exception as e:
@@ -64,9 +65,9 @@ class WireGuardClient:
     async def create_peer(self, user_id: int, name: str) -> dict:
         """
         Crea un nuevo Peer, actualiza el .conf y lo aplica en vivo.
-        Inspirado en la lógica de generación y registro del service JS.
         """
-        client_name = f"tg_{user_id}"
+        # CORRECCIÓN LÓGICA: Añadimos UUID para permitir múltiples llaves por usuario
+        client_name = f"tg_{user_id}_{uuid.uuid4().hex[:4]}"
         
         # 1. Generar llaves
         priv_key = await self._run_cmd("wg genkey")
@@ -91,9 +92,10 @@ class WireGuardClient:
             f.write(peer_block)
 
         # 5. Aplicar en caliente sin reiniciar la interfaz
-        await self._run_cmd(
-            f"wg set {self.interface} peer {pub_key} allowed-ips {client_ip}/32 preshared-key <(echo {psk})"
-        )
+        # Usamos <(echo ...) para pasar la PSK de forma segura
+        cmd = f"wg set {self.interface} peer {pub_key} allowed-ips {client_ip}/32 preshared-key <(echo {psk})"
+
+        await self._run_cmd(cmd)
 
         # 6. Generar archivo .conf para el cliente
         client_conf = self._build_client_config(priv_key, client_ip, server_pub_key, psk)
@@ -101,10 +103,11 @@ class WireGuardClient:
         client_file.write_text(client_conf)
         os.chmod(client_file, 0o600)
 
+        # Devolvemos estructura consistente con lo que espera vpn_service.py
         return {
             "id": pub_key,
             "name": name,
-            "client_name": client_name,
+            "client_name": client_name, # Este ID incluye el UUID
             "ip": client_ip,
             "config": client_conf,
             "file_path": str(client_file)
@@ -132,12 +135,20 @@ PersistentKeepalive = 15
     async def delete_peer(self, pub_key: str, client_name: str) -> bool:
         """Elimina un peer del servidor y del archivo de configuración."""
         try:
-            # 1. Eliminar del kernel (live)
-            await self._run_cmd(f"wg set {self.interface} peer {pub_key} remove")
-            
-            # 2. Eliminar del archivo wg0.conf usando regex (limpieza del bloque)
+    
             content = self.conf_path.read_text()
-            pattern = rf"### CLIENT {client_name}.*?(?=\n### CLIENT|\Z)"
+
+            pk_pattern = rf"### CLIENT {re.escape(client_name)}.*?PublicKey\s*=\s*([^\n]+)"
+            match = re.search(pk_pattern, content, flags=re.DOTALL)
+            
+            if match:
+                found_pub_key = match.group(1).strip()
+                await self._run_cmd(f"wg set {self.interface} peer {found_pub_key} remove")
+            elif pub_key:
+                 await self._run_cmd(f"wg set {self.interface} peer {pub_key} remove")
+
+            # Limpieza del bloque en texto
+            pattern = rf"### CLIENT {re.escape(client_name)}.*?(?=\n### CLIENT|\Z)"
             new_content = re.sub(pattern, "", content, flags=re.DOTALL)
             self.conf_path.write_text(new_content.strip() + "\n")
             
@@ -150,6 +161,10 @@ PersistentKeepalive = 15
         except Exception as e:
             logger.error(f"Error eliminando peer {client_name}: {e}")
             return False
+
+    # Alias para mantener consistencia con vpn_service si llama a delete_client
+    async def delete_client(self, client_name: str) -> bool:
+        return await self.delete_peer(pub_key="", client_name=client_name)
 
     async def get_usage(self) -> List[Dict]:
         """Obtiene el uso de datos de todos los peers (wg show dump)."""
