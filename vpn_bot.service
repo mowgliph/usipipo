@@ -1,0 +1,24 @@
+[Unit]
+Description=uSipipo VPN Manager Bot
+After=network.target
+
+[Service]
+# Systemd usará el usuario que active el servicio
+Type=simple
+
+# Directorio dinámico (se ajusta a donde esté el proyecto)
+WorkingDirectory=%f
+ExecStart=%f/venv/bin/python3 main.py
+
+# SEGURIDAD PROFESIONAL
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+
+# Evita que el proceso escale privilegios a root
+NoNewPrivileges=true
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
