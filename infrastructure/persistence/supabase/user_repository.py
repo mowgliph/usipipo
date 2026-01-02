@@ -23,7 +23,7 @@ class SupabaseUserRepository(IUserRepository):
                 .maybe_single()\
                 .execute()
 
-            if not response.data:
+            if response is None or not response.data:
                 return None
 
             data = response.data
