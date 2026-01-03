@@ -19,9 +19,16 @@ from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
 from telegram_bot.handlers.broadcast_handler import get_broadcast_handler
 from telegram_bot.handlers.game_handler import get_game_handlers
 from telegram_bot.handlers.admin_handler import get_admin_handler
+from telegram_bot.handlers.achievement_handler import (
+    achievements_menu_handler, achievements_progress_handler, achievements_list_handler,
+    achievements_category_handler, achievements_next_handler, achievements_rewards_handler,
+    claim_reward_handler, achievements_leaderboard_handler, leaderboard_category_handler
+)
 from utils.bot_logger import get_logger
 from application.services.game_service import GameService
 from application.services.admin_service import AdminService
+from application.services.achievement_service import AchievementService
+from infrastructure.persistence.supabase.achievement_repository import AchievementRepository, UserStatsRepository
 
 def initialize_handlers(vpn_service, support_service, referral_service, payment_service):
     """
@@ -38,6 +45,11 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         List of handler objects to be added to the Telegram application.
     """
     handlers = []
+
+    # Inicializar servicio de logros
+    achievement_repository = AchievementRepository(vpn_service.db_session)
+    user_stats_repository = UserStatsRepository(vpn_service.db_session)
+    achievement_service = AchievementService(achievement_repository, user_stats_repository)
 
     # Comando /start y botón de registro
     handlers.append(CommandHandler("start", lambda u, c: start_handler(u, c, vpn_service)))
@@ -64,6 +76,30 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         )
 
     handlers.append(MessageHandler(filters.Regex("^💰 Operaciones$"), operations_handler))
+
+    # Sistema de Logros
+    handlers.append(MessageHandler(filters.Regex("^🏆 Logros$"),
+                                   lambda u, c: achievements_menu_handler(u, c, achievement_service)))
+    
+    # Callbacks del sistema de logros
+    handlers.extend([
+        CallbackQueryHandler(lambda u, c: achievements_progress_handler(u, c, achievement_service),
+                            pattern="^achievements_progress$"),
+        CallbackQueryHandler(lambda u, c: achievements_list_handler(u, c, achievement_service),
+                            pattern="^achievements_list$"),
+        CallbackQueryHandler(lambda u, c: achievements_category_handler(u, c, achievement_service),
+                            pattern="^achievements_category_"),
+        CallbackQueryHandler(lambda u, c: achievements_next_handler(u, c, achievement_service),
+                            pattern="^achievements_next$"),
+        CallbackQueryHandler(lambda u, c: achievements_rewards_handler(u, c, achievement_service),
+                            pattern="^achievements_rewards$"),
+        CallbackQueryHandler(lambda u, c: claim_reward_handler(u, c, achievement_service),
+                            pattern="^claim_reward_"),
+        CallbackQueryHandler(lambda u, c: achievements_leaderboard_handler(u, c, achievement_service),
+                            pattern="^achievements_leaderboard$"),
+        CallbackQueryHandler(lambda u, c: leaderboard_category_handler(u, c, achievement_service),
+                            pattern="^leaderboard_"),
+    ])
 
     # Ayuda General
     handlers.append(MessageHandler(filters.Regex("^⚙️ Ayuda$"), ayuda_handler))

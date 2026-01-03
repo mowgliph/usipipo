@@ -28,8 +28,39 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                 last_name=user.last_name
             )
             welcome_message = Messages.Welcome.NEW_USER.format(name=user.first_name)
+            
+            # Inicializar logros para nuevo usuario
+            try:
+                from application.services.achievement_service import AchievementService
+                from infrastructure.persistence.supabase.achievement_repository import AchievementRepository, UserStatsRepository
+                
+                achievement_repository = AchievementRepository(vpn_service.db_session)
+                user_stats_repository = UserStatsRepository(vpn_service.db_session)
+                achievement_service = AchievementService(achievement_repository, user_stats_repository)
+                
+                await achievement_service.initialize_user_achievements(user.id)
+                logger.info(f"Logros inicializados para nuevo usuario {user.id}")
+            except Exception as e:
+                logger.error(f"Error inicializando logros para usuario {user.id}: {e}")
+                # No fallar el registro si hay error en logros
         else:
-            # Usuario existente
+            # Usuario existente - actualizar actividad diaria
+            try:
+                from application.services.achievement_service import AchievementService
+                from infrastructure.persistence.supabase.achievement_repository import AchievementRepository, UserStatsRepository
+                from domain.entities.achievement import AchievementType
+                
+                achievement_repository = AchievementRepository(vpn_service.db_session)
+                user_stats_repository = UserStatsRepository(vpn_service.db_session)
+                achievement_service = AchievementService(achievement_repository, user_stats_repository)
+                
+                # Actualizar actividad diaria
+                await achievement_service.update_user_stats(user_id, {'daily_activity': True})
+                logger.info(f"Actividad diaria actualizada para usuario {user.id}")
+            except Exception as e:
+                logger.error(f"Error actualizando actividad diaria para usuario {user.id}: {e}")
+                # No fallar si hay error en logros
+            
             welcome_message = Messages.Welcome.EXISTING_USER.format(name=user.first_name)
         
         # Enviar mensaje de bienvenida con menú principal

@@ -7,7 +7,7 @@ class Keyboards:
         keyboard = [
             ["🛡️ Mis Llaves", "➕ Crear Nueva"],
             ["📊 Estado", "💰 Operaciones"],
-            ["⚙️ Ayuda"]
+            ["🏆 Logros", "⚙️ Ayuda"]
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
@@ -17,7 +17,7 @@ class Keyboards:
         keyboard = [
             ["🛡️ Mis Llaves", "➕ Crear Nueva"],
             ["📊 Estado", "💰 Operaciones"],
-            ["🔧 Admin", "⚙️ Ayuda"]
+            ["🔧 Admin", "🏆 Logros", "⚙️ Ayuda"]
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -121,4 +121,110 @@ class Keyboards:
                 InlineKeyboardButton("?? Volver", callback_data="operations_menu")
             ]
         ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def achievements_menu():
+        """Menú principal de logros."""
+        keyboard = [
+            [
+                InlineKeyboardButton("📊 Mi Progreso", callback_data="achievements_progress"),
+                InlineKeyboardButton("🏆 Mis Logros", callback_data="achievements_list")
+            ],
+            [
+                InlineKeyboardButton("🎯 Próximos Logros", callback_data="achievements_next"),
+                InlineKeyboardButton("🎁 Recompensas", callback_data="achievements_rewards")
+            ],
+            [
+                InlineKeyboardButton("🏆 Ranking", callback_data="achievements_leaderboard")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="main_menu")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def achievements_categories():
+        """Categorías de logros."""
+        keyboard = [
+            [
+                InlineKeyboardButton("📊 Consumo de Datos", callback_data="achievements_category_data"),
+                InlineKeyboardButton("📅 Días Activos", callback_data="achievements_category_days")
+            ],
+            [
+                InlineKeyboardButton("👥 Referidos", callback_data="achievements_category_referrals"),
+                InlineKeyboardButton("💰 Estrellas", callback_data="achievements_category_stars")
+            ],
+            [
+                InlineKeyboardButton("🔑 Claves", callback_data="achievements_category_keys"),
+                InlineKeyboardButton("🎮 Juegos", callback_data="achievements_category_games")
+            ],
+            [
+                InlineKeyboardButton("👑 VIP", callback_data="achievements_category_vip")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="achievements_menu")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def achievement_detail(achievement_id: str):
+        """Botones para detalles de un logro."""
+        keyboard = [
+            [
+                InlineKeyboardButton("🎁 Reclamar Recompensa", callback_data=f"claim_reward_{achievement_id}")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="achievements_list")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def achievements_leaderboard():
+        """Opciones de ranking."""
+        keyboard = [
+            [
+                InlineKeyboardButton("📊 Consumo de Datos", callback_data="leaderboard_data"),
+                InlineKeyboardButton("📅 Días Activos", callback_data="leaderboard_days")
+            ],
+            [
+                InlineKeyboardButton("👥 Referidos", callback_data="leaderboard_referrals"),
+                InlineKeyboardButton("💰 Estrellas", callback_data="leaderboard_stars")
+            ],
+            [
+                InlineKeyboardButton("🏆 Top General", callback_data="leaderboard_general")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="achievements_menu")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def pending_rewards(rewards: list):
+        """Botones para recompensas pendientes."""
+        keyboard = []
+        
+        # Agrupar recompensas en filas de 2
+        for i in range(0, len(rewards), 2):
+            row = []
+            if i < len(rewards):
+                achievement = rewards[i]
+                row.append(InlineKeyboardButton(
+                    f"{achievement['icon']} {achievement['name']}", 
+                    callback_data=f"claim_reward_{achievement['id']}"
+                ))
+            if i + 1 < len(rewards):
+                achievement = rewards[i + 1]
+                row.append(InlineKeyboardButton(
+                    f"{achievement['icon']} {achievement['name']}", 
+                    callback_data=f"claim_reward_{achievement['id']}"
+                ))
+            if row:
+                keyboard.append(row)
+        
+        keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="achievements_menu")])
         return InlineKeyboardMarkup(keyboard)
