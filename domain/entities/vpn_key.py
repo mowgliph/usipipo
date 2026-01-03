@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional
 
@@ -31,6 +31,9 @@ class VpnKey:
     # Métricas de uso (sincronizadas desde los servidores VPN)
     used_bytes: int = 0               # Tráfico consumido en bytes
     last_seen_at: Optional[datetime] = None  # Última actividad del cliente
+    
+    data_limit_bytes: int = 10 * 1024**3  # 10 GB por defecto
+    billing_reset_at: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):
         """
@@ -39,11 +42,8 @@ class VpnKey:
         """
         if isinstance(self.created_at, str):
             try:
-                # Intenta convertir formato ISO (ej: 2026-01-02T20:44:36)
                 self.created_at = datetime.fromisoformat(self.created_at)
             except ValueError:
-                # Si falla, intentamos manejar formatos sin T o con espacios si fuera necesario
-                # o dejamos el valor tal cual para no romper la ejecución
                 pass
 
         if isinstance(self.last_seen_at, str):
@@ -51,6 +51,12 @@ class VpnKey:
                 self.last_seen_at = datetime.fromisoformat(self.last_seen_at)
             except ValueError:
                 self.last_seen_at = None
+        
+        if isinstance(self.billing_reset_at, str):
+            try:
+                self.billing_reset_at = datetime.fromisoformat(self.billing_reset_at)
+            except ValueError:
+                self.billing_reset_at = datetime.now()
 
     def __repr__(self):
         return f"<VpnKey(name={self.name}, type={self.key_type}, active={self.is_active})>"
@@ -64,3 +70,22 @@ class VpnKey:
     def used_gb(self) -> float:
         """Retorna el consumo en gigabytes."""
         return self.used_bytes / (1024 * 1024 * 1024)
+    
+    @property
+    def data_limit_gb(self) -> float:
+        """Retorna el límite de datos en gigabytes."""
+        return self.data_limit_bytes / (1024 * 1024 * 1024)
+    
+    @property
+    def remaining_bytes(self) -> int:
+        """Bytes restantes en el ciclo de facturación."""
+        return max(0, self.data_limit_bytes - self.used_bytes)
+    
+    @property
+    def is_over_limit(self) -> bool:
+        """True si se excedió el límite de datos."""
+        return self.used_bytes > self.data_limit_bytes
+    
+    def needs_reset(self) -> bool:
+        """True si necesita reset mensual (ha pasado 30 días)."""
+        return datetime.now() > self.billing_reset_at + timedelta(days=30)

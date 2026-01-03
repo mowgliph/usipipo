@@ -14,7 +14,8 @@ class Messages:
             "🕹️ **Comandos principales:**\n"
             "• `➕ Crear Nueva`: Inicia el asistente de creación.\n"
             "• `🛡️ Mis Llaves`: Lista tus llaves, permite borrarlas o ver los datos de conexión.\n"
-            "• `📊 Estado`: Muestra tu consumo y límites.\n\n"
+            "• `📊 Estado`: Muestra tu consumo y límites.\n"
+            "• `💰 Operaciones`: Sistema de referidos, VIP y pagos.\n\n"
             "⚠️ **Soporte:** Si tienes problemas con una conexión, intenta borrar la llave y crear una nueva."
         )
 
@@ -91,4 +92,86 @@ class Messages:
             "🔧 **Mantenimiento**\n\n"
             "El sistema está en mantenimiento temporalmente.\n"
             "Intenta nuevamente en unos minutos."
+        )
+        
+        INSUFFICIENT_BALANCE = (
+            "💰 **Saldo Insuficiente**\n\n"
+            "Necesitas {required} estrellas. Tu saldo actual es: {current}.\n"
+            "Recarga en el menú de Operaciones."
+        )
+        
+        NO_DEPOSIT_FOR_DELETE = (
+            "⚠️ **Depósito Requerido**\n\n"
+            "Debes realizar al menos un depósito para poder eliminar claves.\n"
+            "Esto asegura un uso responsable del servicio."
+        )
+        
+        REFERRAL_CODE_INVALID = (
+            "❌ **Código de Referido Inválido**\n\n"
+            "El código '{code}' no existe o ha expirado.\n"
+            "Verifica el código e intenta nuevamente."
+        )
+        
+        REFERRAL_SELF = (
+            "🚫 **Auto-Referido**\n\n"
+            "No puedes usar tu propio código de referido."
+        )
+
+    class Operations:
+        MENU_TITLE = "💰 **Operaciones**\n\nElige una opción:"
+        BALANCE_INFO = (
+            "⭐ **Balance de Estrellas**\n\n"
+            "👤 **Usuario:** {name}\n"
+            "💰 **Saldo:** {balance} estrellas\n"
+            "📥 **Total Depositado:** {total_deposited} estrellas\n"
+            "👥 **Ganancias por Referidos:** {referral_earnings} estrellas"
+        )
+        DEPOSIT_INSTRUCTIONS = (
+            "⭐ **Recargar Estrellas**\n\n"
+            "1. Ve a @BotFather y envía el comando `/mybots`\n"
+            "2. Selecciona tu bot y luego 'Payments'\n"
+            "3. Sigue las instrucciones para enviar estrellas\n\n"
+            "Una vez completado, tu saldo se actualizará automáticamente."
+        )
+        VIP_PLAN_INFO = (
+            "👑 **Plan VIP**\n\n"
+            "Beneficios:\n"
+            "• ✅ Hasta {max_keys} claves simultáneas\n"
+            "• 📦 {data_limit} GB por clave\n"
+            "• 🔄 Reset mensual de datos\n"
+            "• 🚀 Prioridad en soporte\n\n"
+            "Precio: {cost} estrellas por mes\n\n"
+            "Selecciona la duración:"
+        )
+        VIP_PURCHASE_SUCCESS = (
+            "🎉 **¡Felicidades! Ahora eres VIP**\n\n"
+            "Tu plan VIP está activo hasta el {expiry_date}\n\n"
+            "✅ Límite de claves aumentado a {max_keys}\n"
+            "✅ Límite de datos por clave: {data_limit} GB\n"
+            "✅ Reset mensual automático"
+        )
+        REFERRAL_PROGRAM = (
+            "👥 **Programa de Referidos**\n\n"
+            "¡Invita a tus amigos y gana **10%** de por vida!\n\n"
+            "🔗 **Tu enlace personalizado:**\n"
+            "`https://t.me/{bot_username}?start={referral_code}`\n\n"
+            "📊 **Estadísticas:**\n"
+            "• 👥 Referidos directos: {direct_referrals}\n"
+            "• 💰 Ganancias totales: {total_earnings} estrellas\n"
+            "• 📈 Comisión: {commission}% de cada depósito\n\n"
+            "El pago es automático cuando tus referidos recargan."
+        )
+        REFERRAL_CODE = (
+            "📋 **Tu código de referido:**\n\n"
+            "`{referral_code}`\n\n"
+            "Comparte este código con tus amigos o usa el enlace:"
+        )
+        SHARE_REFERRAL = (
+            "¡Hola! Te recomiendo usar **uSipipo VPN Manager** 🌐\n\n"
+            "Es un servicio de VPN privado y seguro con:\n"
+            "• ✅ WireGuard y Outline\n"
+            "• 🔒 Sin registros\n"
+            "• 🚀 Alta velocidad\n\n"
+            "Usa mi código de referido: **{referral_code}**\n"
+            "O haz clic aquí: https://t.me/{bot_username}?start={referral_code}"
         )

@@ -6,10 +6,12 @@ from config import settings
 # Interfaces
 from domain.interfaces.iuser_repository import IUserRepository
 from domain.interfaces.ikey_repository import IKeyRepository
+from domain.interfaces.itransaction_repository import ITransactionRepository
 
 # Implementaciones de Infraestructura (Nombres corregidos)
 from infrastructure.persistence.supabase.user_repository import SupabaseUserRepository
 from infrastructure.persistence.supabase.key_repository import SupabaseKeyRepository
+from infrastructure.persistence.supabase.transaction_repository import SupabaseTransactionRepository
 from infrastructure.api_clients.client_outline import OutlineClient
 from infrastructure.api_clients.client_wireguard import WireGuardClient
 
@@ -17,6 +19,8 @@ from infrastructure.api_clients.client_wireguard import WireGuardClient
 from infrastructure.persistence.supabase.ticket_repository import TicketRepository
 from application.services.support_service import SupportService
 from application.services.vpn_service import VpnService
+from application.services.referral_service import ReferralService
+from application.services.payment_service import PaymentService
 
 @lru_cache()
 def get_container() -> punq.Container:
@@ -30,12 +34,15 @@ def get_container() -> punq.Container:
     # 2. Registrar Repositorios (Mapeo de Interfaz -> Implementación Corregida)
     container.register(IUserRepository, SupabaseUserRepository)
     container.register(IKeyRepository, SupabaseKeyRepository)
-    
+    container.register(ITransactionRepository, SupabaseTransactionRepository)
+
     # Repositorios que no tienen interfaz (o registro directo)
     container.register(TicketRepository, scope=punq.Scope.singleton)
 
     # 3. Registrar Servicios de Aplicación
     container.register(VpnService)
     container.register(SupportService)
+    container.register(ReferralService)
+    container.register(PaymentService)
 
     return container

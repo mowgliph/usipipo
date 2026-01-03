@@ -1,4 +1,4 @@
-from typing import Protocol, Optional
+from typing import Protocol, Optional, List
 from domain.entities.user import User
 
 class IUserRepository(Protocol):
@@ -18,4 +18,16 @@ class IUserRepository(Protocol):
 
     async def exists(self, telegram_id: int) -> bool:
         """Verifica si el usuario ya está registrado."""
+        ...
+
+    async def get_by_referral_code(self, referral_code: str) -> Optional[User]:
+        """Busca un usuario por su código de referido."""
+        ...
+
+    async def get_referrals_by_user(self, telegram_id: int) -> List[User]:
+        """Obtiene la lista de usuarios referidos por un usuario."""
+        ...
+
+    async def update_balance(self, telegram_id: int, new_balance: int) -> bool:
+        """Actualiza el balance de estrellas del usuario."""
         ...

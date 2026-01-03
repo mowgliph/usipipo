@@ -5,6 +5,7 @@ from .status_handler import status_handler
 from .ayuda_handler import ayuda_handler
 from .support_handler import get_support_handler, admin_reply_handler
 from .error_handler import error_handler
+from .referral_handler import get_referral_handlers
 
 __all__ = [
     'start_handler',
@@ -15,5 +16,6 @@ __all__ = [
     'ayuda_handler',
     'get_support_handler',
     'admin_reply_handler',
-    'error_handler'
+    'error_handler',
+    'get_referral_handlers'
 ]

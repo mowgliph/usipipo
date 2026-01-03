@@ -20,10 +20,17 @@ class User:
     username: Optional[str] = None
     full_name: Optional[str] = None
     status: UserStatus = UserStatus.ACTIVE
-    max_keys: int = 5
+    max_keys: int = 2
     created_at: datetime = field(default_factory=datetime.now)
     
-    # Esta lista se llenará con objetos VpnKey en el futuro
+    balance_stars: int = 0
+    total_deposited: int = 0
+    referral_code: Optional[str] = None
+    referred_by: Optional[int] = None
+    total_referral_earnings: int = 0
+    is_vip: bool = False
+    vip_expires_at: Optional[datetime] = None
+    
     keys: List = field(default_factory=list)
 
     @property
@@ -36,9 +43,23 @@ class User:
         Lógica de negocio: Verifica si el usuario tiene permiso 
         para generar una nueva llave según su límite.
         """
-        # Contamos solo las llaves que no estén marcadas como eliminadas/inactivas
         active_keys = [k for k in self.keys if getattr(k, 'is_active', True)]
         return len(active_keys) < self.max_keys
+    
+    def can_delete_keys(self) -> bool:
+        """
+        Lógica de negocio: Solo usuarios que han recargado pueden eliminar claves.
+        """
+        return self.total_deposited > 0
+    
+    def is_vip_active(self) -> bool:
+        """
+        Verifica si el usuario tiene VIP activo (pagado y no expirado).
+        """
+        if not self.is_vip or not self.vip_expires_at:
+            return False
+        
+        return datetime.now() < self.vip_expires_at
 
     def __repr__(self):
         return f"<User(id={self.telegram_id}, username={self.username}, status={self.status})>"

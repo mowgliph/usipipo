@@ -6,7 +6,8 @@ class Keyboards:
         """Menú persistente de botones de texto en la parte inferior."""
         keyboard = [
             ["🛡️ Mis Llaves", "➕ Crear Nueva"],
-            ["📊 Estado", "⚙️ Ayuda"]
+            ["📊 Estado", "💰 Operaciones"],
+            ["⚙️ Ayuda"]
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -52,4 +53,61 @@ class Keyboards:
     def help_back():
         """Botón opcional para volver al menú principal desde la ayuda."""
         keyboard = [[InlineKeyboardButton("🔙 Volver al Menú", callback_data="main_menu")]]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def operations_menu():
+        """Submenú para operaciones de pago, referidos, planes."""
+        keyboard = [
+            [
+                InlineKeyboardButton("👥 Programa de Referidos", callback_data="referral_program"),
+                InlineKeyboardButton("⭐ Recargar Estrellas", callback_data="deposit_stars")
+            ],
+            [
+                InlineKeyboardButton("👑 Plan VIP", callback_data="vip_plan"),
+                InlineKeyboardButton("📈 Mi Balance", callback_data="my_balance")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver al Menú Principal", callback_data="main_menu")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def vip_plans():
+        """Opciones de compra de VIP."""
+        keyboard = [
+            [
+                InlineKeyboardButton("1 Mes - 10 Estrellas", callback_data="vip_1_month"),
+                InlineKeyboardButton("3 Meses - 27 Estrellas", callback_data="vip_3_months")
+            ],
+            [
+                InlineKeyboardButton("6 Meses - 50 Estrellas", callback_data="vip_6_months"),
+                InlineKeyboardButton("12 Meses - 90 Estrellas", callback_data="vip_12_months")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="operations_menu")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
+    def referral_actions():
+        """Acciones para el programa de referidos."""
+        keyboard = [
+            [
+                InlineKeyboardButton("📋 Mi Código de Referido", callback_data="my_referral_code"),
+                InlineKeyboardButton("👥 Mis Referidos", callback_data="my_referrals")
+            ],
+            [
+                InlineKeyboardButton("💰 Mis Ganancias", callback_data="referral_earnings"),
+                InlineKeyboardButton("🔗 Compartir Enlace", callback_data="share_referral")
+            ],
+            [
+                InlineKeyboardButton("📋 Aplicar Código", callback_data="apply_referral_code")
+            ],
+            [
+                InlineKeyboardButton("� Volver", callback_data="operations_menu")
+            ]
+        ]
         return InlineKeyboardMarkup(keyboard)

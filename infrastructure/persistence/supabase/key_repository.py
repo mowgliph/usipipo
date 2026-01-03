@@ -1,5 +1,6 @@
 from typing import List, Optional
 import uuid
+from datetime import datetime
 from domain.entities.vpn_key import VpnKey, KeyType
 from domain.interfaces.ikey_repository import IKeyRepository
 from .supabase_client import get_supabase
@@ -17,9 +18,14 @@ class SupabaseKeyRepository(IKeyRepository):
             "name": key.name,
             "key_data": key.key_data,
             "external_id": key.external_id,
-            "is_active": key.is_active
+            "is_active": key.is_active,
+            "data_limit_bytes": key.data_limit_bytes,
+            "billing_reset_at": key.billing_reset_at.isoformat() if key.billing_reset_at else None,
+            "used_bytes": key.used_bytes,
+            "last_seen_at": key.last_seen_at.isoformat() if key.last_seen_at else None
         }
-        if key.id: key_data["id"] = str(key.id)
+        if key.id: 
+            key_data["id"] = str(key.id)
 
         try:
             response = self.client.table(self.table).upsert(key_data).execute()
@@ -53,4 +59,45 @@ class SupabaseKeyRepository(IKeyRepository):
         try:
             self.client.table(self.table).update({"is_active": False}).eq("id", str(key_id)).execute()
             return True
-        except Exception: return False
+        except Exception as e:
+            logger.error(f"Error al eliminar llave: {e}")
+            return False
+    
+    async def update_data_limit(self, key_id: uuid.UUID, data_limit_bytes: int):
+        try:
+            self.client.table(self.table)\
+                .update({"data_limit_bytes": data_limit_bytes})\
+                .eq("id", str(key_id))\
+                .execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error al actualizar límite de datos: {e}")
+            return False
+    
+    async def reset_data_usage(self, key_id: uuid.UUID):
+        try:
+            now = datetime.now().isoformat()
+            self.client.table(self.table)\
+                .update({"used_bytes": 0, "billing_reset_at": now})\
+                .eq("id", str(key_id))\
+                .execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error al resetear uso de datos: {e}")
+            return False
+    
+    async def get_keys_needing_reset(self) -> List[VpnKey]:
+        try:
+            from datetime import datetime, timedelta
+            thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
+            
+            response = self.client.table(self.table)\
+                .select("*")\
+                .lt("billing_reset_at", thirty_days_ago)\
+                .eq("is_active", True)\
+                .execute()
+            
+            return [VpnKey(**item) for item in response.data] if response.data else []
+        except Exception as e:
+            logger.error(f"Error al obtener llaves para reset: {e}")
+            return []

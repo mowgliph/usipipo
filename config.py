@@ -313,6 +313,64 @@ class Settings(BaseSettings):
     )
     
     # =========================================================================
+    # SISTEMA DE PLANES Y REFERIDOS
+    # =========================================================================
+    FREE_PLAN_MAX_KEYS: int = Field(
+        default=2,
+        ge=1,
+        description="Máximo de llaves para el plan gratuito"
+    )
+    
+    FREE_PLAN_DATA_LIMIT_GB: int = Field(
+        default=10,
+        ge=1,
+        description="Límite de datos por clave en GB para el plan gratuito"
+    )
+    
+    VIP_PLAN_MAX_KEYS: int = Field(
+        default=10,
+        ge=1,
+        description="Máximo de llaves para el plan VIP"
+    )
+    
+    VIP_PLAN_DATA_LIMIT_GB: int = Field(
+        default=50,
+        ge=1,
+        description="Límite de datos por clave en GB para el plan VIP"
+    )
+    
+    VIP_PLAN_COST_STARS: int = Field(
+        default=10,
+        ge=1,
+        description="Costo en Telegram Stars por mes de VIP"
+    )
+    
+    REFERRAL_COMMISSION_PERCENT: int = Field(
+        default=10,
+        ge=0,
+        le=100,
+        description="Porcentaje de comisión por referidos (0-100)"
+    )
+    
+    KEY_CLEANUP_DAYS: int = Field(
+        default=90,
+        ge=30,
+        description="Días de inactividad para limpiar una clave"
+    )
+    
+    BILLING_CYCLE_DAYS: int = Field(
+        default=30,
+        ge=1,
+        description="Días del ciclo de facturación (reset de datos)"
+    )
+    
+    MIN_DEPOSIT_FOR_DELETE: int = Field(
+        default=1,
+        ge=0,
+        description="Depósito mínimo requerido para poder eliminar claves"
+    )
+    
+    # =========================================================================
     # LOGGING Y MONITOREO
     # =========================================================================
     LOG_LEVEL: str = Field(
