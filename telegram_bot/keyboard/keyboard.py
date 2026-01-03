@@ -10,6 +10,16 @@ class Keyboards:
             ["⚙️ Ayuda"]
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    @staticmethod
+    def admin_main_menu():
+        """Menú principal con acceso de administración."""
+        keyboard = [
+            ["🛡️ Mis Llaves", "➕ Crear Nueva"],
+            ["📊 Estado", "💰 Operaciones"],
+            ["🔧 Admin", "⚙️ Ayuda"]
+        ]
+        return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
     @staticmethod
     def vpn_types():
@@ -69,6 +79,12 @@ class Keyboards:
         )
 
     @staticmethod
+    def admin_menu():
+        """Menú de administración para el admin."""
+        keyboard = [["🔧 Admin"]]
+        return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+    @staticmethod
     def vip_plans():
         """Opciones de compra de VIP."""
         keyboard = [
@@ -102,7 +118,7 @@ class Keyboards:
                 InlineKeyboardButton("📋 Aplicar Código", callback_data="apply_referral_code")
             ],
             [
-                InlineKeyboardButton("�?? Volver", callback_data="operations_menu")
+                InlineKeyboardButton("?? Volver", callback_data="operations_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)

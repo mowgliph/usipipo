@@ -18,8 +18,10 @@ from telegram_bot.handlers.payment_handler import get_payment_handlers
 from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
 from telegram_bot.handlers.broadcast_handler import get_broadcast_handler
 from telegram_bot.handlers.game_handler import get_game_handlers
+from telegram_bot.handlers.admin_handler import get_admin_handler
 from utils.bot_logger import get_logger
 from application.services.game_service import GameService
+from application.services.admin_service import AdminService
 
 def initialize_handlers(vpn_service, support_service, referral_service, payment_service):
     """
@@ -96,5 +98,13 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Handler de Soporte desde menú de operaciones
     handlers.extend(get_support_menu_handler(support_service))
+
+    # Sistema de Administración (solo para admin)
+    admin_service = AdminService(
+        key_repository=vpn_service.key_repository,
+        user_repository=vpn_service.user_repository,
+        payment_repository=payment_service.payment_repository
+    )
+    handlers.append(get_admin_handler(admin_service))
 
     return handlers
