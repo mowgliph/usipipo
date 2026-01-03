@@ -17,11 +17,11 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
     
     try:
         # Verificar si el usuario ya existe
-        existing_user = await vpn_service.user_repository.get_user(user.id)
+        existing_user = await vpn_service.user_repo.get_user(user.id)
         
         if not existing_user:
             # Crear nuevo usuario
-            await vpn_service.user_repository.create_user(
+            await vpn_service.user_repo.create_user(
                 user_id=user.id,
                 username=user.username,
                 first_name=user.first_name,

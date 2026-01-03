@@ -37,7 +37,7 @@ async def cleanup_inactive_keys(vpn_service: VpnService, keys: List[VpnKey]):
     """
     Desactiva llaves que no han sido usadas en los últimos 90 días.
     """
-    inactive_threshold = datetime.now() - timedelta(days=90)
+    inactive_threshold = datetime.now().replace(tzinfo=None) - timedelta(days=90)
     deactivated_count = 0
 
     for key in keys:

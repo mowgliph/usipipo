@@ -335,7 +335,7 @@ class AdminHandler:
             fallbacks=[
                 CallbackQueryHandler(self.back_to_menu, pattern="^admin_menu$"),
             ],
-            per_message=False,
+            per_message=True,
             per_chat=True,
         )
 
