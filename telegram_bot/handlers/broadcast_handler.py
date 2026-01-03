@@ -247,7 +247,7 @@ class BroadcastHandler:
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self.receive_photo)
                 ],
                 AWAITING_CONFIRMATION: [
-                    MessageHandler(filters.Regex(r"^(✅|confirmar|si|ok)$", flags=re.IGNORECASE), self.confirm_broadcast),
+                    MessageHandler(filters.Regex(r"^(✅|confirmar|si|ok|Confirmar|SI|OK)$"), self.confirm_broadcast),
                     CommandHandler("confirm", self.confirm_broadcast)
                 ]
             },
