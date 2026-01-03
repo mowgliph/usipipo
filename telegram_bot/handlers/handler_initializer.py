@@ -14,7 +14,8 @@ from telegram_bot.handlers.ayuda_handler import ayuda_handler
 from telegram_bot.handlers.support_handler import get_support_handler, admin_reply_handler
 from telegram_bot.handlers.referral_handler import get_referral_handlers
 from telegram_bot.handlers.payment_handler import get_payment_handlers
-
+from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
+from utils.bot_logger import get_logger
 
 def initialize_handlers(vpn_service, support_service, referral_service, payment_service):
     """
@@ -73,5 +74,13 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Sistema de Pagos
     handlers.extend(get_payment_handlers(referral_service, vpn_service, payment_service))
+
+    # Sistema de Monitorización (solo para admin)
+    monitoring_handlers, monitoring_instance = get_monitoring_handlers(settings.ADMIN_ID)
+    handlers.extend(monitoring_handlers)
+    
+    # Conectar el logger con el sistema de monitorización
+    bot_logger = get_logger()
+    bot_logger.set_monitoring_handler(monitoring_instance)
 
     return handlers
