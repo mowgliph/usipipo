@@ -60,9 +60,9 @@ class Keyboards:
         """Genera el teclado del menú de operaciones."""
         return ReplyKeyboardMarkup(
             [
-                ["� Mi Balance", "👑 Plan VIP"],
+                ["💰 Mi Balance", "👑 Plan VIP"],
                 ["🎮 Juga y Gana", "👥 Referidos"],
-                ["⚙️ Ayuda"]
+                ["🎫 Soporte", "⚙️ Ayuda"]
             ],
             resize_keyboard=True,
             one_time_keyboard=True

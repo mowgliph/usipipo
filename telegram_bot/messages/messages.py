@@ -53,6 +53,7 @@ class Messages:
         NEW_TICKET_ADMIN = "⚠️ **Nuevo Ticket Abierto**\n👤 Usuario: {name}\n🆔 ID: `{user_id}`\n\nEscribe aquí para responderle."
         USER_MESSAGE_TO_ADMIN = "📩 **Mensaje de {name}:**\n{text}"
         ADMIN_MESSAGE_TO_USER = "👨‍💻 **Respuesta del Soporte:**\n{text}"
+        MENU_TITLE = "🎫 **Soporte**\n\nElige una opción:"
 
     class Errors:
         GENERIC = (

@@ -116,7 +116,7 @@ async def admin_reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 def get_support_handler(support_service: SupportService) -> ConversationHandler:
     """Configuración del handler de soporte para main.py."""
     return ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^⚙️ Ayuda$"), lambda u, c: start_support(u, c, support_service))],
+        entry_points=[MessageHandler(filters.Regex("^🎫 Soporte$"), lambda u, c: start_support(u, c, support_service))],
         states={
             CHATTING: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, 
