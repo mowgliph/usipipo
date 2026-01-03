@@ -7,7 +7,7 @@ Version: 1.0.0
 
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict
-from domain.entities.key import Key
+from domain.entities.vpn_key import VpnKey as Key
 
 class IAdminService(ABC):
     """Interfaz del servicio de administración para gestión de usuarios y claves."""
