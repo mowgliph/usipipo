@@ -16,7 +16,9 @@ from telegram_bot.handlers.referral_handler import get_referral_handlers
 from telegram_bot.handlers.payment_handler import get_payment_handlers
 from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
 from telegram_bot.handlers.broadcast_handler import get_broadcast_handler
+from telegram_bot.handlers.game_handler import get_game_handlers
 from utils.bot_logger import get_logger
+from application.services.game_service import GameService
 
 def initialize_handlers(vpn_service, support_service, referral_service, payment_service):
     """
@@ -86,5 +88,9 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Sistema de Broadcast (solo para admin)
     handlers.append(get_broadcast_handler())
+
+    # Sistema de Juegos Play & Earn
+    game_service = GameService()
+    handlers.extend(get_game_handlers(game_service))
 
     return handlers

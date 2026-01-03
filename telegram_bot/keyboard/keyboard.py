@@ -57,21 +57,16 @@ class Keyboards:
 
     @staticmethod
     def operations_menu():
-        """Submenú para operaciones de pago, referidos, planes."""
-        keyboard = [
+        """Genera el teclado del menú de operaciones."""
+        return ReplyKeyboardMarkup(
             [
-                InlineKeyboardButton("👥 Programa de Referidos", callback_data="referral_program"),
-                InlineKeyboardButton("⭐ Recargar Estrellas", callback_data="deposit_stars")
+                ["� Mi Balance", "👑 Plan VIP"],
+                ["🎮 Juga y Gana", "👥 Referidos"],
+                ["⚙️ Ayuda"]
             ],
-            [
-                InlineKeyboardButton("👑 Plan VIP", callback_data="vip_plan"),
-                InlineKeyboardButton("📈 Mi Balance", callback_data="my_balance")
-            ],
-            [
-                InlineKeyboardButton("🔙?? Volver al Menú Principal", callback_data="main_menu")
-            ]
-        ]
-        return InlineKeyboardMarkup(keyboard)
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
 
     @staticmethod
     def vip_plans():
