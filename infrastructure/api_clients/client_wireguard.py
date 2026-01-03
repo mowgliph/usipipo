@@ -19,21 +19,64 @@ class WireGuardClient:
         self.conf_path = self.base_path / f"{self.interface}.conf"
         self.clients_dir = self.base_path / "clients"
         self.default_quota = 10 * 1024 * 1024 * 1024
+        self._permissions_checked = False
         
         os.makedirs(self.clients_dir, exist_ok=True)
 
-    async def _run_cmd(self, cmd: str) -> str:
+    async def _run_cmd(self, cmd: str, require_admin: bool = False) -> str:
+        """
+        Ejecuta comandos de WireGuard.
+        
+        Args:
+            cmd: Comando a ejecutar
+            require_admin: Si True, verifica permisos antes de ejecutar
+        """
         process = await asyncio.create_subprocess_shell(
             cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await process.communicate()
+        
         if process.returncode != 0:
             error_msg = stderr.decode().strip()
+            
+            # Detectar error de permisos y dar mensaje útil
+            if "Operation not permitted" in error_msg:
+                logger.error(
+                    f"❌ Permisos insuficientes para WireGuard. "
+                    f"Ejecuta: sudo setcap cap_net_admin+ep /usr/bin/wg"
+                )
+                raise PermissionError(
+                    "WireGuard requiere CAP_NET_ADMIN. "
+                    "Ejecuta: sudo setcap cap_net_admin+ep /usr/bin/wg"
+                )
+            
             logger.error(f"Comando fallido: {cmd} | Error: {error_msg}")
             raise Exception(f"Error ejecutando comando WireGuard: {error_msg}")
+        
         return stdout.decode().strip()
+
+    async def _check_permissions(self) -> bool:
+        """Verifica si tenemos permisos para gestionar WireGuard."""
+        try:
+            await self._run_cmd(f"wg show {self.interface}")
+            return True
+        except PermissionError:
+            return False
+        except Exception:
+            # La interfaz puede no existir, pero si no es error de permisos, está OK
+            return True
+
+    async def ensure_permissions(self):
+        """Verifica permisos una sola vez al primer uso."""
+        if not self._permissions_checked:
+            if not await self._check_permissions():
+                raise PermissionError(
+                    "WireGuard no tiene permisos. Ejecuta:\n"
+                    "sudo setcap cap_net_admin+ep /usr/bin/wg"
+                )
+            self._permissions_checked = True
 
     async def get_next_available_ip(self) -> str:
         try:
@@ -57,6 +100,8 @@ class WireGuardClient:
             raise
 
     async def create_peer(self, user_id: int, name: str) -> dict:
+        await self.ensure_permissions()
+        
         client_name = f"tg_{user_id}_{uuid.uuid4().hex[:4]}"
         
         priv_key = await self._run_cmd("wg genkey")
