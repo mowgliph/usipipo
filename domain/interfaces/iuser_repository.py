@@ -35,3 +35,15 @@ class IUserRepository(Protocol):
     async def update_balance(self, telegram_id: int, new_balance: int) -> bool:
         """Actualiza el balance de estrellas del usuario."""
         ...
+
+    async def get_user(self, telegram_id: int) -> Optional[User]:
+        """Busca un usuario por su ID de Telegram (alias de get_by_id)."""
+        ...
+
+    async def create_user(self, user_id: int, username: str = None, full_name: str = None, referral_code: str = None, referred_by: int = None) -> User:
+        """Crea un nuevo usuario."""
+        ...
+
+    async def get_all_users(self) -> List[User]:
+        """Obtiene todos los usuarios registrados."""
+        ...

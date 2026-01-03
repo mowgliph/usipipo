@@ -4,6 +4,7 @@ from domain.entities.user import User, UserStatus
 from domain.interfaces.iuser_repository import IUserRepository
 from .supabase_client import get_supabase
 from loguru import logger
+import secrets
 
 class SupabaseUserRepository(IUserRepository):
     """
@@ -159,4 +160,48 @@ class SupabaseUserRepository(IUserRepository):
             ]
         except Exception as e:
             logger.error(f"❌ Error al obtener referidos por usuario {telegram_id}: {e}")
+            return []
+
+    async def get_user(self, telegram_id: int) -> Optional[User]:
+        """Busca un usuario por su ID de Telegram (alias de get_by_id)."""
+        return await self.get_by_id(telegram_id)
+
+    async def create_user(self, user_id: int, username: str = None, full_name: str = None, referral_code: str = None, referred_by: int = None) -> User:
+        """Crea un nuevo usuario."""
+        if referral_code is None:
+            referral_code = secrets.token_hex(4)
+
+        user = User(
+            telegram_id=user_id,
+            username=username,
+            full_name=full_name,
+            referral_code=referral_code,
+            referred_by=referred_by
+        )
+        return await self.save(user)
+
+    async def get_all_users(self) -> List[User]:
+        """Obtiene todos los usuarios registrados."""
+        try:
+            response = self.client.table(self.table).select("*").execute()
+            users_data = response.data if response.data else []
+            return [
+                User(
+                    telegram_id=data["telegram_id"],
+                    username=data.get("username"),
+                    full_name=data.get("full_name"),
+                    status=UserStatus(data.get("status", "active")),
+                    max_keys=data.get("max_keys", 2),
+                    balance_stars=data.get("balance_stars", 0),
+                    total_deposited=data.get("total_deposited", 0),
+                    referral_code=data.get("referral_code"),
+                    referred_by=data.get("referred_by"),
+                    total_referral_earnings=data.get("total_referral_earnings", 0),
+                    is_vip=data.get("is_vip", False),
+                    vip_expires_at=data.get("vip_expires_at")
+                )
+                for data in users_data
+            ]
+        except Exception as e:
+            logger.error(f"❌ Error al obtener todos los usuarios: {e}")
             return []
