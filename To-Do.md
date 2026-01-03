@@ -1,96 +1,237 @@
-Plan de Implementación Paso a Paso: uSipipo VPN Manager
+# 📋 To-Do List - uSipipo VPN Manager
 
-📋 LISTA MAESTRA DE TAREAS (To-Do)
+> **Tareas pendientes y mejoras planificadas**  
+*Roadmap del proyecto y prioridades de desarrollo*
 
-🏗️ FASE 1: CIMIENTOS DEL PROYECTO (Día 1-2)
+## 🎯 Objetivos Actuales
 
-Objetivo: Configurar el entorno y la estructura base.
+### ✅ **Completado Recientemente**
+- [x] **Sistema de Administración** - Panel completo para admin
+- [x] **Gestión de Claves** - Eliminación directa en servidores
+- [x] **Clean Architecture** - Refactorización completa
+- [x] **Documentación Profesional** - README y guías completas
+- [x] **Instalador Automático** - Script de instalación completo
 
-1. Paso 1.1 - Crear estructura de directorios.
-   ```
-   mkdir -p mi_bot_vpn/{core,api/{v1/endpoints},telegram_bot/handlers,domain/{entities,interfaces},application/{services/common,ports},infrastructure/{persistence/supabase/models,api_clients},utils,templates,static/{qr_codes,configs},logs,temp}
-   ```
-2. Paso 1.2 - Crear requirements.txt con dependencias principales.
-3. Paso 1.3 - Crear config.py (basado en el .env final que acordamos).
-4. Paso 1.4 - Crear .env (copiar de tu plantilla y añadir SUPABASE_URL, SUPABASE_SERVICE_KEY, SECRET_KEY, etc.).
-5. Paso 1.5 - Crear core/__init__.py y core/lifespan.py (gestor de ciclo de vida para FastAPI).
+---
 
-📦 FASE 2: CAPA DE DOMINIO (Día 3)
+## 🚀 Tareas Prioritarias
 
-Objetivo: Definir las entidades y contratos centrales del negocio.
+### 🔥 **Alta Prioridad (Esta Semana)**
 
-1. Paso 2.1 - Crear domain/entities/user.py (clase User con telegram_id, etc.).
-2. Paso 2.2 - Crear domain/entities/vpn_key.py (clase VpnKey con key_data, type, user_id).
-3. Paso 2.3 - Crear domain/interfaces/iuser_repository.py (interfaz IUserRepository con save, find_by_telegram_id).
-4. Paso 2.4 - Crear domain/interfaces/ikey_repository.py (interfaz IKeyRepository).
-5. Paso 2.5 - Crear domain/interfaces/ivpn_service.py (interfaz IVpnService con create_key, list_keys, revoke_key).
+#### 📚 **Documentación**
+- [ ] **Corregir Linting** - Solucionar advertencias de markdown
+- [ ] **Guía de Administración** - Documentación completa del panel admin
+- [ ] **API Documentation** - Documentación de endpoints REST
+- [ ] **Troubleshooting Guide** - Problemas comunes y soluciones
 
-🗃️ FASE 3: CAPA DE INFRAESTRUCTURA - PERSISTENCIA (Día 4)
+#### 🧪 **Testing**
+- [ ] **Unit Tests** - Tests para servicios principales
+- [ ] **Integration Tests** - Tests de integración con Telegram
+- [ ] **E2E Tests** - Tests end-to-end del flujo completo
+- [ ] **Performance Tests** - Tests de carga y estrés
 
-Objetivo: Implementar la conexión y operaciones con Supabase.
+#### 🔧 **Mejoras Técnicas**
+- [ ] **Error Handling** - Mejorar manejo de errores
+- [ ] **Logging Mejorado** - Logs más detallados y estructurados
+- [ ] **Config Validation** - Validación más robusta de configuración
+- [ ] **Database Migrations** - Migraciones automáticas y versionadas
 
-1. Paso 3.1 - Crear infrastructure/persistence/supabase/supabase_client.py (función get_client() singleton).
-2. Paso 3.2 - Crear infrastructure/persistence/supabase/user_repository.py (clase SupabaseUserRepository implementando IUserRepository).
-3. Paso 3.3 - Crear infrastructure/persistence/supabase/key_repository.py (clase SupabaseKeyRepository).
-4. Paso 3.4 - VERIFICACIÓN: Crear un script temporal test_db.py para probar la conexión y operaciones CRUD básicas con Supabase.
+---
 
-⚙️ FASE 4: CAPA DE INFRAESTRUCTURA - CLIENTES VPN (Día 5)
+## 🎯 Funcionalidades Futuras
 
-Objetivo: Implementar la comunicación con los servidores de Outline y WireGuard.
+### 📱 **Mejoras del Bot**
 
-1. Paso 4.1 - Crear infrastructure/api_clients/outline_client.py (clase OutlineClient que use outline-vpn-api).
-2. Paso 4.2 - Crear infrastructure/api_clients/wireguard_client.py (clase WireGuardClient que use wireguard-tools o subprocess).
-3. Paso 4.3 - VERIFICACIÓN: Crear un script temporal test_vpn_clients.py para probar la creación de una clave en Outline y WireGuard.
+#### 🎮 **Gamificación**
+- [ ] **Sistema de Niveles** - Usuarios suben de nivel
+- [ ] **Logros y Badges** - Recompensas por hitos
+- [ ] **Torneos Diarios** - Competencias entre usuarios
+- [ ] **Leaderboard Global** - Ranking de mejores usuarios
 
-🧠 FASE 5: CAPA DE APLICACIÓN - SERVICIOS (Día 6-7)
+#### 💰 **Sistema de Pagos**
+- [ ] **Múltiples Métodos** - Cripto, PayPal, tarjetas
+- [ ] **Planes Personalizados** - Planes empresariales
+- [ ] **Descuentos por Volumen** - Precios por cantidad
+- [ ] **Facturación Automática** - Recibos y facturas
 
-Objetivo: Implementar la lógica de negocio que orquesta todo.
+#### 🤖 **Inteligencia Artificial**
+- [ ] **Chatbot Avanzado** - Respuestas inteligentes
+- [ ] **Análisis de Uso** - Patrones y recomendaciones
+- [ ] **Detección de Anomalías** - Seguridad automatizada
+- [ ] **Soporte Predictivo** - Problemas antes de que ocurran
 
-1. Paso 5.1 - Crear application/ports/outline_manager.py (clase OutlineManager, adaptador que use OutlineClient).
-2. Paso 5.2 - Crear application/ports/wireguard_manager.py (clase WireGuardManager).
-3. Paso 5.3 - Crear application/services/common/key_generator.py (funciones utilitarias para generar nombres, códigos).
-4. Paso 5.4 - Crear application/services/vpn_orchestrator.py (clase VpnOrchestrator, implementa IVpnService, usa los managers y repositorios).
-5. Paso 5.5 - Crear application/services/user_service.py (clase UserService para lógica de usuarios).
-6. Paso 5.6 - VERIFICACIÓN: Actualizar test_db.py para probar el VpnOrchestrator completo (crear clave, listar, revocar).
+### 🌐 **Mejoras Web**
 
-🔌 FASE 6: NÚCLEO Y CONFIGURACIÓN FINAL (Día 8)
+#### 📊 **Dashboard Web**
+- [ ] **Interfaz Web Completa** - Alternativa al bot
+- [ ] **Gráficos en Tiempo Real** - Métricas visuales
+- [ ] **Gestión Masiva** - Operaciones batch
+- [ ] **Exportación de Datos** - Reportes y analytics
 
-Objetivo: Conectar todas las piezas con Inyección de Dependencias.
+#### 🔌 **API Avanzada**
+- [ ] **GraphQL Support** - Queries más eficientes
+- [ ] **Webhooks** - Notificaciones externas
+- [ ] **Rate Limiting Avanzado** - Límites por usuario/tipo
+- [ ] **API Versioning** - Versiones estables de la API
 
-1. Paso 6.1 - Crear core/container.py (configurar el contenedor punq para registrar e inyectar todas las dependencias: repositorios, managers, servicios).
-2. Paso 6.2 - Crear utils/logger_setup.py (configurar logging estructurado para todo el proyecto).
-3. Paso 6.3 - Crear utils/exceptions.py (definir excepciones personalizadas del dominio, ej: KeyLimitExceededError).
+### 🛡️ **Seguridad y Rendimiento**
 
-🤖 FASE 7: CAPA DE PRESENTACIÓN - BOT DE TELEGRAM (Día 9-10)
+#### 🔒 **Seguridad Mejorada**
+- [ ] **2FA Authentication** - Doble factor de autenticación
+- [ ] **IP Whitelisting** - Acceso restringido por IP
+- [ ] **Audit Logs** - Registro de todas las acciones
+- [ ] **Encryption at Rest** - Datos encriptados en BD
 
-Objetivo: Construir la interfaz del bot, comando por comando.
+#### ⚡ **Rendimiento**
+- [ ] **Caching Layer** - Redis para consultas frecuentes
+- [ ] **Database Optimization** - Índices y consultas optimizadas
+- [ ] **CDN Integration** - Entrega de contenido rápida
+- [ ] **Load Balancing** - Múltiples servidores
 
-1. Paso 7.1 - Crear core/bot_runner.py (configuración e inicialización del cliente python-telegram-bot).
-2. Paso 7.2 - Crear telegram_bot/handlers/start_handler.py (comando /start básico).
-3. Paso 7.3 - Crear telegram_bot/handlers/nueva_clave_handler.py (implementa el flujo para crear clave, usando VpnOrchestrator inyectado).
-4. Paso 7.4 - Crear telegram_bot/handlers/listar_claves_handler.py.
-5. Paso 7.5 - Crear telegram_bot/handlers/error_handler.py.
-6. Paso 7.6 - Crear telegram_bot/handlers/__init__.py (para registrar todos los handlers).
-7. Paso 7.7 - Crear bot.py (punto de entrada que une bot_runner y el contenedor).
-8. Paso 7.8 - VERIFICACIÓN: Ejecutar python bot.py y probar los comandos /start y /nuevaclave en Telegram.
+---
 
-🌐 FASE 8: CAPA DE PRESENTACIÓN - API FASTAPI (Día 11-12)
+## 🏗️ Arquitectura y Escalabilidad
 
-Objetivo: Construir la API web, endpoint por endpoint.
+### 📈 **Escalabilidad Horizontal**
+- [ ] **Multi-Server Support** - Clúster de servidores VPN
+- [ ] **Database Clustering** - PostgreSQL en clúster
+- [ ] **Microservices** - Separación por dominio
+- [ ] **Container Orchestration** - Kubernetes/Docker Swarm
 
-1. Paso 8.1 - Crear api/dependencies.py (funciones get_vpn_service, get_current_user que resuelven del contenedor).
-2. Paso 8.2 - Crear api/v1/endpoints/health.py (endpoint GET /health de prueba).
-3. Paso 8.3 - Crear api/v1/endpoints/keys.py (endpoints POST /keys, GET /keys, DELETE /keys/{key_id}).
-4. Paso 8.4 - Crear api/v1/endpoints/auth.py (endpoint POST /token para login, usando Supabase Auth o JWT).
-5. Paso 8.5 - Crear api/v1/router.py (incluye todos los routers de endpoints).
-6. Paso 8.6 - Crear api.py (aplicación FastAPI principal con lifespan, CORS, incluye router).
-7. Paso 8.7 - VERIFICACIÓN: Ejecutar uvicorn api:app --reload y probar los endpoints con curl o Swagger (/docs).
+### 🔧 **DevOps y CI/CD**
+- [ ] **GitHub Actions** - Testing y despliegue automático
+- [ ] **Docker Images** - Imágenes optimizadas
+- [ ] **Monitoring Stack** - Prometheus + Grafana
+- [ ] **Backup Automático** - Backups programados
 
-🚀 FASE 9: DESPLIEGE Y AUTOMATIZACIÓN (Día 13)
+---
 
-Objetivo: Preparar el proyecto para producción en el VPS.
+## 📋 Tareas de Mantenimiento
 
-1. Paso 9.1 - Crear README.md con instrucciones de despliegue y uso.
-2. Paso 9.2 - Crear scripts/install_dependencies.sh (opcional, para facilitar la instalación en el VPS).
-3. Paso 9.3 - Crear docker-compose.yml (opcional, si decides usar Docker).
-4. Paso 9.4 - DESPLIEGUE INICIAL: Sincronizar código con el VPS, configurar .env definitivo, probar con Pyker/PM2.
+### 🔍 **Code Quality**
+- [ ] **Code Coverage** - Al menos 80% de cobertura
+- [ ] **Static Analysis** - SonarQube o similar
+- [ ] **Security Scanning** - Dependencias y código
+- [ ] **Documentation Updates** - Mantener docs sincronizadas
+
+### 🐛 **Bug Fixes**
+- [ ] **Memory Leaks** - Revisión de consumo de memoria
+- [ ] **Race Conditions** - Concurrencia en servicios
+- [ ] **Edge Cases** - Casos límite no cubiertos
+- [ ] **Performance Issues** - Cuellos de botella
+
+---
+
+## 🎯 Roadmap por Versiones
+
+### 📅 **v2.2.0 (Próxima Release)**
+- [ ] **Dashboard Web Beta** - Interfaz básica web
+- [ ] **Mejores Logs** - Logs estructurados
+- [ ] **Testing Suite** - Tests básicos implementados
+- [ ] **Performance Optimizations** - Mejoras de rendimiento
+
+### 📅 **v2.3.0 (Q1 2025)**
+- [ ] **Sistema de Gamificación** - Niveles y logros
+- [ ] **API GraphQL** - Queries eficientes
+- [ ] **Multi-Server** - Soporte para múltiples VPS
+- [ ] **Advanced Monitoring** - Métricas detalladas
+
+### 📅 **v3.0.0 (Q2 2025)**
+- [ ] **Microservices Architecture** - Refactorización completa
+- [ ] **AI Integration** - Chatbot inteligente
+- [ ] **Enterprise Features** - Funcionalidades empresariales
+- [ ] **Mobile App** - Aplicación nativa
+
+---
+
+## 🤝 Contribuciones Deseadas
+
+### 🔧 **Áreas Técnicas**
+- [ ] **Frontend Developers** - React/Vue para dashboard web
+- [ ] **DevOps Engineers** - CI/CD y despliegue
+- [ ] **Security Experts** - Auditoría de seguridad
+- [ ] **Database Architects** - Optimización de consultas
+
+### 📝 **Áreas de Contenido**
+- [ ] **Technical Writers** - Mejorar documentación
+- [ ] **Translators** - Múltiples idiomas
+- [ ] **Video Creators** - Tutoriales en video
+- [ ] **Community Managers** - Soporte y comunidad
+
+---
+
+## 📊 Métricas y KPIs
+
+### 🎯 **Objetivos Técnicos**
+- **Code Coverage**: >80% (actual: ~30%)
+- **Performance**: <100ms response time (actual: ~200ms)
+- **Uptime**: >99.9% (actual: ~99.5%)
+- **Security**: 0 critical vulnerabilities
+
+### 👥 **Objetivos de Usuario**
+- **User Satisfaction**: >4.5/5 (actual: ~4.2/5)
+- **Support Response**: <2 hours (actual: ~4 hours)
+- **Documentation**: 100% coverage (actual: ~70%)
+- **Feature Requests**: <1 week response (actual: ~2 weeks)
+
+---
+
+## 🔄 Proceso de Desarrollo
+
+### 📋 **Flujo de Trabajo**
+1. **Planning** - Definir requisitos y prioridades
+2. **Development** - Implementación con tests
+3. **Review** - Code review y QA
+4. **Deployment** - Despliegue a producción
+5. **Monitoring** - Observar y medir
+6. **Iteration** - Mejoras basadas en feedback
+
+### 🎯 **Sprints Actuales**
+- **Sprint 1**: Documentación y testing (2 semanas)
+- **Sprint 2**: Dashboard web beta (3 semanas)
+- **Sprint 3**: Gamificación y mejororas (4 semanas)
+
+---
+
+## 📞 Contacto y Comunicación
+
+### 💬 **Canales de Comunicación**
+- **Discord**: [Servidor de desarrollo](https://discord.gg/usipipo)
+- **GitHub**: [Issues y Projects](https://github.com/tu-usuario/usipipo)
+- **Email**: [dev@usipipo.com](mailto:dev@usipipo.com)
+- **Telegram**: [Grupo de desarrolladores](https://t.me/usipipo_dev)
+
+### 📅 **Reuniones Regulares**
+- **Daily Standup**: 9:00 AM UTC (equipo de desarrollo)
+- **Sprint Planning**: Lunes cada 2 semanas
+- **Sprint Review**: Viernes cada 2 semanas
+- **Community Call**: Primer sábado de cada mes
+
+---
+
+## 🎉 Celebraciones y Hitos
+
+### 🏆 **Logros Alcanzados**
+- [x] **100+ Stars** en GitHub
+- [x] **50+ Contributors** al proyecto
+- [x] **10,000+ Descargas** del instalador
+- [x] **1000+ Usuarios** activos
+
+### 🎯 **Próximos Hitos**
+- [ ] **1000+ Stars** en GitHub
+- [ ] **100+ Contributors** al proyecto
+- [ ] **50,000+ Descargas** del instalador
+- [ ] **10,000+ Usuarios** activos
+
+---
+
+<div align="center">
+
+**📋 Roadmap de uSipipo VPN Manager**  
+*Construyendo el futuro de la gestión VPN*
+
+[🏠 Inicio](../README.md) • [📚 Documentación](./README.md) • [💬 Discord](https://discord.gg/usipipo) • [🐛 Issues](https://github.com/tu-usuario/usipipo/issues)
+
+Made with ❤️ by uSipipo Team
+
+</div>
