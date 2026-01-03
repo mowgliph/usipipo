@@ -69,7 +69,7 @@ class OutlineClient:
             return {
                 "id": key_id,
                 "name": name,
-                "accessUrl": self.apply_branding(key_data["accessUrl"], self.brand),
+                "access_url": self.apply_branding(key_data["accessUrl"], self.brand),
                 "port": key_data.get("port"),
                 "method": key_data.get("method")
             }
@@ -88,6 +88,19 @@ class OutlineClient:
         except Exception as e:
             logger.error(f"Error en deleteKey({key_id}): {e}")
             return False
+
+    async def get_metrics(self) -> dict:
+        """
+        Obtiene el mapa completo de consumo de datos del servidor.
+        Requerido por vpn_service.fetch_real_usage.
+        """
+        try:
+            res = await self.client.get(f"{self.api_url}/metrics/transfer")
+            # Devuelve un diccionario { "id_usuario": bytes_usados }
+            return res.json().get("bytesTransferredByUserId", {})
+        except Exception as e:
+            logger.error(f"Error obteniendo métricas globales Outline: {e}")
+            return {}
 
     async def get_key_usage(self, key_id: str) -> dict:
         """Obtiene consumo de datos. No rompe el flujo si falla."""
