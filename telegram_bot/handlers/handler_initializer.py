@@ -142,7 +142,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     admin_service = AdminService(
         key_repository=vpn_service.key_repo,
         user_repository=vpn_service.user_repo,
-        payment_repository=payment_service.payment_repository
+        payment_repository=payment_service.transaction_repo
     )
     handlers.append(get_admin_handler(admin_service))
 

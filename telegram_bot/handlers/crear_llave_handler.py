@@ -136,7 +136,7 @@ def get_creation_handler(vpn_service: VpnService) -> ConversationHandler:
         },
         fallbacks=[CommandHandler("cancel", cancel_creation)],
         # CORRECCIÓN: Agregar configuración explícita
-        per_message=False,
+        per_message=True,
         per_chat=True,
         per_user=True,
         allow_reentry=True
