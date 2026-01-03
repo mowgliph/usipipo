@@ -194,6 +194,46 @@ PersistentKeepalive = 15
     async def delete_client(self, client_name: str) -> bool:
         return await self.delete_peer(pub_key="", client_name=client_name)
 
+    async def get_peer_metrics(self, client_name: str) -> Dict[str, int]:
+        """
+        Obtiene métricas para un cliente específico buscando su Public Key 
+        en el archivo de configuración basándose en el client_name.
+        """
+        try:
+            # 1. Leer configuración para encontrar la Public Key asociada al nombre
+            if not self.conf_path.exists():
+                return {"transfer_total": 0}
+
+            content = self.conf_path.read_text()
+            
+            # Usamos el mismo patrón regex que en delete_peer para hallar la key
+            pk_pattern = rf"### CLIENT {re.escape(client_name)}.*?PublicKey\s*=\s*([^\n]+)"
+            match = re.search(pk_pattern, content, flags=re.DOTALL)
+            
+            if not match:
+                # El cliente no está en la configuración
+                return {"transfer_total": 0}
+            
+            target_pub_key = match.group(1).strip()
+
+            # 2. Obtener uso general de la interfaz
+            all_usage = await self.get_usage()
+            
+            # 3. Buscar la coincidencia por Public Key
+            for peer in all_usage:
+                if peer["public_key"] == target_pub_key:
+                    return {
+                        "transfer_rx": peer["rx"],
+                        "transfer_tx": peer["tx"],
+                        "transfer_total": peer["total"]
+                    }
+            
+            return {"transfer_total": 0}
+            
+        except Exception as e:
+            logger.error(f"Error obteniendo métricas específicas para {client_name}: {e}")
+            return {"transfer_total": 0}
+
     async def get_usage(self) -> List[Dict]:
         try:
             output = await self._run_cmd(f"wg show {self.interface} dump")
