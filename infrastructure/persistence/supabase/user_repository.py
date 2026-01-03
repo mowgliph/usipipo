@@ -135,3 +135,28 @@ class SupabaseUserRepository(IUserRepository):
         except Exception as e:
             logger.error(f"❌ Error al obtener referidos: {e}")
             return []
+    
+    async def get_referrals_by_user(self, telegram_id: int) -> List[User]:
+        """Obtiene la lista de usuarios referidos por un usuario."""
+        try:
+            referrals_data = await self.get_referrals(telegram_id)
+            return [
+                User(
+                    telegram_id=ref["telegram_id"],
+                    username=ref.get("username"),
+                    full_name=ref.get("full_name"),
+                    status=UserStatus(ref.get("status", "active")),
+                    max_keys=ref.get("max_keys", 2),
+                    balance_stars=ref.get("balance_stars", 0),
+                    total_deposited=ref.get("total_deposited", 0),
+                    referral_code=ref.get("referral_code"),
+                    referred_by=ref.get("referred_by"),
+                    total_referral_earnings=ref.get("total_referral_earnings", 0),
+                    is_vip=ref.get("is_vip", False),
+                    vip_expires_at=ref.get("vip_expires_at")
+                )
+                for ref in referrals_data
+            ]
+        except Exception as e:
+            logger.error(f"❌ Error al obtener referidos por usuario {telegram_id}: {e}")
+            return []

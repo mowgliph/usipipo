@@ -44,6 +44,10 @@ class SupabaseKeyRepository(IKeyRepository):
             logger.error(f"❌ Error al listar llaves: {e}")
             return []
 
+    async def get_by_user(self, telegram_id: int) -> List[VpnKey]:
+        """Alias para get_by_user_id para compatibilidad."""
+        return await self.get_by_user_id(telegram_id)
+
     async def get_all_active(self) -> List[VpnKey]:
         res = self.client.table(self.table).select("*").eq("is_active", True).execute()
         return [VpnKey(**item) for item in res.data]

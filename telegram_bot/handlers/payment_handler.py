@@ -129,7 +129,8 @@ class PaymentHandler:
             return
 
         try:
-            user = await self.vpn_service.user_repo.get_by_id(telegram_id)
+            user_status = await self.vpn_service.get_user_status(telegram_id)
+            user = user_status["user"]
             if not user:
                 raise Exception("Usuario no encontrado")
 

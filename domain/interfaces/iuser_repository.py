@@ -28,6 +28,10 @@ class IUserRepository(Protocol):
         """Obtiene la lista de usuarios referidos por un usuario."""
         ...
 
+    async def get_referrals(self, referrer_id: int) -> List[User]:
+        """Obtiene todos los usuarios referidos por este usuario."""
+        ...
+
     async def update_balance(self, telegram_id: int, new_balance: int) -> bool:
         """Actualiza el balance de estrellas del usuario."""
         ...

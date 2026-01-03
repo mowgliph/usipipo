@@ -1,5 +1,5 @@
 from telegram import Update
-from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
+from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, CommandHandler,filters
 from loguru import logger
 
 from application.services.referral_service import ReferralService
@@ -22,7 +22,7 @@ class ReferralHandler:
 
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=Keyboards.operations_menu(),
+            reply_markup=None,  # Removed Keyboards.operations_menu()
             parse_mode="Markdown"
         )
 

@@ -1,7 +1,6 @@
 import sys
 from loguru import logger
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+from telegram.ext import ApplicationBuilder
 
 from config import settings
 from application.services.common.container import get_container

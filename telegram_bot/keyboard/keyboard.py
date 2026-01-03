@@ -51,8 +51,8 @@ class Keyboards:
 
     @staticmethod
     def help_back():
-        """Botón opcional para volver al menú principal desde la ayuda."""
-        keyboard = [[InlineKeyboardButton("🔙 Volver al Menú", callback_data="main_menu")]]
+        """Botón opcional para?? Volver al menú principal desde la ayuda."""
+        keyboard = [[InlineKeyboardButton("🔙?? Volver al Menú", callback_data="main_menu")]]
         return InlineKeyboardMarkup(keyboard)
 
     @staticmethod
@@ -68,7 +68,7 @@ class Keyboards:
                 InlineKeyboardButton("📈 Mi Balance", callback_data="my_balance")
             ],
             [
-                InlineKeyboardButton("🔙 Volver al Menú Principal", callback_data="main_menu")
+                InlineKeyboardButton("🔙?? Volver al Menú Principal", callback_data="main_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -86,7 +86,7 @@ class Keyboards:
                 InlineKeyboardButton("12 Meses - 90 Estrellas", callback_data="vip_12_months")
             ],
             [
-                InlineKeyboardButton("🔙 Volver", callback_data="operations_menu")
+                InlineKeyboardButton("🔙?? Volver", callback_data="operations_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -107,7 +107,7 @@ class Keyboards:
                 InlineKeyboardButton("📋 Aplicar Código", callback_data="apply_referral_code")
             ],
             [
-                InlineKeyboardButton("� Volver", callback_data="operations_menu")
+                InlineKeyboardButton("�?? Volver", callback_data="operations_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
