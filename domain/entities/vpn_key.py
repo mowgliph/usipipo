@@ -32,6 +32,26 @@ class VpnKey:
     used_bytes: int = 0               # Tráfico consumido en bytes
     last_seen_at: Optional[datetime] = None  # Última actividad del cliente
 
+    def __post_init__(self):
+        """
+        Se ejecuta automáticamente después de la inicialización.
+        Convierte strings ISO a objetos datetime si la BD los devuelve como texto.
+        """
+        if isinstance(self.created_at, str):
+            try:
+                # Intenta convertir formato ISO (ej: 2026-01-02T20:44:36)
+                self.created_at = datetime.fromisoformat(self.created_at)
+            except ValueError:
+                # Si falla, intentamos manejar formatos sin T o con espacios si fuera necesario
+                # o dejamos el valor tal cual para no romper la ejecución
+                pass
+
+        if isinstance(self.last_seen_at, str):
+            try:
+                self.last_seen_at = datetime.fromisoformat(self.last_seen_at)
+            except ValueError:
+                self.last_seen_at = None
+
     def __repr__(self):
         return f"<VpnKey(name={self.name}, type={self.key_type}, active={self.is_active})>"
     
