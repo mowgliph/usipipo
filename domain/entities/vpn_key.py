@@ -27,6 +27,20 @@ class VpnKey:
     # Estado y fechas
     created_at: datetime = field(default_factory=datetime.now)
     is_active: bool = True
+    
+    # Métricas de uso (sincronizadas desde los servidores VPN)
+    used_bytes: int = 0               # Tráfico consumido en bytes
+    last_seen_at: Optional[datetime] = None  # Última actividad del cliente
 
     def __repr__(self):
         return f"<VpnKey(name={self.name}, type={self.key_type}, active={self.is_active})>"
+    
+    @property
+    def used_mb(self) -> float:
+        """Retorna el consumo en megabytes."""
+        return self.used_bytes / (1024 * 1024)
+    
+    @property
+    def used_gb(self) -> float:
+        """Retorna el consumo en gigabytes."""
+        return self.used_bytes / (1024 * 1024 * 1024)
