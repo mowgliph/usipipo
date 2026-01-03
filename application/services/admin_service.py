@@ -12,7 +12,7 @@ from loguru import logger
 
 from domain.interfaces.iadmin_service import IAdminService
 from domain.entities.admin import AdminUserInfo, AdminKeyInfo, ServerStatus, AdminOperationResult
-from domain.entities.key import Key
+from domain.entities.vpn_key import VpnKey as Key
 from infrastructure.api_clients.client_wireguard import WireGuardClient
 from infrastructure.api_clients.client_outline import OutlineClient
 
