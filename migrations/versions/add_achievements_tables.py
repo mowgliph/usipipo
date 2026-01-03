@@ -10,12 +10,31 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import Table, MetaData, Column, String, Integer, Boolean, DateTime, Date, BigInteger, Float, Text, ForeignKey, PrimaryKeyConstraint, Index
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_achievements_tables'
 down_revision: Union[str, Sequence[str], None] = 'd617956ef9ba'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+# Define metadata for table objects
+metadata = MetaData()
+
+# Define achievements table object for bulk_insert
+achievements_table = Table(
+    'achievements', metadata,
+    Column('id', String(), nullable=False),
+    Column('name', String(), nullable=False),
+    Column('description', String(), nullable=False),
+    Column('type', String(), nullable=False),
+    Column('tier', String(), nullable=False),
+    Column('requirement_value', Integer(), nullable=False),
+    Column('reward_stars', Integer(), nullable=False),
+    Column('icon', String(), nullable=False),
+    Column('is_active', Boolean(), nullable=False, server_default=sa.text('true')),
+    Column('created_at', DateTime(timezone=True), nullable=False, server_default=sa.text('now()'))
+)
 
 
 def upgrade() -> None:
@@ -77,7 +96,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_user_achievements_is_completed'), 'user_achievements', ['is_completed'], unique=False)
     
     # Insertar logros predefinidos
-    op.bulk_insert('achievements', [
+    op.bulk_insert(achievements_table, [
         # Consumo de datos
         {'id': 'data_bronze_1', 'name': 'Primeros Pasos', 'description': 'Consume 1 GB de datos', 'type': 'data_consumed', 'tier': 'bronze', 'requirement_value': 1, 'reward_stars': 5, 'icon': '🥉'},
         {'id': 'data_bronze_2', 'name': 'Navegante', 'description': 'Consume 5 GB de datos', 'type': 'data_consumed', 'tier': 'bronze', 'requirement_value': 5, 'reward_stars': 10, 'icon': '🥉'},
