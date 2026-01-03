@@ -46,9 +46,12 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     """
     handlers = []
 
+    # Obtener sesión de base de datos directamente del repositorio
+    db_session = vpn_service.key_repo.client
+
     # Inicializar servicio de logros
-    achievement_repository = AchievementRepository(vpn_service.db_session)
-    user_stats_repository = UserStatsRepository(vpn_service.db_session)
+    achievement_repository = AchievementRepository(db_session)
+    user_stats_repository = UserStatsRepository(db_session)
     achievement_service = AchievementService(achievement_repository, user_stats_repository)
 
     # Comando /start y botón de registro
@@ -137,8 +140,8 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Sistema de Administración (solo para admin)
     admin_service = AdminService(
-        key_repository=vpn_service.key_repository,
-        user_repository=vpn_service.user_repository,
+        key_repository=vpn_service.key_repo,
+        user_repository=vpn_service.user_repo,
         payment_repository=payment_service.payment_repository
     )
     handlers.append(get_admin_handler(admin_service))
