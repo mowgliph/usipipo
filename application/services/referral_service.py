@@ -78,6 +78,40 @@ class ReferralService(IReferralService):
             return 0
         return user.total_referral_earnings
 
+    async def get_user_referral_data(self, telegram_id: int) -> Dict:
+        """Get complete referral data for a user including code, referrals count, and earnings."""
+        try:
+            user = await self.user_repo.get_by_id(telegram_id)
+            if not user:
+                return {
+                    "code": "",
+                    "direct_referrals": 0,
+                    "total_earnings": 0
+                }
+            
+            # Get referral code
+            code = await self.get_referral_code(telegram_id)
+            
+            # Get referrals count
+            referrals = await self.get_referrals(telegram_id)
+            referrals_count = len(referrals)
+            
+            # Get earnings
+            earnings = await self.get_referral_earnings(telegram_id)
+            
+            return {
+                "code": code,
+                "direct_referrals": referrals_count,
+                "total_earnings": earnings
+            }
+        except Exception as e:
+            logger.error(f"Error getting referral data for user {telegram_id}: {e}")
+            return {
+                "code": "",
+                "direct_referrals": 0,
+                "total_earnings": 0
+            }
+
     async def process_referral_bonus(self, referred_user_id: int, deposit_amount: int) -> bool:
         """Process referral bonus when a referred user makes a deposit."""
         try:

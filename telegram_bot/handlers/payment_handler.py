@@ -25,7 +25,7 @@ class PaymentHandler:
 
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=Keyboards.operations_menu(),
+            reply_markup=Keyboards.operations_menu_inline(),
             parse_mode="Markdown"
         )
 
@@ -49,7 +49,7 @@ class PaymentHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=Keyboards.operations_menu(),
+                reply_markup=Keyboards.operations_menu_inline(),
                 parse_mode="Markdown"
             )
 
@@ -57,7 +57,7 @@ class PaymentHandler:
             logger.error(f"Error in balance_display_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.operations_menu()
+                reply_markup=Keyboards.operations_menu_inline()
             )
 
     async def deposit_instructions_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -67,7 +67,7 @@ class PaymentHandler:
 
         await query.edit_message_text(
             text=Messages.Operations.DEPOSIT_INSTRUCTIONS,
-            reply_markup=Keyboards.operations_menu(),
+            reply_markup=Keyboards.operations_menu_inline(),
             parse_mode="Markdown"
         )
 
@@ -80,7 +80,7 @@ class PaymentHandler:
 
         await query.edit_message_text(
             text="💰 Función de pagos con estrellas próximamente disponible.",
-            reply_markup=Keyboards.operations_menu()
+            reply_markup=Keyboards.operations_menu_inline()
         )
 
     async def vip_plans_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,7 +124,7 @@ class PaymentHandler:
         else:
             await query.edit_message_text(
                 text="❌ Opción inválida.",
-                reply_markup=Keyboards.operations_menu()
+                reply_markup=Keyboards.operations_menu_inline()
             )
             return
 
@@ -134,15 +134,13 @@ class PaymentHandler:
             if not user:
                 raise Exception("Usuario no encontrado")
 
-            if user.balance_stars < cost:
-                await query.edit_message_text(
-                    text=Messages.Errors.INSUFFICIENT_BALANCE.format(
-                        required=cost,
-                        current=user.balance_stars
-                    ),
-                    reply_markup=Keyboards.operations_menu()
-                )
-                return
+            await query.edit_message_text(
+                text=Messages.Errors.INSUFFICIENT_BALANCE.format(
+                    required=cost,
+                    current=user.balance_stars
+                ),
+                reply_markup=Keyboards.operations_menu_inline()
+            )
 
             # Upgrade to VIP first
             success = await self.vpn_service.upgrade_to_vip(user, months)
@@ -174,7 +172,7 @@ class PaymentHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=Keyboards.operations_menu(),
+                reply_markup=Keyboards.operations_menu_inline(),
                 parse_mode="Markdown"
             )
 
@@ -182,7 +180,7 @@ class PaymentHandler:
             logger.error(f"Error in vip_purchase_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.operations_menu()
+                reply_markup=Keyboards.operations_menu_inline()
             )
 
 

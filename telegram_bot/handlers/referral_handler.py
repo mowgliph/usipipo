@@ -22,7 +22,7 @@ class ReferralHandler:
 
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=None,  # Removed Keyboards.operations_menu()
+            reply_markup=Keyboards.operations_menu_inline(),
             parse_mode="Markdown"
         )
 
@@ -56,7 +56,7 @@ class ReferralHandler:
             logger.error(f"Error in referral_program_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.operations_menu()
+                reply_markup=Keyboards.operations_menu_inline()
             )
 
     async def my_referral_code_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

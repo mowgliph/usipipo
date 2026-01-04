@@ -79,6 +79,27 @@ class Keyboards:
         )
 
     @staticmethod
+    def operations_menu_inline():
+        """Genera el teclado inline del menú de operaciones para edición de mensajes."""
+        keyboard = [
+            [
+                InlineKeyboardButton("💰 Mi Balance", callback_data="balance_menu"),
+                InlineKeyboardButton("👑 Plan VIP", callback_data="vip_menu")
+            ],
+            [
+                InlineKeyboardButton("🎮 Juega y Gana", callback_data="games_menu"),
+                InlineKeyboardButton("👥 Referidos", callback_data="referrals_menu")
+            ],
+            [
+                InlineKeyboardButton("🎫 Soporte", callback_data="support_menu")
+            ],
+            [
+                InlineKeyboardButton("🔙 Atrás", callback_data="main_menu")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
     def admin_menu():
         """Menú de administración para el admin."""
         keyboard = [["🔧 Admin"]]

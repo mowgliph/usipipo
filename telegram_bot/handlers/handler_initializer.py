@@ -206,7 +206,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             )
         except Exception as e:
             logger = get_logger()
-            logger.error(f"Error in referidos_handler: {e}")
+            logger.log_error(e, context="referidos_handler", user_id=user_id)
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=Keyboards.operations_menu()
@@ -233,7 +233,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=Keyboards.operations_menu(),
+            reply_markup=Keyboards.operations_menu_inline(),
             parse_mode="Markdown"
         )
 
