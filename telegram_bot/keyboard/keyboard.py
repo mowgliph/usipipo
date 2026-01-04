@@ -67,7 +67,8 @@ class Keyboards:
             [
                 ["💰 Mi Balance", "👑 Plan VIP"],
                 ["🎮 Juega y Gana", "👥 Referidos"],
-                ["🎫 Soporte"]
+                ["🎫 Soporte"],
+                ["🔙 Volver"]
             ],
             resize_keyboard=True
         )
