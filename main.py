@@ -71,8 +71,8 @@ def main():
     application = (
         ApplicationBuilder()
         .token(settings.TELEGRAM_TOKEN)
-        .post_init(lambda app: asyncio.create_task(startup()))
-        .post_shutdown(lambda app: asyncio.create_task(shutdown()))
+        .post_init(lambda app: app.create_task(startup()))
+        .post_shutdown(lambda app: app.create_task(shutdown()))
         .build()
     )
 
