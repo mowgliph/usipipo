@@ -31,10 +31,12 @@ async def list_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
 
         for key in keys:
             # Formateamos el detalle de la llave usando nuestra clase Messages
+            usage_str = f"{key.used_gb:.2f} GB / {key.data_limit_gb:.2f} GB"
             text = Messages.Keys.DETAIL.format(
                 name=key.name,
                 type=key.key_type.upper(),
                 date=key.created_at.strftime("%d/%m/%Y"),
+                usage=usage_str,
                 id=key.id
             )
             
