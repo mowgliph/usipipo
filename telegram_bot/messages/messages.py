@@ -37,7 +37,7 @@ class Messages:
         
         HELP = (
             "📚 **Centro de Ayuda**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "🔹 **Protocolos disponibles:**\n\n"
             "📱 **Outline (Shadowsocks)**\n"
             "   Ideal para móviles. Ligero y eficiente.\n"
@@ -45,14 +45,14 @@ class Messages:
             "💻 **WireGuard**\n"
             "   Máxima velocidad. Ideal para PC,\n"
             "   gaming y streaming en HD.\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "🎮 **Menú Principal:**\n\n"
             "• **➕ Crear Nueva** — Genera una llave\n"
             "• **🛡️ Mis Llaves** — Administra accesos\n"
             "• **📊 Estado** — Consumo y límites\n"
             "• **💰 Operaciones** — Referidos y VIP\n"
             "• **🎫 Soporte** — Ayuda directa\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "💡 **Tip:** Si una conexión falla, elimínala\n"
             "y crea una nueva. ¡Es instantáneo!"
         )
@@ -74,7 +74,7 @@ class Messages:
         
         LIST_HEADER = (
             "🔑 **Mis Llaves de Acceso**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
+            "━━━━━━━━━━━━\n"
         )
         
         NO_KEYS = (
@@ -84,7 +84,7 @@ class Messages:
         )
         
         DETAIL = (
-            "━━━━━━━━━━━━━━━━━━━━\n"
+            "━━━━━━━━━━━━\n"
             "📌 **{name}**\n\n"
             "📡 Protocolo: `{type}`\n"
             "📅 Creada: {date}\n"
@@ -119,13 +119,13 @@ class Messages:
         HEADER = "📊 **Panel de Control**"
         
         INFO = (
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "👤 **{name}**\n\n"
             "🔑 Llaves: **{count}** / {max}\n"
             "📈 Consumo: **{usage}**\n"
             "⭐ Estrellas: **{stars}**\n"
             "📋 Estado: {status}\n\n"
-            "━━━━━━━━━━━━━━━━━━━━"
+            "━━━━━━━━━━━━"
         )
         
         VIP_BADGE = "👑 VIP"
@@ -136,13 +136,13 @@ class Messages:
         
         MENU_TITLE = (
             "🎫 **Centro de Soporte**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "¿En qué podemos ayudarte?"
         )
         
         OPEN_TICKET = (
             "💬 **Chat de Soporte Abierto**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "Estás conectado con nuestro equipo.\n\n"
             "📝 Describe tu problema y te\n"
             "responderemos lo antes posible.\n\n"
@@ -158,7 +158,7 @@ class Messages:
         
         NEW_TICKET_ADMIN = (
             "🔔 **Nuevo Ticket de Soporte**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "👤 Usuario: **{name}**\n"
             "🆔 ID: `{user_id}`\n\n"
             "Responde a este mensaje para contactar."
@@ -252,13 +252,13 @@ class Messages:
         
         MENU_TITLE = (
             "💰 **Centro de Operaciones**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "Gestiona tu cuenta y beneficios:"
         )
         
         BALANCE_INFO = (
             "⭐ **Mi Balance**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "👤 {name}\n\n"
             "💰 Saldo actual: **{balance}** ⭐\n"
             "📥 Total depositado: **{total_deposited}** ⭐\n"
@@ -267,7 +267,7 @@ class Messages:
         
         DEPOSIT_INSTRUCTIONS = (
             "⭐ **Recargar Estrellas**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "Envía estrellas de Telegram para\n"
             "recargar tu cuenta.\n\n"
             "📌 Tu saldo se actualiza al instante."
@@ -275,19 +275,19 @@ class Messages:
         
         VIP_PLAN_INFO = (
             "👑 **Plan VIP**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "**Beneficios exclusivos:**\n\n"
             "✅ Hasta **{max_keys}** llaves activas\n"
             "📦 **{data_limit} GB** por llave\n"
             "🔄 Reset mensual automático\n"
             "⚡ Soporte prioritario\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "💎 Precio: **{cost}** ⭐ / mes"
         )
         
         VIP_PURCHASE_SUCCESS = (
             "🎉 **¡Bienvenido al Club VIP!**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "Tu plan está activo hasta:\n"
             "📅 **{expiry_date}**\n\n"
             "**Beneficios activados:**\n"
@@ -299,12 +299,12 @@ class Messages:
         
         REFERRAL_PROGRAM = (
             "👥 **Programa de Referidos**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "🎁 Gana **10%** de cada depósito\n"
             "de tus referidos. ¡De por vida!\n\n"
             "🔗 **Tu enlace:**\n"
             "`https://t.me/{bot_username}?start={referral_code}`\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "📊 **Tus estadísticas:**\n\n"
             "👥 Referidos: **{direct_referrals}**\n"
             "💰 Ganado: **{total_earnings}** ⭐\n"
@@ -313,7 +313,7 @@ class Messages:
         
         REFERRAL_CODE = (
             "📋 **Tu Código de Referido**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "`{referral_code}`\n\n"
             "Compártelo y gana por cada amigo."
         )
@@ -333,7 +333,7 @@ class Messages:
         
         MENU_TITLE = (
             "🎮 **Sala de Juegos**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "¡Diviértete y gana estrellas!"
         )
         

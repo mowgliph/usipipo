@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
 from config import settings
@@ -78,6 +78,166 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         )
 
     handlers.append(MessageHandler(filters.Regex("^💰 Operaciones$"), operations_handler))
+
+    # Botones del menú de operaciones
+    async def mi_balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para el botón 'Mi Balance'."""
+        user_id = update.effective_user.id
+        try:
+            user_status = await vpn_service.get_user_status(user_id)
+            user = user_status["user"]
+            
+            text = Messages.Operations.BALANCE_INFO.format(
+                name=user.full_name or user.username or f"Usuario {user.telegram_id}",
+                balance=user.balance_stars,
+                total_deposited=user.total_deposited,
+                referral_earnings=user.total_referral_earnings
+            )
+            
+            await update.message.reply_text(
+                text=text,
+                reply_markup=Keyboards.operations_menu(),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger = get_logger()
+            logger.error(f"Error in mi_balance_handler: {e}")
+            await update.message.reply_text(
+                text=Messages.Errors.GENERIC.format(error=str(e)),
+                reply_markup=Keyboards.operations_menu()
+            )
+
+    async def plan_vip_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para el botón 'Plan VIP'."""
+        text = Messages.Operations.VIP_PLAN_INFO.format(
+            max_keys=settings.VIP_PLAN_MAX_KEYS,
+            data_limit=settings.VIP_PLAN_DATA_LIMIT_GB,
+            cost="10 estrellas por mes"
+        )
+
+        await update.message.reply_text(
+            text=text,
+            reply_markup=Keyboards.vip_plans(),
+            parse_mode="Markdown"
+        )
+
+    async def juega_y_gana_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para el botón 'Juega y Gana'."""
+        user_id = update.effective_user.id
+        try:
+            # Obtener estadísticas del usuario
+            balance = await game_service.get_user_balance(user_id)
+            stats = await game_service.get_game_stats(user_id)
+            
+            # Determinar mensaje de estado
+            can_play = await game_service.can_play_today(user_id)
+            can_win = await game_service.can_win_this_week(user_id)
+            
+            if not can_play:
+                status_message = "⏰ Ya jugaste hoy. Vuelve mañana."
+            elif not can_win:
+                status_message = "🏆 ¡Límite de victorias semanales alcanzado!"
+            else:
+                status_message = "✅ ¡Puedes jugar y ganar hoy!"
+            
+            # Crear mensaje de estado
+            from telegram_bot.messages.game_messages import GameMessages
+            status_text = GameMessages.GAME_STATUS.format(
+                stars=balance.stars_balance,
+                games_today=1 if not can_play else 0,
+                weekly_wins=len(stats.current_week_wins),
+                last_game=stats.last_play_date.strftime("%d/%m/%Y") if stats.last_play_date else "Nunca",
+                status_message=status_message
+            )
+            
+            # Crear teclado de juegos
+            keyboard = [
+                [
+                    InlineKeyboardButton("🎳 Bowling", callback_data="game_bowling"),
+                    InlineKeyboardButton("🎯 Dardos", callback_data="game_darts")
+                ],
+                [
+                    InlineKeyboardButton("🎲 Dados", callback_data="game_dice"),
+                    InlineKeyboardButton("💰 Mi Balance", callback_data="game_balance")
+                ],
+                [
+                    InlineKeyboardButton("📊 Estadísticas", callback_data="game_stats"),
+                    InlineKeyboardButton("❓ Ayuda", callback_data="game_help")
+                ],
+                [
+                    InlineKeyboardButton("🔙 Volver", callback_data="operations_menu")
+                ]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            from telegram_bot.messages.game_messages import GameMessages
+            await update.message.reply_text(
+                f"{GameMessages.MENU}\n\n{status_text}",
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger = get_logger()
+            logger.error(f"Error in juega_y_gana_handler: {e}")
+            await update.message.reply_text(
+                text=Messages.Errors.GENERIC.format(error=str(e)),
+                reply_markup=Keyboards.operations_menu()
+            )
+
+    async def referidos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para el botón 'Referidos'."""
+        user_id = update.effective_user.id
+        try:
+            referral_data = await referral_service.get_user_referral_data(user_id)
+            
+            text = Messages.Operations.REFERRAL_PROGRAM.format(
+                bot_username="usipipo_vpn_bot",  # Reemplazar con el nombre del bot real
+                referral_code=referral_data.get("code", "N/A"),
+                direct_referrals=referral_data.get("direct_referrals", 0),
+                total_earnings=referral_data.get("total_earnings", 0),
+                commission=10
+            )
+            
+            await update.message.reply_text(
+                text=text,
+                reply_markup=Keyboards.referral_actions(),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger = get_logger()
+            logger.error(f"Error in referidos_handler: {e}")
+            await update.message.reply_text(
+                text=Messages.Errors.GENERIC.format(error=str(e)),
+                reply_markup=Keyboards.operations_menu()
+            )
+
+    async def atras_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para el botón 'Atrás' en el menú de operaciones."""
+        await update.message.reply_text(
+            text="👇 Menú Principal",
+            reply_markup=Keyboards.main_menu()
+        )
+
+    handlers.append(MessageHandler(filters.Regex("^💰 Mi Balance$"), mi_balance_handler))
+    handlers.append(MessageHandler(filters.Regex("^👑 Plan VIP$"), plan_vip_handler))
+    handlers.append(MessageHandler(filters.Regex("^🎮 Juega y Gana$"), juega_y_gana_handler))
+    handlers.append(MessageHandler(filters.Regex("^👥 Referidos$"), referidos_handler))
+    handlers.append(MessageHandler(filters.Regex("^🔙 Atrás$"), atras_handler))
+
+    # Callback handler para el botón "Volver" desde operaciones (usado en menús inline)
+    async def operations_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para el callback 'operations_menu'."""
+        query = update.callback_query
+        await query.answer()
+        
+        await query.edit_message_text(
+            text=Messages.Operations.MENU_TITLE,
+            reply_markup=Keyboards.operations_menu(),
+            parse_mode="Markdown"
+        )
+
+    handlers.append(CallbackQueryHandler(operations_menu_callback, pattern="^operations_menu$"))
 
     # Sistema de Logros
     handlers.append(MessageHandler(filters.Regex("^🏆 Logros$"),

@@ -71,11 +71,11 @@ class Keyboards:
         return ReplyKeyboardMarkup(
             [
                 ["💰 Mi Balance", "👑 Plan VIP"],
-                ["🎮 Juga y Gana", "👥 Referidos"],
-                ["🎫 Soporte", "⚙️ Ayuda"]
+                ["🎮 Juega y Gana", "👥 Referidos"],
+                ["🎫 Soporte"],
+                ["🔙 Atrás"]
             ],
-            resize_keyboard=True,
-            one_time_keyboard=True
+            resize_keyboard=True
         )
 
     @staticmethod
