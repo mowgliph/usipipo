@@ -84,7 +84,7 @@ class Keyboards:
         keyboard = [
             [
                 InlineKeyboardButton("💰 Mi Balance", callback_data="my_balance"),
-                InlineKeyboardButton("⭐ Recargar Saldo", callback_data="deposit_stars")
+                InlineKeyboardButton("⭐ Recargar Estrellas", callback_data="deposit_stars")
             ],
             [
                 InlineKeyboardButton("👑 Plan VIP", callback_data="vip_plan"),
