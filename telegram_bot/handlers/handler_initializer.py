@@ -73,7 +73,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=Keyboards.operations_menu(),
+            reply_markup=Keyboards.operations_menu_inline(),
             parse_mode="Markdown"
         )
 
@@ -163,9 +163,6 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
                 [
                     InlineKeyboardButton("📊 Estadísticas", callback_data="game_stats"),
                     InlineKeyboardButton("❓ Ayuda", callback_data="game_help")
-                ],
-                [
-                    InlineKeyboardButton("🔙 Volver", callback_data="operations_menu")
                 ]
             ]
             
