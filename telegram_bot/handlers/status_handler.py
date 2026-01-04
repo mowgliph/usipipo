@@ -33,6 +33,7 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
             count=len(keys),
             max=user_entity.max_keys if user_entity else 5,
             usage=round(total_mb, 2),
+            stars=user_entity.balance_stars if user_entity else 0,
             status="Activo ✅" if user_entity and user_entity.is_active else "Inactivo ⚠️"
         )
         
