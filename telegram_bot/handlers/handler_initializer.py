@@ -265,6 +265,27 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     # Ayuda General
     handlers.append(MessageHandler(filters.Regex("^⚙️ Ayuda$"), ayuda_handler))
 
+    # Botón de respaldo para mostrar menú principal
+    async def show_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para el botón '📋 Mostrar Menú' del teclado de respaldo."""
+        user = update.effective_user
+        
+        # Determinar si es admin para mostrar el menú correspondiente
+        if user.id == int(settings.ADMIN_ID):
+            await update.message.reply_text(
+                text="👇 Menú Principal",
+                reply_markup=InlineKeyboards.admin_main_menu(),
+                parse_mode="Markdown"
+            )
+        else:
+            await update.message.reply_text(
+                text="👇 Menú Principal",
+                reply_markup=InlineKeyboards.main_menu(),
+                parse_mode="Markdown"
+            )
+
+    handlers.append(MessageHandler(filters.Regex("^📋 Mostrar Menú$"), show_menu_handler))
+
     # Soporte Directo Chat-to-Admin (ConversationHandler)
     handlers.append(get_support_handler(support_service))
 

@@ -1,4 +1,5 @@
 from .inline_keyboards import InlineKeyboards
+from telegram import ReplyKeyboardMarkup, KeyboardButton
 
 class Keyboards:
     """Clase legacy - mantenida por compatibilidad. Usar InlineKeyboards para nuevo desarrollo."""
@@ -9,6 +10,12 @@ class Keyboards:
     # operations_menu() -> InlineKeyboards.operations_menu()
     # support_menu() -> InlineKeyboards.support_active()
     # admin_menu() -> InlineAdminKeyboards.main_menu()
+
+    @staticmethod
+    def show_menu_button():
+        """Botón de respaldo para mostrar el menú principal inline."""
+        keyboard = [[KeyboardButton("📋 Mostrar Menú")]]
+        return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
 
     @staticmethod
     def vpn_types():
