@@ -59,12 +59,7 @@ class Keyboards:
         keyboard = [["🔴 Finalizar Soporte"]]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-    @staticmethod
-    def help_back():
-        """Botón opcional para?? Volver al menú principal desde la ayuda."""
-        keyboard = [[InlineKeyboardButton("🔙?? Volver al Menú", callback_data="main_menu")]]
-        return InlineKeyboardMarkup(keyboard)
-
+    
     @staticmethod
     def operations_menu():
         """Genera el teclado del menú de operaciones."""
@@ -72,8 +67,7 @@ class Keyboards:
             [
                 ["💰 Mi Balance", "👑 Plan VIP"],
                 ["🎮 Juega y Gana", "👥 Referidos"],
-                ["🎫 Soporte"],
-                ["🔙 Atrás"]
+                ["🎫 Soporte"]
             ],
             resize_keyboard=True
         )
@@ -93,9 +87,6 @@ class Keyboards:
             [
                 InlineKeyboardButton("👥 Referidos", callback_data="referrals_menu"),
                 InlineKeyboardButton("🎫 Soporte", callback_data="support_menu")
-            ],
-            [
-                InlineKeyboardButton("🔙 Atrás", callback_data="main_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -153,9 +144,6 @@ class Keyboards:
             ],
             [
                 InlineKeyboardButton("🏆 Ranking", callback_data="achievements_leaderboard")
-            ],
-            [
-                InlineKeyboardButton("🔙 Volver", callback_data="main_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -178,9 +166,6 @@ class Keyboards:
             ],
             [
                 InlineKeyboardButton("👑 VIP", callback_data="achievements_category_vip")
-            ],
-            [
-                InlineKeyboardButton("🔙 Volver", callback_data="achievements_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -191,9 +176,6 @@ class Keyboards:
         keyboard = [
             [
                 InlineKeyboardButton("🎁 Reclamar Recompensa", callback_data=f"claim_reward_{achievement_id}")
-            ],
-            [
-                InlineKeyboardButton("🔙 Volver", callback_data="achievements_list")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -212,9 +194,6 @@ class Keyboards:
             ],
             [
                 InlineKeyboardButton("🏆 Top General", callback_data="leaderboard_general")
-            ],
-            [
-                InlineKeyboardButton("🔙 Volver", callback_data="achievements_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)

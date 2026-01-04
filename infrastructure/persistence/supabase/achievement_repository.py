@@ -9,6 +9,7 @@ from typing import List, Optional, Dict
 from datetime import datetime
 
 from sqlalchemy import select, update, and_
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 from loguru import logger
@@ -310,6 +311,7 @@ class UserStatsRepository(IUserStatsRepository):
     async def create_user_stats(self, user_stats: UserStats) -> UserStats:
         """Crea estadísticas iniciales para un usuario."""
         try:
+            logger.debug(f"🔍 Attempting to create user_stats for user_id {user_stats.user_id}")
             model = UserStatsModel(
                 user_id=user_stats.user_id,
                 total_data_consumed_gb=user_stats.total_data_consumed_gb or 0.0,
@@ -322,13 +324,13 @@ class UserStatsRepository(IUserStatsRepository):
                 last_active_date=user_stats.last_active_date,
                 created_at=user_stats.created_at or datetime.now()
             )
-            
+
             self.session.add(model)
             await self.session.commit()
-            
+
             logger.debug(f"💾 Estadísticas creadas para usuario {user_stats.user_id}")
             return user_stats
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"❌ Error creando estadísticas para usuario {user_stats.user_id}: {e}")

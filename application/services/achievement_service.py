@@ -32,6 +32,7 @@ class AchievementService(IAchievementService):
             achievements = await self.achievement_repository.get_all_achievements()
             
             # Crear registro de estadísticas iniciales
+            logger.debug(f"Initializing user_stats for user_id {user_id}")
             user_stats = UserStats(user_id=user_id)
             await self.user_stats_repository.create_user_stats(user_stats)
             
