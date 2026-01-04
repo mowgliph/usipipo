@@ -9,8 +9,10 @@ python-multipart>=0.0.12
 # Telegram
 python-telegram-bot>=21.6
 
-# Base de datos (SQLAlchemy actualizado para corregir el AssertionError)
-sqlalchemy>=2.0.36
+# Base de datos (SQLAlchemy Async)
+sqlalchemy[asyncio]>=2.0.0
+asyncpg>=0.29.0
+greenlet>=3.0.0
 alembic>=1.13.3
 psycopg2-binary>=2.9.10
 supabase>=2.10.0

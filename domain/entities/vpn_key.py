@@ -88,4 +88,17 @@ class VpnKey:
     
     def needs_reset(self) -> bool:
         """True si necesita reset mensual (ha pasado 30 días)."""
-        return datetime.now() > self.billing_reset_at + timedelta(days=30)
+        from datetime import timezone
+        
+        # Normalizar ambas fechas a naive UTC para comparación segura
+        now = datetime.utcnow()
+        
+        billing_reset = self.billing_reset_at
+        if billing_reset is None:
+            return False
+        
+        # Si billing_reset_at tiene timezone, convertir a naive UTC
+        if billing_reset.tzinfo is not None:
+            billing_reset = billing_reset.astimezone(timezone.utc).replace(tzinfo=None)
+        
+        return now > billing_reset + timedelta(days=30)

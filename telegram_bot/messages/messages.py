@@ -1,178 +1,369 @@
+"""
+Mensajes del bot uSipipo VPN Manager.
+Optimizado para UX/UI con tono profesional y amigable.
+
+Author: uSipipo Team
+Version: 2.0.0
+"""
+
+
 class Messages:
+    """Contenedor principal de todos los mensajes del bot."""
+    
     class Welcome:
+        """Mensajes de bienvenida y onboarding."""
+        
         START = (
-            "👋 ¡Bienvenido a **uSipipo VPN Manager**!\n\n"
-            "Tu centro de control privado para túneles seguros.\n\n"
-            "Usa el menú inferior para gestionar tus accesos."
+            "👋 ¡Hola! Bienvenido a **uSipipo VPN**\n\n"
+            "🔐 Tu servicio privado de túneles seguros.\n\n"
+            "Navega sin restricciones, con total privacidad.\n\n"
+            "👇 Usa el menú para comenzar:"
         )
+        
+        NEW_USER = (
+            "🎉 ¡Bienvenido, **{name}**!\n\n"
+            "Tu cuenta ha sido creada exitosamente.\n\n"
+            "🎁 **Regalo de bienvenida:**\n"
+            "• 2 llaves VPN gratuitas\n"
+            "• 10 GB de datos por llave\n\n"
+            "📱 Toca **➕ Crear Nueva** para generar tu primera conexión."
+        )
+        
+        EXISTING_USER = (
+            "👋 ¡Hola de nuevo, **{name}**!\n\n"
+            "Todo listo para continuar.\n\n"
+            "📊 Usa el menú para gestionar tus accesos."
+        )
+        
         HELP = (
-            "📖 **Guía de Uso - uSipipo VPN**\n\n"
-            "Este bot te permite gestionar tus propios accesos VPN de forma privada.\n\n"
-            "🔹 **Protocolos disponibles:**\n"
-            "• **Outline (Shadowsocks):** Ideal para saltar bloqueos de internet y censura. Es muy ligero en el consumo de batería.\n"
-            "• **WireGuard:** El estándar moderno. Extremadamente rápido y seguro, ideal para gaming o streaming.\n\n"
-            "🕹️ **Comandos principales:**\n"
-            "• `➕ Crear Nueva`: Inicia el asistente de creación.\n"
-            "• `🛡️ Mis Llaves`: Lista tus llaves, permite borrarlas o ver los datos de conexión.\n"
-            "• `📊 Estado`: Muestra tu consumo y límites.\n"
-            "• `💰 Operaciones`: Sistema de referidos, VIP y pagos.\n\n"
-            "⚠️ **Soporte:** Si tienes problemas con una conexión, intenta borrar la llave y crear una nueva."
+            "📚 **Centro de Ayuda**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "🔹 **Protocolos disponibles:**\n\n"
+            "📱 **Outline (Shadowsocks)**\n"
+            "   Ideal para móviles. Ligero y eficiente.\n"
+            "   Perfecto para saltar bloqueos.\n\n"
+            "💻 **WireGuard**\n"
+            "   Máxima velocidad. Ideal para PC,\n"
+            "   gaming y streaming en HD.\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "🎮 **Menú Principal:**\n\n"
+            "• **➕ Crear Nueva** — Genera una llave\n"
+            "• **🛡️ Mis Llaves** — Administra accesos\n"
+            "• **📊 Estado** — Consumo y límites\n"
+            "• **💰 Operaciones** — Referidos y VIP\n"
+            "• **🎫 Soporte** — Ayuda directa\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "💡 **Tip:** Si una conexión falla, elimínala\n"
+            "y crea una nueva. ¡Es instantáneo!"
         )
+
 
     class Keys:
-        SELECT_TYPE = "🛡️ Selecciona el protocolo que deseas utilizar:"
-        CREATED = "✅ ¡Llave **{type}** generada con éxito!"
-        LIST_HEADER = "🔑 **Tus llaves de acceso:**"
-        NO_KEYS = "📭 No tienes ninguna llave activa todavía."
+        """Mensajes relacionados con llaves VPN."""
+        
+        SELECT_TYPE = (
+            "🛡️ **Selecciona tu protocolo**\n\n"
+            "Elige según tu dispositivo y necesidad:"
+        )
+        
+        CREATED = (
+            "✅ **¡Llave creada exitosamente!**\n\n"
+            "📡 Protocolo: **{type}**\n\n"
+            "Sigue las instrucciones para conectarte."
+        )
+        
+        LIST_HEADER = (
+            "🔑 **Mis Llaves de Acceso**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+        )
+        
+        NO_KEYS = (
+            "📭 **Sin llaves activas**\n\n"
+            "Aún no tienes conexiones configuradas.\n\n"
+            "👉 Toca **➕ Crear Nueva** para comenzar."
+        )
+        
         DETAIL = (
-            "📌 **Nombre:** {name}\n"
-            "📡 **Protocolo:** {type}\n"
-            "📅 **Creada:** {date}\n"
-            "🆔 `ID: {id}`"
-        )
-        CONFIRM_DELETE = "¿Estás seguro de que deseas eliminar la llave **{name}**? Esta acción revocará tu acceso inmediatamente."
-        DELETED = "🗑️ Llave eliminada correctamente."
-
-    class Status:
-        HEADER = "📊 **Estado de tu cuenta**"
-        INFO = (
-            "👤 **Usuario:** {name}\n"
-            "🔑 **Llaves:** {count} / {max}\n"
-            "📈 **Consumo Total:** {usage} MB\n"
-            "✅ **Estado:** {status}"
-        )
-    
-    class Support:
-        OPEN_TICKET = (
-            "🎫 **Soporte Técnico**\n\n"
-            "Se ha abierto un canal directo con el administrador.\n"
-            "Escribe tu duda a continuación y te responderemos lo antes posible.\n\n"
-            "📌 *Usa el botón de abajo para cerrar el chat cuando termines.*"
-        )
-        TICKET_CLOSED = "✅ El ticket ha sido cerrado. ¡Gracias por contactarnos!"
-        NEW_TICKET_ADMIN = "⚠️ **Nuevo Ticket Abierto**\n👤 Usuario: {name}\n🆔 ID: `{user_id}`\n\nEscribe aquí para responderle."
-        USER_MESSAGE_TO_ADMIN = "📩 **Mensaje de {name}:**\n{text}"
-        ADMIN_MESSAGE_TO_USER = "👨‍💻 **Respuesta del Soporte:**\n{text}"
-        MENU_TITLE = "🎫 **Soporte**\n\nElige una opción:"
-
-    class Errors:
-        GENERIC = (
-            "⚠️ **Error**\n\n"
-            "{error}\n\n"
-            "Si el problema persiste, contacta al soporte."
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "📌 **{name}**\n\n"
+            "📡 Protocolo: `{type}`\n"
+            "📅 Creada: {date}\n"
+            "📊 Consumo: {usage}\n"
+            "🆔 `{id}`\n"
         )
         
-        NETWORK = (
-            "🌐 **Error de Conexión**\n\n"
-            "No se pudo conectar con el servidor. "
-            "Verifica tu conexión e intenta nuevamente."
+        CONFIRM_DELETE = (
+            "⚠️ **Confirmar eliminación**\n\n"
+            "¿Eliminar la llave **{name}**?\n\n"
+            "Esta acción es irreversible y\n"
+            "perderás el acceso inmediatamente."
         )
         
-        PERMISSION_DENIED = (
-            "🚫 **Acceso Denegado**\n\n"
-            "No tienes permisos para realizar esta acción."
+        DELETED = (
+            "🗑️ **Llave eliminada**\n\n"
+            "El acceso ha sido revocado correctamente."
         )
         
         LIMIT_REACHED = (
-            "🛑 **Límite Alcanzado**\n\n"
-            "Has alcanzado el límite máximo de {resource}.\n"
-            "Elimina uno existente antes de crear otro."
+            "🔒 **Límite alcanzado**\n\n"
+            "Has llegado al máximo de {max} llaves.\n\n"
+            "💡 **Opciones:**\n"
+            "• Elimina una llave existente\n"
+            "• Actualiza a **VIP** para más llaves"
+        )
+
+
+    class Status:
+        """Mensajes de estado y estadísticas."""
+        
+        HEADER = "📊 **Panel de Control**"
+        
+        INFO = (
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "👤 **{name}**\n\n"
+            "🔑 Llaves: **{count}** / {max}\n"
+            "📈 Consumo: **{usage}**\n"
+            "⭐ Estrellas: **{stars}**\n"
+            "📋 Estado: {status}\n\n"
+            "━━━━━━━━━━━━━━━━━━━━"
+        )
+        
+        VIP_BADGE = "👑 VIP"
+        FREE_BADGE = "🆓 Gratuito"
+    
+    class Support:
+        """Mensajes del sistema de soporte."""
+        
+        MENU_TITLE = (
+            "🎫 **Centro de Soporte**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "¿En qué podemos ayudarte?"
+        )
+        
+        OPEN_TICKET = (
+            "💬 **Chat de Soporte Abierto**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Estás conectado con nuestro equipo.\n\n"
+            "📝 Describe tu problema y te\n"
+            "responderemos lo antes posible.\n\n"
+            "💡 *Tip: Sé específico para una\n"
+            "respuesta más rápida.*"
+        )
+        
+        TICKET_CLOSED = (
+            "✅ **Ticket cerrado**\n\n"
+            "Gracias por contactarnos.\n"
+            "¡Esperamos haberte ayudado!"
+        )
+        
+        NEW_TICKET_ADMIN = (
+            "🔔 **Nuevo Ticket de Soporte**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "👤 Usuario: **{name}**\n"
+            "🆔 ID: `{user_id}`\n\n"
+            "Responde a este mensaje para contactar."
+        )
+        
+        USER_MESSAGE_TO_ADMIN = "📩 **{name}:**\n{text}"
+        
+        ADMIN_MESSAGE_TO_USER = (
+            "👨‍💻 **Soporte uSipipo:**\n\n"
+            "{text}"
+        )
+        
+        TICKET_AUTO_CLOSED = (
+            "⏰ **Ticket cerrado automáticamente**\n\n"
+            "Han pasado 48h sin actividad.\n"
+            "Abre uno nuevo si necesitas ayuda."
+        )
+
+
+    class Errors:
+        """Mensajes de error."""
+        
+        GENERIC = (
+            "❌ **Algo salió mal**\n\n"
+            "{error}\n\n"
+            "Si persiste, contacta a soporte."
+        )
+        
+        NETWORK = (
+            "🌐 **Sin conexión**\n\n"
+            "No pudimos conectar con el servidor.\n"
+            "Verifica tu internet e intenta de nuevo."
+        )
+        
+        PERMISSION_DENIED = (
+            "🚫 **Acceso denegado**\n\n"
+            "No tienes permisos para esta acción."
+        )
+        
+        LIMIT_REACHED = (
+            "🔒 **Límite alcanzado**\n\n"
+            "Máximo de {resource} permitidos.\n"
+            "Elimina uno para crear otro."
         )
         
         NOT_FOUND = (
-            "🔍 **No Encontrado**\n\n"
-            "El recurso solicitado no existe o fue eliminado."
+            "🔍 **No encontrado**\n\n"
+            "El recurso no existe o fue eliminado."
         )
         
         EXPIRED = (
-            "⏰ **Operación Expirada**\n\n"
-            "Esta acción ha caducado. Inicia el proceso nuevamente."
+            "⏰ **Sesión expirada**\n\n"
+            "Esta operación caducó.\n"
+            "Inicia el proceso nuevamente."
         )
         
         MAINTENANCE = (
             "🔧 **Mantenimiento**\n\n"
-            "El sistema está en mantenimiento temporalmente.\n"
-            "Intenta nuevamente en unos minutos."
+            "Sistema en mantenimiento.\n"
+            "Vuelve en unos minutos."
         )
         
         INSUFFICIENT_BALANCE = (
-            "💰 **Saldo Insuficiente**\n\n"
-            "Necesitas {required} estrellas. Tu saldo actual es: {current}.\n"
-            "Recarga en el menú de Operaciones."
+            "💰 **Saldo insuficiente**\n\n"
+            "Necesitas: **{required}** ⭐\n"
+            "Tu saldo: **{current}** ⭐\n\n"
+            "Recarga en **💰 Operaciones**."
         )
         
         NO_DEPOSIT_FOR_DELETE = (
-            "⚠️ **Depósito Requerido**\n\n"
-            "Debes realizar al menos un depósito para poder eliminar claves.\n"
-            "Esto asegura un uso responsable del servicio."
+            "⚠️ **Acción restringida**\n\n"
+            "Realiza al menos un depósito\n"
+            "para poder eliminar llaves.\n\n"
+            "Esto previene el abuso del servicio."
         )
         
         REFERRAL_CODE_INVALID = (
-            "❌ **Código de Referido Inválido**\n\n"
-            "El código '{code}' no existe o ha expirado.\n"
-            "Verifica el código e intenta nuevamente."
+            "❌ **Código inválido**\n\n"
+            "El código `{code}` no existe.\n"
+            "Verifica e intenta de nuevo."
         )
         
         REFERRAL_SELF = (
-            "🚫 **Auto-Referido**\n\n"
-            "No puedes usar tu propio código de referido."
+            "🚫 **Código propio**\n\n"
+            "No puedes usar tu propio código."
         )
 
+
     class Operations:
-        MENU_TITLE = "💰 **Operaciones**\n\nElige una opción:"
+        """Mensajes de operaciones y pagos."""
+        
+        MENU_TITLE = (
+            "💰 **Centro de Operaciones**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Gestiona tu cuenta y beneficios:"
+        )
+        
         BALANCE_INFO = (
-            "⭐ **Balance de Estrellas**\n\n"
-            "👤 **Usuario:** {name}\n"
-            "💰 **Saldo:** {balance} estrellas\n"
-            "📥 **Total Depositado:** {total_deposited} estrellas\n"
-            "👥 **Ganancias por Referidos:** {referral_earnings} estrellas"
+            "⭐ **Mi Balance**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "👤 {name}\n\n"
+            "💰 Saldo actual: **{balance}** ⭐\n"
+            "📥 Total depositado: **{total_deposited}** ⭐\n"
+            "👥 Por referidos: **{referral_earnings}** ⭐"
         )
+        
         DEPOSIT_INSTRUCTIONS = (
-            "⭐ **Recargar Estrellas**\n\n"
-            "1. Ve a @BotFather y envía el comando `/mybots`\n"
-            "2. Selecciona tu bot y luego 'Payments'\n"
-            "3. Sigue las instrucciones para enviar estrellas\n\n"
-            "Una vez completado, tu saldo se actualizará automáticamente."
+            "⭐ **Recargar Estrellas**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Envía estrellas de Telegram para\n"
+            "recargar tu cuenta.\n\n"
+            "📌 Tu saldo se actualiza al instante."
         )
+        
         VIP_PLAN_INFO = (
-            "👑 **Plan VIP**\n\n"
-            "Beneficios:\n"
-            "• ✅ Hasta {max_keys} claves simultáneas\n"
-            "• 📦 {data_limit} GB por clave\n"
-            "• 🔄 Reset mensual de datos\n"
-            "• 🚀 Prioridad en soporte\n\n"
-            "Precio: {cost} estrellas por mes\n\n"
-            "Selecciona la duración:"
+            "👑 **Plan VIP**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "**Beneficios exclusivos:**\n\n"
+            "✅ Hasta **{max_keys}** llaves activas\n"
+            "📦 **{data_limit} GB** por llave\n"
+            "🔄 Reset mensual automático\n"
+            "⚡ Soporte prioritario\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "💎 Precio: **{cost}** ⭐ / mes"
         )
+        
         VIP_PURCHASE_SUCCESS = (
-            "🎉 **¡Felicidades! Ahora eres VIP**\n\n"
-            "Tu plan VIP está activo hasta el {expiry_date}\n\n"
-            "✅ Límite de claves aumentado a {max_keys}\n"
-            "✅ Límite de datos por clave: {data_limit} GB\n"
-            "✅ Reset mensual automático"
+            "🎉 **¡Bienvenido al Club VIP!**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Tu plan está activo hasta:\n"
+            "📅 **{expiry_date}**\n\n"
+            "**Beneficios activados:**\n"
+            "✅ {max_keys} llaves disponibles\n"
+            "✅ {data_limit} GB por llave\n"
+            "✅ Reset mensual incluido\n\n"
+            "¡Disfruta tu experiencia premium! 👑"
         )
+        
         REFERRAL_PROGRAM = (
-            "👥 **Programa de Referidos**\n\n"
-            "¡Invita a tus amigos y gana **10%** de por vida!\n\n"
-            "🔗 **Tu enlace personalizado:**\n"
+            "👥 **Programa de Referidos**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "🎁 Gana **10%** de cada depósito\n"
+            "de tus referidos. ¡De por vida!\n\n"
+            "🔗 **Tu enlace:**\n"
             "`https://t.me/{bot_username}?start={referral_code}`\n\n"
-            "📊 **Estadísticas:**\n"
-            "• 👥 Referidos directos: {direct_referrals}\n"
-            "• 💰 Ganancias totales: {total_earnings} estrellas\n"
-            "• 📈 Comisión: {commission}% de cada depósito\n\n"
-            "El pago es automático cuando tus referidos recargan."
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📊 **Tus estadísticas:**\n\n"
+            "👥 Referidos: **{direct_referrals}**\n"
+            "💰 Ganado: **{total_earnings}** ⭐\n"
+            "📈 Comisión: **{commission}%**"
         )
+        
         REFERRAL_CODE = (
-            "📋 **Tu código de referido:**\n\n"
+            "📋 **Tu Código de Referido**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
             "`{referral_code}`\n\n"
-            "Comparte este código con tus amigos o usa el enlace:"
+            "Compártelo y gana por cada amigo."
         )
+        
         SHARE_REFERRAL = (
-            "¡Hola! Te recomiendo usar **uSipipo VPN Manager** 🌐\n\n"
-            "Es un servicio de VPN privado y seguro con:\n"
-            "• ✅ WireGuard y Outline\n"
-            "• 🔒 Sin registros\n"
-            "• 🚀 Alta velocidad\n\n"
-            "Usa mi código de referido: **{referral_code}**\n"
-            "O haz clic aquí: https://t.me/{bot_username}?start={referral_code}"
+            "🌐 **uSipipo VPN** — Internet sin límites\n\n"
+            "Te invito a usar mi VPN privada:\n\n"
+            "✅ WireGuard + Outline\n"
+            "✅ Sin registros\n"
+            "✅ Alta velocidad\n\n"
+            "👉 Usa mi código: **{referral_code}**\n"
+            "🔗 https://t.me/{bot_username}?start={referral_code}"
+        )
+
+    class Games:
+        """Mensajes del sistema de juegos."""
+        
+        MENU_TITLE = (
+            "🎮 **Sala de Juegos**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "¡Diviértete y gana estrellas!"
+        )
+        
+        WIN = (
+            "🎉 **¡GANASTE!**\n\n"
+            "Premio: **+{amount}** ⭐"
+        )
+        
+        LOSE = (
+            "😔 **Suerte para la próxima**\n\n"
+            "Perdiste: **-{amount}** ⭐"
+        )
+
+    class Admin:
+        """Mensajes administrativos."""
+        
+        UNAUTHORIZED = (
+            "🚫 **Acceso restringido**\n\n"
+            "Función solo para administradores."
+        )
+        
+        BROADCAST_CONFIRM = (
+            "📢 **Confirmar Broadcast**\n\n"
+            "Mensaje a enviar:\n\n"
+            "{message}\n\n"
+            "👥 Destinatarios: **{count}** usuarios"
+        )
+        
+        BROADCAST_SUCCESS = (
+            "✅ **Broadcast completado**\n\n"
+            "📤 Enviados: **{sent}**\n"
+            "❌ Fallidos: **{failed}**"
         )

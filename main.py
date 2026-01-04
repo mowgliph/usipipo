@@ -1,4 +1,12 @@
+"""
+Punto de entrada principal del bot uSipipo VPN Manager.
+
+Author: uSipipo Team
+Version: 2.0.0
+"""
+
 import sys
+import asyncio
 from loguru import logger
 from telegram.ext import ApplicationBuilder
 
@@ -8,6 +16,10 @@ from application.services.vpn_service import VpnService
 from application.services.support_service import SupportService
 from application.services.payment_service import PaymentService
 from application.services.referral_service import ReferralService
+from application.services.achievement_service import AchievementService
+
+# Importación de Database
+from infrastructure.persistence.database import init_database, close_database
 
 # Importación de Inicializador de Handlers
 from telegram_bot.handlers.handler_initializer import initialize_handlers
@@ -17,10 +29,25 @@ from infrastructure.jobs.ticket_cleaner import close_stale_tickets_job
 from infrastructure.jobs.usage_sync import sync_vpn_usage_job
 from infrastructure.jobs.key_cleanup_job import key_cleanup_job
 
-# Configuración de Loguru para un rastreo claro
+# Configuración de Loguru
 logger.add("logs/bot.log", rotation="10 MB", retention="10 days", level="INFO")
+logger.add("logs/errors.log", rotation="5 MB", retention="30 days", level="ERROR")
+
+
+async def startup():
+    """Inicialización de la aplicación."""
+    logger.info("🔌 Inicializando conexión a base de datos...")
+    await init_database()
+
+
+async def shutdown():
+    """Limpieza al cerrar la aplicación."""
+    logger.info("🔌 Cerrando conexión a base de datos...")
+    await close_database()
+
 
 def main():
+    """Función principal del bot."""
     logger.info("🚀 Iniciando uSipipo VPN Manager Bot...")
 
     # 1. Inicializar Contenedor de Dependencias
@@ -30,6 +57,7 @@ def main():
         support_service = container.resolve(SupportService)
         referral_service = container.resolve(ReferralService)
         payment_service = container.resolve(PaymentService)
+        achievement_service = container.resolve(AchievementService)
         logger.info("✅ Contenedor de dependencias configurado correctamente.")
     except Exception as e:
         logger.critical(f"❌ Error al inicializar el contenedor: {e}")
@@ -40,42 +68,59 @@ def main():
         logger.error("❌ No se encontró el TELEGRAM_TOKEN en el archivo .env")
         sys.exit(1)
 
-    application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
+    application = (
+        ApplicationBuilder()
+        .token(settings.TELEGRAM_TOKEN)
+        .post_init(lambda app: asyncio.create_task(startup()))
+        .post_shutdown(lambda app: asyncio.create_task(shutdown()))
+        .build()
+    )
 
-    # 3. Registrar JobQueue para automatización (Cierre de tickets 48h)
+    # 3. Registrar JobQueue para automatización
     job_queue = application.job_queue
+    
+    # Job de limpieza de tickets (cada hora)
     job_queue.run_repeating(
         close_stale_tickets_job,
-        interval=3600,  # Se ejecuta cada hora
-        first=10,       # Primera ejecución a los 10 segundos
+        interval=3600,
+        first=10,
         data={'support_service': support_service}
     )
     logger.info("⏰ Job de limpieza de tickets programado (cada 1h).")
     
+    # Job de sincronización de uso (cada 30 min)
     job_queue.run_repeating(
         sync_vpn_usage_job,
-        interval=1800,  # 30 minutos
-        first=60,       # Primera ejecución tras 1 minuto de encendido
+        interval=1800,
+        first=60,
         data={'vpn_service': vpn_service}
     )
-    logger.info("⏰ Job de  cuota programado.")
+    logger.info("⏰ Job de cuota programado.")
 
+    # Job de limpieza de llaves (cada hora)
     job_queue.run_repeating(
         key_cleanup_job,
-        interval=3600,  # Se ejecuta cada hora
-        first=30,       # Primera ejecución a los 30 segundos
+        interval=3600,
+        first=30,
         data={'vpn_service': vpn_service}
     )
     logger.info("⏰ Job de limpieza de llaves programado.")
 
     # 4. Registro de Handlers Principales
-    handlers = initialize_handlers(vpn_service, support_service, referral_service, payment_service)
+    handlers = initialize_handlers(
+        vpn_service,
+        support_service,
+        referral_service,
+        payment_service,
+        achievement_service
+    )
     for handler in handlers:
         application.add_handler(handler)
 
     # 5. Encender el Bot
     logger.info("🤖 Bot en línea y escuchando mensajes...")
     application.run_polling()
+
 
 if __name__ == "__main__":
     main()

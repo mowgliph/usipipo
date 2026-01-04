@@ -1,27 +1,25 @@
-from supabase import create_client, Client
-from config import settings
-from loguru import logger
+"""
+⚠️ DEPRECADO: Este módulo ya no se utiliza
 
-# Variable global para guardar la conexión una vez creada
-_supabase_instance: Client = None
+Este archivo se mantiene solo por compatibilidad. 
+Todos los accesos a base de datos deben usar SQLAlchemy Async en su lugar.
 
-def get_supabase() -> Client:
-    """
-    Crea y devuelve una única instancia del cliente de Supabase.
-    Si ya existe una conexión, la reutiliza.
-    """
-    global _supabase_instance
-    
-    if _supabase_instance is None:
-        try:
-            # Usamos las variables que definimos en nuestro config.py
-            _supabase_instance = create_client(
-                settings.SUPABASE_URL, 
-                settings.SUPABASE_SERVICE_KEY
-            )
-            logger.info("🔌 Conexión establecida con Supabase con éxito.")
-        except Exception as e:
-            logger.error(f"❌ Error al conectar con Supabase: {e}")
-            raise e
-            
-    return _supabase_instance
+Importaciones reemplazadas:
+  - get_supabase() → usar AsyncSession + repositorios SQLAlchemy
+  - Client → AsyncSession
+
+Para nuevas implementaciones, usar:
+  from infrastructure.persistence.database import get_session_context
+  from infrastructure.persistence.supabase.user_repository import SupabaseUserRepository
+
+Author: uSipipo Team
+Version: 2.0.0
+"""
+
+def get_supabase():
+    """DEPRECADO: Esta función ya no debe usarse."""
+    raise DeprecationWarning(
+        "get_supabase() está deprecado. "
+        "Usa AsyncSession con repositorios SQLAlchemy en su lugar."
+    )
+

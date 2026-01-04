@@ -1,375 +1,372 @@
 """
-Implementación del repositorio de logros para PostgreSQL.
+Repositorios de logros y estadísticas con SQLAlchemy Async.
 
 Author: uSipipo Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
-import logging
 from typing import List, Optional, Dict
+from datetime import datetime
+
+from sqlalchemy import select, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, func, and_
+from sqlalchemy.sql import func
+from loguru import logger
+
 from domain.entities.achievement import Achievement, UserAchievement, UserStats, AchievementType
 from domain.interfaces.iachievement_repository import IAchievementRepository, IUserStatsRepository
-
-logger = logging.getLogger(__name__)
+from .models import AchievementModel, UserAchievementModel, UserStatsModel
 
 class AchievementRepository(IAchievementRepository):
-    """Implementación del repositorio de logros."""
+    """Implementación del repositorio de logros con SQLAlchemy Async."""
     
-    def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+    def __init__(self, session: AsyncSession):
+        """
+        Inicializa el repositorio con una sesión de base de datos.
+        
+        Args:
+            session: Sesión async de SQLAlchemy.
+        """
+        self.session = session
+    
+    def _model_to_entity(self, model: AchievementModel) -> Achievement:
+        """Convierte un modelo SQLAlchemy a entidad de dominio."""
+        return Achievement(
+            id=model.id,
+            name=model.name,
+            description=model.description,
+            type=AchievementType(model.type) if model.type else AchievementType.GENERAL,
+            tier=model.tier,
+            requirement_value=model.requirement_value,
+            reward_stars=model.reward_stars,
+            icon=model.icon,
+            is_active=model.is_active
+        )
     
     async def get_all_achievements(self) -> List[Achievement]:
         """Obtiene todos los logros activos."""
         try:
-            from infrastructure.persistence.supabase.models import AchievementModel
-            
             query = select(AchievementModel).where(AchievementModel.is_active == True)
-            result = await self.db_session.execute(query)
-            achievements = result.scalars().all()
+            result = await self.session.execute(query)
+            models = result.scalars().all()
             
-            return [
-                Achievement(
-                    id=achievement.id,
-                    name=achievement.name,
-                    description=achievement.description,
-                    type=AchievementType(achievement.type),
-                    tier=achievement.tier,
-                    requirement_value=achievement.requirement_value,
-                    reward_stars=achievement.reward_stars,
-                    icon=achievement.icon,
-                    is_active=achievement.is_active
-                )
-                for achievement in achievements
-            ]
+            return [self._model_to_entity(m) for m in models]
             
         except Exception as e:
-            logger.error(f"Error obteniendo todos los logros: {e}")
+            logger.error(f"❌ Error obteniendo todos los logros: {e}")
             return []
     
     async def get_achievement_by_id(self, achievement_id: str) -> Optional[Achievement]:
         """Obtiene un logro por su ID."""
         try:
-            from infrastructure.persistence.supabase.models import AchievementModel
-            
             query = select(AchievementModel).where(
-                and_(AchievementModel.id == achievement_id, AchievementModel.is_active == True)
-            )
-            result = await self.db_session.execute(query)
-            achievement = result.scalar_one_or_none()
-            
-            if achievement:
-                return Achievement(
-                    id=achievement.id,
-                    name=achievement.name,
-                    description=achievement.description,
-                    type=AchievementType(achievement.type),
-                    tier=achievement.tier,
-                    requirement_value=achievement.requirement_value,
-                    reward_stars=achievement.reward_stars,
-                    icon=achievement.icon,
-                    is_active=achievement.is_active
+                and_(
+                    AchievementModel.id == achievement_id,
+                    AchievementModel.is_active == True
                 )
+            )
+            result = await self.session.execute(query)
+            model = result.scalar_one_or_none()
             
-            return None
+            if model is None:
+                return None
+            
+            return self._model_to_entity(model)
             
         except Exception as e:
-            logger.error(f"Error obteniendo logro {achievement_id}: {e}")
+            logger.error(f"❌ Error obteniendo logro {achievement_id}: {e}")
             return None
     
     async def get_achievements_by_type(self, achievement_type: AchievementType) -> List[Achievement]:
         """Obtiene logros por tipo."""
         try:
-            from infrastructure.persistence.supabase.models import AchievementModel
-            
             query = select(AchievementModel).where(
-                and_(AchievementModel.type == achievement_type.value, AchievementModel.is_active == True)
-            )
-            result = await self.db_session.execute(query)
-            achievements = result.scalars().all()
-            
-            return [
-                Achievement(
-                    id=achievement.id,
-                    name=achievement.name,
-                    description=achievement.description,
-                    type=AchievementType(achievement.type),
-                    tier=achievement.tier,
-                    requirement_value=achievement.requirement_value,
-                    reward_stars=achievement.reward_stars,
-                    icon=achievement.icon,
-                    is_active=achievement.is_active
+                and_(
+                    AchievementModel.type == achievement_type.value,
+                    AchievementModel.is_active == True
                 )
-                for achievement in achievements
-            ]
+            )
+            result = await self.session.execute(query)
+            models = result.scalars().all()
+            
+            return [self._model_to_entity(m) for m in models]
             
         except Exception as e:
-            logger.error(f"Error obteniendo logros por tipo {achievement_type}: {e}")
+            logger.error(f"❌ Error obteniendo logros por tipo {achievement_type}: {e}")
             return []
     
     async def get_user_achievements(self, user_id: int) -> List[UserAchievement]:
         """Obtiene todos los logros de un usuario."""
         try:
-            from infrastructure.persistence.supabase.models import UserAchievementModel
-            
             query = select(UserAchievementModel).where(UserAchievementModel.user_id == user_id)
-            result = await self.db_session.execute(query)
-            user_achievements = result.scalars().all()
+            result = await self.session.execute(query)
+            models = result.scalars().all()
             
             return [
                 UserAchievement(
-                    user_id=ua.user_id,
-                    achievement_id=ua.achievement_id,
-                    current_value=ua.current_value,
-                    is_completed=ua.is_completed,
-                    completed_at=ua.completed_at,
-                    reward_claimed=ua.reward_claimed,
-                    reward_claimed_at=ua.reward_claimed_at
+                    user_id=m.user_id,
+                    achievement_id=m.achievement_id,
+                    current_value=m.current_value or 0,
+                    is_completed=m.is_completed or False,
+                    completed_at=m.completed_at,
+                    reward_claimed=m.reward_claimed or False,
+                    reward_claimed_at=m.reward_claimed_at
                 )
-                for ua in user_achievements
+                for m in models
             ]
             
         except Exception as e:
-            logger.error(f"Error obteniendo logros del usuario {user_id}: {e}")
+            logger.error(f"❌ Error obteniendo logros del usuario {user_id}: {e}")
             return []
     
     async def get_user_achievement(self, user_id: int, achievement_id: str) -> Optional[UserAchievement]:
         """Obtiene un logro específico de un usuario."""
         try:
-            from infrastructure.persistence.supabase.models import UserAchievementModel
-            
             query = select(UserAchievementModel).where(
-                and_(UserAchievementModel.user_id == user_id, UserAchievementModel.achievement_id == achievement_id)
-            )
-            result = await self.db_session.execute(query)
-            user_achievement = result.scalar_one_or_none()
-            
-            if user_achievement:
-                return UserAchievement(
-                    user_id=user_achievement.user_id,
-                    achievement_id=user_achievement.achievement_id,
-                    current_value=user_achievement.current_value,
-                    is_completed=user_achievement.is_completed,
-                    completed_at=user_achievement.completed_at,
-                    reward_claimed=user_achievement.reward_claimed,
-                    reward_claimed_at=user_achievement.reward_claimed_at
+                and_(
+                    UserAchievementModel.user_id == user_id,
+                    UserAchievementModel.achievement_id == achievement_id
                 )
+            )
+            result = await self.session.execute(query)
+            model = result.scalar_one_or_none()
             
-            return None
+            if model is None:
+                return None
+            
+            return UserAchievement(
+                user_id=model.user_id,
+                achievement_id=model.achievement_id,
+                current_value=model.current_value or 0,
+                is_completed=model.is_completed or False,
+                completed_at=model.completed_at,
+                reward_claimed=model.reward_claimed or False,
+                reward_claimed_at=model.reward_claimed_at
+            )
             
         except Exception as e:
-            logger.error(f"Error obteniendo logro {achievement_id} del usuario {user_id}: {e}")
+            logger.error(f"❌ Error obteniendo logro {achievement_id} del usuario {user_id}: {e}")
             return None
     
     async def create_user_achievement(self, user_achievement: UserAchievement) -> UserAchievement:
         """Crea un nuevo registro de logro para usuario."""
         try:
-            from infrastructure.persistence.supabase.models import UserAchievementModel
-            
-            db_user_achievement = UserAchievementModel(
+            model = UserAchievementModel(
                 user_id=user_achievement.user_id,
                 achievement_id=user_achievement.achievement_id,
-                current_value=user_achievement.current_value,
-                is_completed=user_achievement.is_completed,
+                current_value=user_achievement.current_value or 0,
+                is_completed=user_achievement.is_completed or False,
                 completed_at=user_achievement.completed_at,
-                reward_claimed=user_achievement.reward_claimed,
+                reward_claimed=user_achievement.reward_claimed or False,
                 reward_claimed_at=user_achievement.reward_claimed_at
             )
             
-            self.db_session.add(db_user_achievement)
-            await self.db_session.commit()
-            await self.db_session.refresh(db_user_achievement)
+            self.session.add(model)
+            await self.session.commit()
             
+            logger.debug(f"💾 Logro creado para usuario {user_achievement.user_id}: {user_achievement.achievement_id}")
             return user_achievement
             
         except Exception as e:
-            logger.error(f"Error creando logro para usuario {user_achievement.user_id}: {e}")
-            await self.db_session.rollback()
+            await self.session.rollback()
+            logger.error(f"❌ Error creando logro para usuario {user_achievement.user_id}: {e}")
             raise
     
     async def update_user_achievement(self, user_achievement: UserAchievement) -> UserAchievement:
         """Actualiza el progreso de un logro de usuario."""
         try:
-            from infrastructure.persistence.supabase.models import UserAchievementModel
-            
-            query = update(UserAchievementModel).where(
-                and_(UserAchievementModel.user_id == user_achievement.user_id, 
-                     UserAchievementModel.achievement_id == user_achievement.achievement_id)
-            ).values(
-                current_value=user_achievement.current_value,
-                is_completed=user_achievement.is_completed,
-                completed_at=user_achievement.completed_at,
-                reward_claimed=user_achievement.reward_claimed,
-                reward_claimed_at=user_achievement.reward_claimed_at,
-                updated_at=func.now()
+            query = (
+                update(UserAchievementModel)
+                .where(
+                    and_(
+                        UserAchievementModel.user_id == user_achievement.user_id,
+                        UserAchievementModel.achievement_id == user_achievement.achievement_id
+                    )
+                )
+                .values(
+                    current_value=user_achievement.current_value or 0,
+                    is_completed=user_achievement.is_completed or False,
+                    completed_at=user_achievement.completed_at,
+                    reward_claimed=user_achievement.reward_claimed or False,
+                    reward_claimed_at=user_achievement.reward_claimed_at,
+                    updated_at=func.now()
+                )
             )
             
-            await self.db_session.execute(query)
-            await self.db_session.commit()
+            await self.session.execute(query)
+            await self.session.commit()
             
+            logger.debug(f"✏️ Logro actualizado para usuario {user_achievement.user_id}: {user_achievement.achievement_id}")
             return user_achievement
             
         except Exception as e:
-            logger.error(f"Error actualizando logro para usuario {user_achievement.user_id}: {e}")
-            await self.db_session.rollback()
+            await self.session.rollback()
+            logger.error(f"❌ Error actualizando logro para usuario {user_achievement.user_id}: {e}")
             raise
     
     async def get_completed_achievements(self, user_id: int) -> List[UserAchievement]:
         """Obtiene logros completados por un usuario."""
         try:
-            from infrastructure.persistence.supabase.models import UserAchievementModel
-            
             query = select(UserAchievementModel).where(
-                and_(UserAchievementModel.user_id == user_id, UserAchievementModel.is_completed == True)
+                and_(
+                    UserAchievementModel.user_id == user_id,
+                    UserAchievementModel.is_completed == True
+                )
             )
-            result = await self.db_session.execute(query)
-            user_achievements = result.scalars().all()
+            result = await self.session.execute(query)
+            models = result.scalars().all()
             
             return [
                 UserAchievement(
-                    user_id=ua.user_id,
-                    achievement_id=ua.achievement_id,
-                    current_value=ua.current_value,
-                    is_completed=ua.is_completed,
-                    completed_at=ua.completed_at,
-                    reward_claimed=ua.reward_claimed,
-                    reward_claimed_at=ua.reward_claimed_at
+                    user_id=m.user_id,
+                    achievement_id=m.achievement_id,
+                    current_value=m.current_value or 0,
+                    is_completed=m.is_completed or False,
+                    completed_at=m.completed_at,
+                    reward_claimed=m.reward_claimed or False,
+                    reward_claimed_at=m.reward_claimed_at
                 )
-                for ua in user_achievements
+                for m in models
             ]
             
         except Exception as e:
-            logger.error(f"Error obteniendo logros completados del usuario {user_id}: {e}")
+            logger.error(f"❌ Error obteniendo logros completados del usuario {user_id}: {e}")
             return []
     
     async def get_pending_rewards(self, user_id: int) -> List[UserAchievement]:
         """Obtiene logros completados con recompensas no reclamadas."""
         try:
-            from infrastructure.persistence.supabase.models import UserAchievementModel
-            
             query = select(UserAchievementModel).where(
-                and_(UserAchievementModel.user_id == user_id, 
-                     UserAchievementModel.is_completed == True,
-                     UserAchievementModel.reward_claimed == False)
+                and_(
+                    UserAchievementModel.user_id == user_id,
+                    UserAchievementModel.is_completed == True,
+                    UserAchievementModel.reward_claimed == False
+                )
             )
-            result = await self.db_session.execute(query)
-            user_achievements = result.scalars().all()
+            result = await self.session.execute(query)
+            models = result.scalars().all()
             
             return [
                 UserAchievement(
-                    user_id=ua.user_id,
-                    achievement_id=ua.achievement_id,
-                    current_value=ua.current_value,
-                    is_completed=ua.is_completed,
-                    completed_at=ua.completed_at,
-                    reward_claimed=ua.reward_claimed,
-                    reward_claimed_at=ua.reward_claimed_at
+                    user_id=m.user_id,
+                    achievement_id=m.achievement_id,
+                    current_value=m.current_value or 0,
+                    is_completed=m.is_completed or False,
+                    completed_at=m.completed_at,
+                    reward_claimed=m.reward_claimed or False,
+                    reward_claimed_at=m.reward_claimed_at
                 )
-                for ua in user_achievements
+                for m in models
             ]
             
         except Exception as e:
-            logger.error(f"Error obteniendo recompensas pendientes del usuario {user_id}: {e}")
+            logger.error(f"❌ Error obteniendo recompensas pendientes del usuario {user_id}: {e}")
             return []
 
 
 class UserStatsRepository(IUserStatsRepository):
-    """Implementación del repositorio de estadísticas de usuarios."""
+    """Implementación del repositorio de estadísticas de usuarios con SQLAlchemy Async."""
     
-    def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+    def __init__(self, session: AsyncSession):
+        """
+        Inicializa el repositorio con una sesión de base de datos.
+        
+        Args:
+            session: Sesión async de SQLAlchemy.
+        """
+        self.session = session
+    
+    def _model_to_entity(self, model: UserStatsModel) -> UserStats:
+        """Convierte un modelo SQLAlchemy a entidad de dominio."""
+        return UserStats(
+            user_id=model.user_id,
+            total_data_consumed_gb=model.total_data_consumed_gb or 0.0,
+            days_active=model.days_active or 0,
+            total_referrals=model.total_referrals or 0,
+            total_stars_deposited=model.total_stars_deposited or 0,
+            total_keys_created=model.total_keys_created or 0,
+            total_games_won=model.total_games_won or 0,
+            vip_months_purchased=model.vip_months_purchased or 0,
+            last_active_date=model.last_active_date,
+            created_at=model.created_at
+        )
     
     async def get_user_stats(self, user_id: int) -> Optional[UserStats]:
         """Obtiene las estadísticas de un usuario."""
         try:
-            from infrastructure.persistence.supabase.models import UserStatsModel
-            
             query = select(UserStatsModel).where(UserStatsModel.user_id == user_id)
-            result = await self.db_session.execute(query)
-            user_stats = result.scalar_one_or_none()
+            result = await self.session.execute(query)
+            model = result.scalar_one_or_none()
             
-            if user_stats:
-                return UserStats(
-                    user_id=user_stats.user_id,
-                    total_data_consumed_gb=user_stats.total_data_consumed_gb,
-                    days_active=user_stats.days_active,
-                    total_referrals=user_stats.total_referrals,
-                    total_stars_deposited=user_stats.total_stars_deposited,
-                    total_keys_created=user_stats.total_keys_created,
-                    total_games_won=user_stats.total_games_won,
-                    vip_months_purchased=user_stats.vip_months_purchased,
-                    last_active_date=user_stats.last_active_date,
-                    created_at=user_stats.created_at
-                )
+            if model is None:
+                return None
             
-            return None
+            return self._model_to_entity(model)
             
         except Exception as e:
-            logger.error(f"Error obteniendo estadísticas del usuario {user_id}: {e}")
+            logger.error(f"❌ Error obteniendo estadísticas del usuario {user_id}: {e}")
             return None
     
     async def create_user_stats(self, user_stats: UserStats) -> UserStats:
         """Crea estadísticas iniciales para un usuario."""
         try:
-            from infrastructure.persistence.supabase.models import UserStatsModel
-            
-            db_user_stats = UserStatsModel(
+            model = UserStatsModel(
                 user_id=user_stats.user_id,
-                total_data_consumed_gb=user_stats.total_data_consumed_gb,
-                days_active=user_stats.days_active,
-                total_referrals=user_stats.total_referrals,
-                total_stars_deposited=user_stats.total_stars_deposited,
-                total_keys_created=user_stats.total_keys_created,
-                total_games_won=user_stats.total_games_won,
-                vip_months_purchased=user_stats.vip_months_purchased,
+                total_data_consumed_gb=user_stats.total_data_consumed_gb or 0.0,
+                days_active=user_stats.days_active or 0,
+                total_referrals=user_stats.total_referrals or 0,
+                total_stars_deposited=user_stats.total_stars_deposited or 0,
+                total_keys_created=user_stats.total_keys_created or 0,
+                total_games_won=user_stats.total_games_won or 0,
+                vip_months_purchased=user_stats.vip_months_purchased or 0,
                 last_active_date=user_stats.last_active_date,
-                created_at=user_stats.created_at
+                created_at=user_stats.created_at or datetime.now()
             )
             
-            self.db_session.add(db_user_stats)
-            await self.db_session.commit()
-            await self.db_session.refresh(db_user_stats)
+            self.session.add(model)
+            await self.session.commit()
             
+            logger.debug(f"💾 Estadísticas creadas para usuario {user_stats.user_id}")
             return user_stats
             
         except Exception as e:
-            logger.error(f"Error creando estadísticas para usuario {user_stats.user_id}: {e}")
-            await self.db_session.rollback()
+            await self.session.rollback()
+            logger.error(f"❌ Error creando estadísticas para usuario {user_stats.user_id}: {e}")
             raise
     
     async def update_user_stats(self, user_stats: UserStats) -> UserStats:
         """Actualiza las estadísticas de un usuario."""
         try:
-            from infrastructure.persistence.supabase.models import UserStatsModel
-            
-            query = update(UserStatsModel).where(UserStatsModel.user_id == user_stats.user_id).values(
-                total_data_consumed_gb=user_stats.total_data_consumed_gb,
-                days_active=user_stats.days_active,
-                total_referrals=user_stats.total_referrals,
-                total_stars_deposited=user_stats.total_stars_deposited,
-                total_keys_created=user_stats.total_keys_created,
-                total_games_won=user_stats.total_games_won,
-                vip_months_purchased=user_stats.vip_months_purchased,
-                last_active_date=user_stats.last_active_date,
-                updated_at=func.now()
+            query = (
+                update(UserStatsModel)
+                .where(UserStatsModel.user_id == user_stats.user_id)
+                .values(
+                    total_data_consumed_gb=user_stats.total_data_consumed_gb or 0.0,
+                    days_active=user_stats.days_active or 0,
+                    total_referrals=user_stats.total_referrals or 0,
+                    total_stars_deposited=user_stats.total_stars_deposited or 0,
+                    total_keys_created=user_stats.total_keys_created or 0,
+                    total_games_won=user_stats.total_games_won or 0,
+                    vip_months_purchased=user_stats.vip_months_purchased or 0,
+                    last_active_date=user_stats.last_active_date,
+                    updated_at=func.now()
+                )
             )
             
-            await self.db_session.execute(query)
-            await self.db_session.commit()
+            await self.session.execute(query)
+            await self.session.commit()
             
+            logger.debug(f"✏️ Estadísticas actualizadas para usuario {user_stats.user_id}")
             return user_stats
             
         except Exception as e:
-            logger.error(f"Error actualizando estadísticas para usuario {user_stats.user_id}: {e}")
-            await self.db_session.rollback()
+            await self.session.rollback()
+            logger.error(f"❌ Error actualizando estadísticas para usuario {user_stats.user_id}: {e}")
             raise
     
     async def get_leaderboard_by_type(self, achievement_type: AchievementType, limit: int = 10) -> List[Dict]:
         """Obtiene ranking de usuarios por tipo de logro."""
         try:
-            from infrastructure.persistence.supabase.models import UserStatsModel
-            
             # Mapear tipos de logro a campos de estadísticas
             field_mapping = {
                 AchievementType.DATA_CONSUMED: UserStatsModel.total_data_consumed_gb,
@@ -382,17 +379,22 @@ class UserStatsRepository(IUserStatsRepository):
             }
             
             if achievement_type not in field_mapping:
+                logger.warning(f"⚠️ Tipo de logro no mapeado: {achievement_type}")
                 return []
             
             field = field_mapping[achievement_type]
             
-            query = select(
-                UserStatsModel.user_id,
-                field.label('value')
-            ).order_by(field.desc()).limit(limit)
+            query = (
+                select(
+                    UserStatsModel.user_id,
+                    field.label('value')
+                )
+                .order_by(field.desc())
+                .limit(limit)
+            )
             
-            result = await self.db_session.execute(query)
-            leaderboard = result.all()
+            result = await self.session.execute(query)
+            rows = result.all()
             
             return [
                 {
@@ -400,29 +402,29 @@ class UserStatsRepository(IUserStatsRepository):
                     'value': float(row.value) if achievement_type == AchievementType.DATA_CONSUMED else int(row.value),
                     'rank': index + 1
                 }
-                for index, row in enumerate(leaderboard)
+                for index, row in enumerate(rows)
             ]
             
         except Exception as e:
-            logger.error(f"Error obteniendo leaderboard para tipo {achievement_type}: {e}")
+            logger.error(f"❌ Error obteniendo leaderboard para tipo {achievement_type}: {e}")
             return []
     
     async def get_top_users_by_achievements(self, limit: int = 10) -> List[Dict]:
         """Obtiene usuarios con más logros completados."""
         try:
-            from infrastructure.persistence.supabase.models import UserAchievementModel
+            query = (
+                select(
+                    UserAchievementModel.user_id,
+                    func.count(UserAchievementModel.achievement_id).label('completed_count')
+                )
+                .where(UserAchievementModel.is_completed == True)
+                .group_by(UserAchievementModel.user_id)
+                .order_by(func.count(UserAchievementModel.achievement_id).desc())
+                .limit(limit)
+            )
             
-            query = select(
-                UserAchievementModel.user_id,
-                func.count(UserAchievementModel.achievement_id).label('completed_count')
-            ).where(
-                UserAchievementModel.is_completed == True
-            ).group_by(UserAchievementModel.user_id).order_by(
-                func.count(UserAchievementModel.achievement_id).desc()
-            ).limit(limit)
-            
-            result = await self.db_session.execute(query)
-            top_users = result.all()
+            result = await self.session.execute(query)
+            rows = result.all()
             
             return [
                 {
@@ -430,9 +432,9 @@ class UserStatsRepository(IUserStatsRepository):
                     'completed_count': int(row.completed_count),
                     'rank': index + 1
                 }
-                for index, row in enumerate(top_users)
+                for index, row in enumerate(rows)
             ]
             
         except Exception as e:
-            logger.error(f"Error obteniendo top usuarios por logros: {e}")
+            logger.error(f"❌ Error obteniendo top usuarios por logros: {e}")
             return []

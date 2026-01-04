@@ -28,31 +28,28 @@ from utils.bot_logger import get_logger
 from application.services.game_service import GameService
 from application.services.admin_service import AdminService
 from application.services.achievement_service import AchievementService
-from infrastructure.persistence.supabase.achievement_repository import AchievementRepository, UserStatsRepository
 
-def initialize_handlers(vpn_service, support_service, referral_service, payment_service):
+def initialize_handlers(vpn_service, support_service, referral_service, payment_service, achievement_service=None):
     """
-    Initializes all Telegram bot handlers by taking services as parameters
-    and returns a list of all handlers to be registered.
+    Inicializa todos los handlers del bot de Telegram.
 
     Args:
-        vpn_service: The VPN service instance.
-        support_service: The support service instance.
-        referral_service: The referral service instance.
-        payment_service: The payment service instance.
+        vpn_service: Servicio de VPN.
+        support_service: Servicio de soporte.
+        referral_service: Servicio de referidos.
+        payment_service: Servicio de pagos.
+        achievement_service: Servicio de logros (si es None, se obtiene del contenedor).
 
     Returns:
-        List of handler objects to be added to the Telegram application.
+        Lista de handlers para registrar en la aplicación.
     """
     handlers = []
 
-    # Obtener sesión de base de datos directamente del repositorio
-    db_session = vpn_service.key_repo.client
-
-    # Inicializar servicio de logros
-    achievement_repository = AchievementRepository(db_session)
-    user_stats_repository = UserStatsRepository(db_session)
-    achievement_service = AchievementService(achievement_repository, user_stats_repository)
+    # Si no se proporciona achievement_service, obtenerlo del contenedor
+    if achievement_service is None:
+        from application.services.common.container import get_container
+        container = get_container()
+        achievement_service = container.resolve(AchievementService)
 
     # Comando /start y botón de registro
     handlers.append(CommandHandler("start", lambda u, c: start_handler(u, c, vpn_service)))

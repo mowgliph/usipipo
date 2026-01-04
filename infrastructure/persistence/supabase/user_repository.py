@@ -1,175 +1,135 @@
+"""
+Repositorio de usuarios con SQLAlchemy Async.
+
+Author: uSipipo Team
+Version: 2.0.0
+"""
+
 from typing import Optional, List
 from datetime import datetime
+import secrets
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
+
 from domain.entities.user import User, UserStatus
 from domain.interfaces.iuser_repository import IUserRepository
-from .supabase_client import get_supabase
-from loguru import logger
-import secrets
+from .models import UserModel
+
 
 class SupabaseUserRepository(IUserRepository):
     """
-    Implementación real del manejo de usuarios usando Supabase.
+    Implementación del repositorio de usuarios usando SQLAlchemy Async.
     """
 
-    def __init__(self):
-        # Obtenemos nuestra conexión central
-        self.client = get_supabase()
-        self.table = "users"
+    def __init__(self, session: AsyncSession):
+        """
+        Inicializa el repositorio con una sesión de base de datos.
+        
+        Args:
+            session: Sesión async de SQLAlchemy.
+        """
+        self.session = session
+
+    def _model_to_entity(self, model: UserModel) -> User:
+        """Convierte un modelo SQLAlchemy a entidad de dominio."""
+        return User(
+            telegram_id=model.telegram_id,
+            username=model.username,
+            full_name=model.full_name,
+            status=UserStatus(model.status) if model.status else UserStatus.ACTIVE,
+            max_keys=model.max_keys or 2,
+            balance_stars=model.balance_stars or 0,
+            total_deposited=model.total_deposited or 0,
+            referral_code=model.referral_code,
+            referred_by=model.referred_by,
+            total_referral_earnings=model.total_referral_earnings or 0,
+            is_vip=model.is_vip or False,
+            vip_expires_at=model.vip_expires_at
+        )
+
+    def _entity_to_model(self, entity: User) -> UserModel:
+        """Convierte una entidad de dominio a modelo SQLAlchemy."""
+        return UserModel(
+            telegram_id=entity.telegram_id,
+            username=entity.username,
+            full_name=entity.full_name,
+            status=entity.status.value if isinstance(entity.status, UserStatus) else entity.status,
+            max_keys=entity.max_keys,
+            balance_stars=entity.balance_stars,
+            total_deposited=entity.total_deposited,
+            referral_code=entity.referral_code,
+            referred_by=entity.referred_by,
+            total_referral_earnings=entity.total_referral_earnings,
+            is_vip=entity.is_vip,
+            vip_expires_at=entity.vip_expires_at
+        )
 
     async def get_by_id(self, telegram_id: int) -> Optional[User]:
-        """Busca un usuario en la tabla 'users' de Supabase."""
+        """Busca un usuario por su ID de Telegram."""
         try:
-            response = self.client.table(self.table)\
-                .select("*")\
-                .eq("telegram_id", telegram_id)\
-                .maybe_single()\
-                .execute()
-
-            if response is None or not response.data:
+            query = select(UserModel).where(UserModel.telegram_id == telegram_id)
+            result = await self.session.execute(query)
+            model = result.scalar_one_or_none()
+            
+            if model is None:
                 return None
-
-            data = response.data
-            return User(
-                telegram_id=data["telegram_id"],
-                username=data.get("username"),
-                full_name=data.get("full_name"),
-                status=UserStatus(data.get("status", "active")),
-                max_keys=data.get("max_keys", 2),
-                balance_stars=data.get("balance_stars", 0),
-                total_deposited=data.get("total_deposited", 0),
-                referral_code=data.get("referral_code"),
-                referred_by=data.get("referred_by"),
-                total_referral_earnings=data.get("total_referral_earnings", 0),
-                is_vip=data.get("is_vip", False),
-                vip_expires_at=data.get("vip_expires_at")
-            )
+            
+            return self._model_to_entity(model)
+            
         except Exception as e:
             logger.error(f"❌ Error al obtener usuario {telegram_id}: {e}")
             return None
 
-    async def save(self, user: User) -> User:
-        """Guarda o actualiza los datos del usuario."""
-        user_data = {
-            "telegram_id": user.telegram_id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "status": user.status,
-            "max_keys": user.max_keys,
-            "balance_stars": user.balance_stars,
-            "total_deposited": user.total_deposited,
-            "referral_code": user.referral_code,
-            "referred_by": user.referred_by,
-            "total_referral_earnings": user.total_referral_earnings,
-            "is_vip": user.is_vip,
-            "vip_expires_at": user.vip_expires_at
-        }
-        
-        try:
-            # .upsert significa: "Si existe actualiza, si no existe inserta"
-            self.client.table(self.table).upsert(user_data).execute()
-            logger.info(f"💾 Usuario {user.telegram_id} guardado correctamente.")
-            return user
-        except Exception as e:
-            logger.error(f"❌ Error al guardar usuario: {e}")
-            raise e
-
-    async def exists(self, telegram_id: int) -> bool:
-        """Chequeo rápido de existencia."""
-        response = self.client.table(self.table)\
-            .select("telegram_id", count="exact")\
-            .eq("telegram_id", telegram_id)\
-            .execute()
-        return (response.count or 0) > 0
-    
-    async def get_by_referral_code(self, referral_code: str) -> Optional[User]:
-        """Busca un usuario por su código de referido único."""
-        try:
-            response = self.client.table(self.table)\
-                .select("*")\
-                .eq("referral_code", referral_code)\
-                .maybe_single()\
-                .execute()
-            
-            if not response.data:
-                return None
-            
-            data = response.data
-            return User(
-                telegram_id=data["telegram_id"],
-                username=data.get("username"),
-                full_name=data.get("full_name"),
-                status=UserStatus(data.get("status", "active")),
-                max_keys=data.get("max_keys", 2),
-                balance_stars=data.get("balance_stars", 0),
-                total_deposited=data.get("total_deposited", 0),
-                referral_code=data.get("referral_code"),
-                referred_by=data.get("referred_by"),
-                total_referral_earnings=data.get("total_referral_earnings", 0),
-                is_vip=data.get("is_vip", False),
-                vip_expires_at=data.get("vip_expires_at")
-            )
-        except Exception as e:
-            logger.error(f"❌ Error al buscar por referral_code {referral_code}: {e}")
-            return None
-    
-    async def update_balance(self, telegram_id: int, new_balance: int) -> bool:
-        """Actualiza el balance de estrellas del usuario."""
-        try:
-            self.client.table(self.table)\
-                .update({"balance_stars": new_balance})\
-                .eq("telegram_id", telegram_id)\
-                .execute()
-            return True
-        except Exception as e:
-            logger.error(f"❌ Error al actualizar balance: {e}")
-            return False
-    
-    async def get_referrals(self, referrer_id: int) -> list:
-        """Obtiene todos los usuarios referidos por este usuario."""
-        try:
-            response = self.client.table(self.table)\
-                .select("*")\
-                .eq("referred_by", referrer_id)\
-                .execute()
-            
-            return response.data if response.data else []
-        except Exception as e:
-            logger.error(f"❌ Error al obtener referidos: {e}")
-            return []
-    
-    async def get_referrals_by_user(self, telegram_id: int) -> List[User]:
-        """Obtiene la lista de usuarios referidos por un usuario."""
-        try:
-            referrals_data = await self.get_referrals(telegram_id)
-            return [
-                User(
-                    telegram_id=ref["telegram_id"],
-                    username=ref.get("username"),
-                    full_name=ref.get("full_name"),
-                    status=UserStatus(ref.get("status", "active")),
-                    max_keys=ref.get("max_keys", 2),
-                    balance_stars=ref.get("balance_stars", 0),
-                    total_deposited=ref.get("total_deposited", 0),
-                    referral_code=ref.get("referral_code"),
-                    referred_by=ref.get("referred_by"),
-                    total_referral_earnings=ref.get("total_referral_earnings", 0),
-                    is_vip=ref.get("is_vip", False),
-                    vip_expires_at=ref.get("vip_expires_at")
-                )
-                for ref in referrals_data
-            ]
-        except Exception as e:
-            logger.error(f"❌ Error al obtener referidos por usuario {telegram_id}: {e}")
-            return []
-
     async def get_user(self, telegram_id: int) -> Optional[User]:
-        """Busca un usuario por su ID de Telegram (alias de get_by_id)."""
+        """Alias de get_by_id para compatibilidad."""
         return await self.get_by_id(telegram_id)
 
-    async def create_user(self, user_id: int, username: str = None, full_name: str = None, referral_code: str = None, referred_by: int = None) -> User:
+    async def save(self, user: User) -> User:
+        """Guarda o actualiza los datos del usuario."""
+        try:
+            # Verificar si existe
+            existing = await self.session.get(UserModel, user.telegram_id)
+            
+            if existing:
+                # Actualizar campos
+                existing.username = user.username
+                existing.full_name = user.full_name
+                existing.status = user.status.value if isinstance(user.status, UserStatus) else user.status
+                existing.max_keys = user.max_keys
+                existing.balance_stars = user.balance_stars
+                existing.total_deposited = user.total_deposited
+                existing.referral_code = user.referral_code
+                existing.referred_by = user.referred_by
+                existing.total_referral_earnings = user.total_referral_earnings
+                existing.is_vip = user.is_vip
+                existing.vip_expires_at = user.vip_expires_at
+            else:
+                # Crear nuevo
+                model = self._entity_to_model(user)
+                self.session.add(model)
+            
+            await self.session.commit()
+            logger.info(f"💾 Usuario {user.telegram_id} guardado correctamente.")
+            return user
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"❌ Error al guardar usuario: {e}")
+            raise
+
+    async def create_user(
+        self,
+        user_id: int,
+        username: str = None,
+        full_name: str = None,
+        referral_code: str = None,
+        referred_by: int = None
+    ) -> User:
         """Crea un nuevo usuario."""
         if referral_code is None:
-            referral_code = secrets.token_hex(4)
+            referral_code = secrets.token_hex(4).upper()
 
         user = User(
             telegram_id=user_id,
@@ -178,30 +138,105 @@ class SupabaseUserRepository(IUserRepository):
             referral_code=referral_code,
             referred_by=referred_by
         )
+        
         return await self.save(user)
+
+    async def exists(self, telegram_id: int) -> bool:
+        """Verifica si el usuario ya está registrado."""
+        try:
+            query = select(UserModel.telegram_id).where(
+                UserModel.telegram_id == telegram_id
+            )
+            result = await self.session.execute(query)
+            return result.scalar_one_or_none() is not None
+            
+        except Exception as e:
+            logger.error(f"❌ Error verificando existencia de usuario: {e}")
+            return False
+
+    async def get_by_referral_code(self, referral_code: str) -> Optional[User]:
+        """Busca un usuario por su código de referido."""
+        try:
+            query = select(UserModel).where(
+                UserModel.referral_code == referral_code
+            )
+            result = await self.session.execute(query)
+            model = result.scalar_one_or_none()
+            
+            if model is None:
+                return None
+            
+            return self._model_to_entity(model)
+            
+        except Exception as e:
+            logger.error(f"❌ Error al buscar por referral_code {referral_code}: {e}")
+            return None
+
+    async def update_balance(self, telegram_id: int, new_balance: int) -> bool:
+        """Actualiza el balance de estrellas del usuario."""
+        try:
+            query = (
+                update(UserModel)
+                .where(UserModel.telegram_id == telegram_id)
+                .values(balance_stars=new_balance)
+            )
+            await self.session.execute(query)
+            await self.session.commit()
+            return True
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"❌ Error al actualizar balance: {e}")
+            return False
+
+    async def get_referrals(self, referrer_id: int) -> List[dict]:
+        """Obtiene todos los usuarios referidos (como diccionarios)."""
+        try:
+            query = select(UserModel).where(
+                UserModel.referred_by == referrer_id
+            )
+            result = await self.session.execute(query)
+            models = result.scalars().all()
+            
+            return [
+                {
+                    "telegram_id": m.telegram_id,
+                    "username": m.username,
+                    "full_name": m.full_name,
+                    "created_at": m.created_at
+                }
+                for m in models
+            ]
+            
+        except Exception as e:
+            logger.error(f"❌ Error al obtener referidos: {e}")
+            return []
+
+    async def get_referrals_by_user(self, telegram_id: int) -> List[User]:
+        """Obtiene la lista de usuarios referidos como entidades."""
+        try:
+            query = select(UserModel).where(
+                UserModel.referred_by == telegram_id
+            )
+            result = await self.session.execute(query)
+            models = result.scalars().all()
+            
+            return [self._model_to_entity(m) for m in models]
+            
+        except Exception as e:
+            logger.error(f"❌ Error al obtener referidos por usuario {telegram_id}: {e}")
+            return []
 
     async def get_all_users(self) -> List[User]:
         """Obtiene todos los usuarios registrados."""
         try:
-            response = self.client.table(self.table).select("*").execute()
-            users_data = response.data if response.data else []
-            return [
-                User(
-                    telegram_id=data["telegram_id"],
-                    username=data.get("username"),
-                    full_name=data.get("full_name"),
-                    status=UserStatus(data.get("status", "active")),
-                    max_keys=data.get("max_keys", 2),
-                    balance_stars=data.get("balance_stars", 0),
-                    total_deposited=data.get("total_deposited", 0),
-                    referral_code=data.get("referral_code"),
-                    referred_by=data.get("referred_by"),
-                    total_referral_earnings=data.get("total_referral_earnings", 0),
-                    is_vip=data.get("is_vip", False),
-                    vip_expires_at=data.get("vip_expires_at")
-                )
-                for data in users_data
-            ]
+            query = select(UserModel)
+            result = await self.session.execute(query)
+            models = result.scalars().all()
+            
+            return [self._model_to_entity(m) for m in models]
+            
         except Exception as e:
             logger.error(f"❌ Error al obtener todos los usuarios: {e}")
             return []
+
