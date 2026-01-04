@@ -133,9 +133,6 @@ class GameHandler:
         keyboard = [
             [
                 InlineKeyboardButton("🎮 JUGAR AHORA", callback_data=f"play_{game_type_str}")
-            ],
-            [
-                InlineKeyboardButton("🔙 Volver al menú", callback_data="game_menu")
             ]
         ]
         
@@ -272,11 +269,7 @@ class GameHandler:
     
     async def _show_help(self, query):
         """Muestra la ayuda del sistema de juegos."""
-        keyboard = [
-            [
-                InlineKeyboardButton("🎮 Volver a Juegos", callback_data="game_menu")
-            ]
-        ]
+        keyboard = []
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         

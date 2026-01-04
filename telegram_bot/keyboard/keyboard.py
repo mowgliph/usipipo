@@ -116,9 +116,6 @@ class Keyboards:
             [
                 InlineKeyboardButton("6 Meses - 50 Estrellas", callback_data="vip_6_months"),
                 InlineKeyboardButton("12 Meses - 90 Estrellas", callback_data="vip_12_months")
-            ],
-            [
-                InlineKeyboardButton("🔙?? Volver", callback_data="operations_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -137,9 +134,6 @@ class Keyboards:
             ],
             [
                 InlineKeyboardButton("📋 Aplicar Código", callback_data="apply_referral_code")
-            ],
-            [
-                InlineKeyboardButton("?? Volver", callback_data="operations_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
