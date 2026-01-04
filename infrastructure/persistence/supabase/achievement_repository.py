@@ -312,7 +312,9 @@ class UserStatsRepository(IUserStatsRepository):
         """Crea estadísticas iniciales para un usuario."""
         try:
             logger.debug(f"🔍 Attempting to create user_stats for user_id {user_stats.user_id}")
-            model = UserStatsModel(
+
+            # Use INSERT ... ON CONFLICT DO NOTHING to prevent duplicate key violations
+            insert_stmt = insert(UserStatsModel).values(
                 user_id=user_stats.user_id,
                 total_data_consumed_gb=user_stats.total_data_consumed_gb or 0.0,
                 days_active=user_stats.days_active or 0,
@@ -323,12 +325,12 @@ class UserStatsRepository(IUserStatsRepository):
                 vip_months_purchased=user_stats.vip_months_purchased or 0,
                 last_active_date=user_stats.last_active_date,
                 created_at=user_stats.created_at or datetime.now()
-            )
+            ).on_conflict_do_nothing(index_elements=['user_id'])
 
-            self.session.add(model)
+            await self.session.execute(insert_stmt)
             await self.session.commit()
 
-            logger.debug(f"💾 Estadísticas creadas para usuario {user_stats.user_id}")
+            logger.debug(f"💾 Estadísticas creadas o ya existen para usuario {user_stats.user_id}")
             return user_stats
 
         except Exception as e:
