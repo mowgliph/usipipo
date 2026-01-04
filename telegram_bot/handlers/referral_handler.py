@@ -155,8 +155,11 @@ class ReferralHandler:
         try:
             referral_code = await self.referral_service.get_referral_code(telegram_id)
 
+            # Escape markdown special characters in referral_code
+            escaped_referral_code = self._escape_markdown(referral_code)
+
             text = Messages.Operations.SHARE_REFERRAL.format(
-                referral_code=referral_code,
+                referral_code=escaped_referral_code,
                 bot_username="usipipo_bot"  # TODO: Get from config
             )
 
@@ -224,6 +227,13 @@ class ReferralHandler:
         """Generate a unique referral code."""
         import uuid
         return str(uuid.uuid4())[:8].upper()
+
+    def _escape_markdown(self, text: str) -> str:
+        """Escape markdown special characters."""
+        special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+        for char in special_chars:
+            text = text.replace(char, f'\\{char}')
+        return text
 
     def get_handlers(self):
         """Retorna la lista de handlers para el sistema de referidos."""
