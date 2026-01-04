@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker
 )
 from sqlalchemy.pool import NullPool
+from sqlalchemy.sql import text
 from loguru import logger
 
 from config import settings
@@ -173,7 +174,7 @@ async def init_database() -> None:
         
         # Verificar conexión
         async with engine.begin() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         
         logger.info("✅ Conexión a PostgreSQL verificada correctamente")
         
