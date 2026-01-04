@@ -4,11 +4,10 @@ from application.services.vpn_service import VpnService
 from telegram_bot.messages import Messages
 from telegram_bot.keyboard import Keyboards
 from config import settings
-import logging
+from loguru import logger
 
-logger = logging.getLogger(__name__)
 
-async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service):
+async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """
     Maneja el comando /start y el registro de usuarios.
     """
@@ -16,16 +15,20 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
     chat_id = update.effective_chat.id
     
     try:
-        # Verificar si el usuario ya existe
-        existing_user = await vpn_service.user_repo.get_user(user.id)
+        # Verificar si el usuario ya existe - usar get_by_id (método garantizado)
+        existing_user = await vpn_service.user_repo.get_by_id(user.id)
         
         if not existing_user:
-            # Crear nuevo usuario
+            # Construir full_name a partir de first_name y last_name
+            full_name = user.first_name or ""
+            if user.last_name:
+                full_name = f"{full_name} {user.last_name}".strip()
+            
+            # Crear nuevo usuario con los parámetros CORRECTOS
             await vpn_service.user_repo.create_user(
                 user_id=user.id,
                 username=user.username,
-                first_name=user.first_name,
-                last_name=user.last_name
+                full_name=full_name  # CORREGIDO: era first_name y last_name
             )
             welcome_message = Messages.Welcome.NEW_USER.format(name=user.first_name)
             
@@ -54,8 +57,8 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                 user_stats_repository = UserStatsRepository(vpn_service.db_session)
                 achievement_service = AchievementService(achievement_repository, user_stats_repository)
                 
-                # Actualizar actividad diaria
-                await achievement_service.update_user_stats(user_id, {'daily_activity': True})
+                # CORREGIDO: user.id en lugar de user_id (variable no definida)
+                await achievement_service.update_user_stats(user.id, {'daily_activity': True})
                 logger.info(f"Actividad diaria actualizada para usuario {user.id}")
             except Exception as e:
                 logger.error(f"Error actualizando actividad diaria para usuario {user.id}: {e}")

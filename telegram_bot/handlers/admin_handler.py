@@ -335,8 +335,9 @@ class AdminHandler:
             fallbacks=[
                 CallbackQueryHandler(self.back_to_menu, pattern="^admin_menu$"),
             ],
-            per_message=True,
+            per_message=False,  # ← CAMBIO: era True
             per_chat=True,
+            per_user=True,      # ← AÑADIDO: para tracking por usuario
         )
 
 def get_admin_handler(admin_service: AdminService) -> ConversationHandler:

@@ -1,9 +1,23 @@
 from application.services.vpn_service import VpnService
 from telegram.ext import ContextTypes
 from loguru import logger
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 from domain.entities.vpn_key import VpnKey
+
+
+def _normalize_datetime(dt: datetime) -> datetime:
+    """
+    Normaliza un datetime a naive (sin timezone) para comparaciones consistentes.
+    Si tiene timezone, convierte a UTC y quita el tzinfo.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        # Convertir a UTC y luego quitar timezone
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
 
 async def key_cleanup_job(context: ContextTypes.DEFAULT_TYPE):
     """
@@ -37,15 +51,20 @@ async def cleanup_inactive_keys(vpn_service: VpnService, keys: List[VpnKey]):
     """
     Desactiva llaves que no han sido usadas en los últimos 90 días.
     """
-    inactive_threshold = datetime.now().replace(tzinfo=None) - timedelta(days=90)
+    # Usar datetime.utcnow() para consistencia (siempre naive UTC)
+    now_naive = datetime.utcnow()
+    inactive_threshold = now_naive - timedelta(days=90)
     deactivated_count = 0
 
     for key in keys:
-        if key.last_seen_at and key.last_seen_at < inactive_threshold:
-            # Desactivar la llave
-            if await vpn_service.deactivate_inactive_key(key.id):
-                deactivated_count += 1
-                logger.info(f"🔒 Llave {key.id} desactivada por inactividad (última actividad: {key.last_seen_at})")
+        if key.last_seen_at:
+            # Normalizar la fecha de la llave antes de comparar
+            last_seen_naive = _normalize_datetime(key.last_seen_at)
+            if last_seen_naive and last_seen_naive < inactive_threshold:
+                # Desactivar la llave
+                if await vpn_service.deactivate_inactive_key(key.id):
+                    deactivated_count += 1
+                    logger.info(f"🔒 Llave {key.id} desactivada por inactividad (última actividad: {key.last_seen_at})")
 
     logger.info(f"🗑️ {deactivated_count} llaves desactivadas por inactividad.")
 
