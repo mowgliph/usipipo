@@ -43,6 +43,7 @@ from application.services.support_service import SupportService
 from application.services.referral_service import ReferralService
 from application.services.payment_service import PaymentService
 from application.services.achievement_service import AchievementService
+from application.services.admin_service import AdminService
 
 
 class SessionManager:
@@ -164,8 +165,15 @@ def get_container() -> punq.Container:
     
     def create_achievement_service() -> AchievementService:
         return AchievementService(
-            achievement_repo=create_achievement_repo(),
-            user_stats_repo=create_user_stats_repo()
+            achievement_repository=create_achievement_repo(),
+            user_stats_repository=create_user_stats_repo()
+        )
+    
+    def create_admin_service() -> AdminService:
+        return AdminService(
+            key_repository=create_key_repo(),
+            user_repository=create_user_repo(),
+            payment_repository=create_transaction_repo()
         )
     
     container.register(VpnService, factory=create_vpn_service)
@@ -173,6 +181,7 @@ def get_container() -> punq.Container:
     container.register(ReferralService, factory=create_referral_service)
     container.register(PaymentService, factory=create_payment_service)
     container.register(AchievementService, factory=create_achievement_service)
+    container.register(AdminService, factory=create_admin_service)
 
     logger.debug("✅ Contenedor de dependencias configurado")
     

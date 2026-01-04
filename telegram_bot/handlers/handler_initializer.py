@@ -26,8 +26,8 @@ from telegram_bot.handlers.achievement_handler import (
 )
 from utils.bot_logger import get_logger
 from application.services.game_service import GameService
-from application.services.admin_service import AdminService
 from application.services.achievement_service import AchievementService
+from application.services.admin_service import AdminService
 
 def initialize_handlers(vpn_service, support_service, referral_service, payment_service, achievement_service=None):
     """
@@ -44,11 +44,13 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         Lista de handlers para registrar en la aplicación.
     """
     handlers = []
+    
+    # Obtener contenedor de dependencias
+    from application.services.common.container import get_container
+    container = get_container()
 
     # Si no se proporciona achievement_service, obtenerlo del contenedor
     if achievement_service is None:
-        from application.services.common.container import get_container
-        container = get_container()
         achievement_service = container.resolve(AchievementService)
 
     # Comando /start y botón de registro
@@ -136,11 +138,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     handlers.extend(get_support_menu_handler(support_service))
 
     # Sistema de Administración (solo para admin)
-    admin_service = AdminService(
-        key_repository=vpn_service.key_repo,
-        user_repository=vpn_service.user_repo,
-        payment_repository=payment_service.transaction_repo
-    )
+    admin_service = container.resolve(AdminService)
     handlers.append(get_admin_handler(admin_service))
 
     return handlers

@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from application.services.vpn_service import VpnService
+from application.services.achievement_service import AchievementService
 from telegram_bot.messages import Messages
 from telegram_bot.keyboard import Keyboards
 from config import settings
@@ -34,12 +35,10 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
             
             # Inicializar logros para nuevo usuario
             try:
-                from application.services.achievement_service import AchievementService
-                from infrastructure.persistence.supabase.achievement_repository import AchievementRepository, UserStatsRepository
+                from application.services.common.container import get_container
                 
-                achievement_repository = AchievementRepository(vpn_service.db_session)
-                user_stats_repository = UserStatsRepository(vpn_service.db_session)
-                achievement_service = AchievementService(achievement_repository, user_stats_repository)
+                container = get_container()
+                achievement_service = container.resolve(AchievementService)
                 
                 await achievement_service.initialize_user_achievements(user.id)
                 logger.info(f"Logros inicializados para nuevo usuario {user.id}")
@@ -49,13 +48,10 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
         else:
             # Usuario existente - actualizar actividad diaria
             try:
-                from application.services.achievement_service import AchievementService
-                from infrastructure.persistence.supabase.achievement_repository import AchievementRepository, UserStatsRepository
-                from domain.entities.achievement import AchievementType
+                from application.services.common.container import get_container
                 
-                achievement_repository = AchievementRepository(vpn_service.db_session)
-                user_stats_repository = UserStatsRepository(vpn_service.db_session)
-                achievement_service = AchievementService(achievement_repository, user_stats_repository)
+                container = get_container()
+                achievement_service = container.resolve(AchievementService)
                 
                 # CORREGIDO: user.id en lugar de user_id (variable no definida)
                 await achievement_service.update_user_stats(user.id, {'daily_activity': True})
