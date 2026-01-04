@@ -83,14 +83,15 @@ class Keyboards:
         """Genera el teclado inline del menú de operaciones para edición de mensajes."""
         keyboard = [
             [
-                InlineKeyboardButton("💰 Mi Balance", callback_data="balance_menu"),
-                InlineKeyboardButton("👑 Plan VIP", callback_data="vip_menu")
+                InlineKeyboardButton("💰 Mi Balance", callback_data="my_balance"),
+                InlineKeyboardButton("⭐ Recargar Saldo", callback_data="deposit_stars")
             ],
             [
-                InlineKeyboardButton("🎮 Juega y Gana", callback_data="games_menu"),
-                InlineKeyboardButton("👥 Referidos", callback_data="referrals_menu")
+                InlineKeyboardButton("👑 Plan VIP", callback_data="vip_plan"),
+                InlineKeyboardButton("🎮 Juega y Gana", callback_data="games_menu")
             ],
             [
+                InlineKeyboardButton("👥 Referidos", callback_data="referrals_menu"),
                 InlineKeyboardButton("🎫 Soporte", callback_data="support_menu")
             ],
             [

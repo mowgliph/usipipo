@@ -1,5 +1,5 @@
-from telegram import Update
-from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
+from telegram import Update, LabeledPrice
+from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, filters, PreCheckoutQueryHandler
 from loguru import logger
 
 from application.services.referral_service import ReferralService
@@ -61,27 +61,173 @@ class PaymentHandler:
             )
 
     async def deposit_instructions_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Muestra las instrucciones para recargar estrellas."""
+        """Inicia el proceso de recarga de estrellas."""
         query = update.callback_query
         await query.answer()
 
         await query.edit_message_text(
-            text=Messages.Operations.DEPOSIT_INSTRUCTIONS,
-            reply_markup=Keyboards.operations_menu_inline(),
+            text="⭐ **Recargar Saldo**\n\n¿Cuántas estrellas deseas recargar?\n\nEnvía un número entre 1 y 1000.",
+            reply_markup=None,
             parse_mode="Markdown"
         )
+        return DEPOSIT_AMOUNT
 
-    async def star_payments_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Maneja pagos exitosos con estrellas de Telegram."""
-        # Este handler se activaría cuando Telegram confirme un pago
-        # Por ahora, es un placeholder para futuras implementaciones
-        query = update.callback_query
-        await query.answer()
+    async def deposit_amount_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Procesa la cantidad de estrellas a recargar y crea la factura."""
+        try:
+            amount = int(update.message.text.strip())
+            if amount < 1 or amount > 1000:
+                await update.message.reply_text(
+                    "❌ Cantidad inválida. Debe ser entre 1 y 1000 estrellas.\n\nIntenta de nuevo:",
+                    parse_mode="Markdown"
+                )
+                return DEPOSIT_AMOUNT
 
-        await query.edit_message_text(
-            text="💰 Función de pagos con estrellas próximamente disponible.",
-            reply_markup=Keyboards.operations_menu_inline()
-        )
+            telegram_id = update.effective_user.id
+
+            # Crear la factura usando Telegram Stars
+            prices = [LabeledPrice(label=f"Recarga de {amount} estrellas", amount=amount)]
+            await update.message.reply_invoice(
+                title=f"Recarga de {amount} Estrellas",
+                description=f"Recarga tu saldo con {amount} estrellas de Telegram.",
+                payload=f"deposit_{telegram_id}_{amount}",
+                provider_token="",  # Para Telegram Stars, dejar vacío
+                currency="XTR",  # Moneda para estrellas
+                prices=prices,
+                start_parameter="deposit"
+            )
+
+            return ConversationHandler.END
+
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Por favor, envía un número válido.\n\nIntenta de nuevo:",
+                parse_mode="Markdown"
+            )
+            return DEPOSIT_AMOUNT
+        except Exception as e:
+            logger.error(f"Error in deposit_amount_handler: {e}")
+            await update.message.reply_text(
+                text=Messages.Errors.GENERIC.format(error=str(e)),
+                parse_mode="Markdown"
+            )
+            return ConversationHandler.END
+
+    async def pre_checkout_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja la consulta de pre-checkout para aprobar el pago."""
+        query = update.pre_checkout_query
+        await query.answer(ok=True)
+
+    async def successful_payment_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja pagos exitosos con estrellas y actualiza el balance o activa VIP."""
+        payment = update.message.successful_payment
+
+        # Extraer información del payload
+        payload_parts = payment.invoice_payload.split('_')
+        if len(payload_parts) == 3 and payload_parts[0] == 'deposit':
+            telegram_id = int(payload_parts[1])
+            amount = int(payload_parts[2])
+
+            try:
+                # Actualizar balance del usuario
+                success = await self.payment_service.update_balance(
+                    telegram_id=telegram_id,
+                    amount=amount,
+                    transaction_type="deposit",
+                    description=f"Recarga de {amount} estrellas",
+                    telegram_payment_id=payment.telegram_payment_charge_id
+                )
+
+                if success:
+                    # Aplicar comisión de referido si aplica
+                    await self.payment_service.apply_referral_commission(telegram_id, amount)
+
+                    await update.message.reply_text(
+                        f"✅ **Pago exitoso**\n\nTu saldo ha sido recargado con **{amount}** ⭐\n\nSaldo actualizado al instante.",
+                        parse_mode="Markdown"
+                    )
+                else:
+                    logger.error(f"Failed to update balance for user {telegram_id} after payment")
+                    await update.message.reply_text(
+                        "❌ Error al procesar el pago. Contacta a soporte.",
+                        parse_mode="Markdown"
+                    )
+
+            except Exception as e:
+                logger.error(f"Error processing successful payment: {e}")
+                await update.message.reply_text(
+                    text=Messages.Errors.GENERIC.format(error=str(e)),
+                    parse_mode="Markdown"
+                )
+        elif len(payload_parts) == 3 and payload_parts[0] == 'vip':
+            telegram_id = int(payload_parts[1])
+            months = int(payload_parts[2])
+
+            # Determine cost based on months
+            if months == 1:
+                cost = 10
+            elif months == 3:
+                cost = 27
+            elif months == 6:
+                cost = 50
+            elif months == 12:
+                cost = 90
+            else:
+                logger.warning(f"Invalid months in VIP payment payload: {payment.invoice_payload}")
+                await update.message.reply_text(
+                    "❌ Error en el pago VIP. Contacta a soporte.",
+                    parse_mode="Markdown"
+                )
+                return
+
+            try:
+                user_status = await self.vpn_service.get_user_status(telegram_id)
+                user = user_status["user"]
+                if not user:
+                    raise Exception("Usuario no encontrado")
+
+                # Upgrade to VIP
+                success = await self.vpn_service.upgrade_to_vip(user, months)
+                if not success:
+                    raise Exception("Error al procesar el upgrade VIP")
+
+                # Record transaction (no balance deduction since paid via invoice)
+                success = await self.payment_service.update_balance(
+                    telegram_id=telegram_id,
+                    amount=-cost,
+                    transaction_type="vip_purchase",
+                    description=f"Compra de plan VIP {months} meses",
+                    reference_id=f"vip_{months}m_{telegram_id}",
+                    telegram_payment_id=payment.telegram_payment_charge_id
+                )
+                if not success:
+                    logger.error("Failed to record VIP purchase transaction")
+
+                # Apply referral commission if applicable
+                await self.payment_service.apply_referral_commission(telegram_id, cost)
+
+                expiry_date = user.vip_expires_at.strftime("%d/%m/%Y") if user.vip_expires_at else "N/A"
+
+                text = Messages.Operations.VIP_PURCHASE_SUCCESS.format(
+                    expiry_date=expiry_date,
+                    max_keys=settings.VIP_PLAN_MAX_KEYS,
+                    data_limit=settings.VIP_PLAN_DATA_LIMIT_GB
+                )
+
+                await update.message.reply_text(
+                    text=text,
+                    parse_mode="Markdown"
+                )
+
+            except Exception as e:
+                logger.error(f"Error processing VIP payment: {e}")
+                await update.message.reply_text(
+                    text=Messages.Errors.GENERIC.format(error=str(e)),
+                    parse_mode="Markdown"
+                )
+        else:
+            logger.warning(f"Invalid payment payload: {payment.invoice_payload}")
+
 
     async def vip_plans_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra los planes VIP disponibles."""
@@ -101,7 +247,7 @@ class PaymentHandler:
         )
 
     async def vip_purchase_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Procesa la compra de un plan VIP."""
+        """Procesa la compra de un plan VIP creando una factura de estrellas."""
         query = update.callback_query
         await query.answer()
 
@@ -129,51 +275,16 @@ class PaymentHandler:
             return
 
         try:
-            user_status = await self.vpn_service.get_user_status(telegram_id)
-            user = user_status["user"]
-            if not user:
-                raise Exception("Usuario no encontrado")
-
-            await query.edit_message_text(
-                text=Messages.Errors.INSUFFICIENT_BALANCE.format(
-                    required=cost,
-                    current=user.balance_stars
-                ),
-                reply_markup=Keyboards.operations_menu_inline()
-            )
-
-            # Upgrade to VIP first
-            success = await self.vpn_service.upgrade_to_vip(user, months)
-            if not success:
-                raise Exception("Error al procesar el upgrade VIP")
-
-            # Deduct balance and record transaction
-            success = await self.payment_service.update_balance(
-                telegram_id=telegram_id,
-                amount=-cost,
-                transaction_type="vip_purchase",
-                description=f"Compra de plan VIP {months} meses",
-                reference_id=f"vip_{months}m_{telegram_id}"
-            )
-            if not success:
-                # If payment failed, we should ideally rollback VIP, but for now just log
-                logger.error("Failed to deduct balance for VIP purchase")
-
-            # Apply referral commission if applicable
-            await self.payment_service.apply_referral_commission(telegram_id, cost)
-
-            expiry_date = user.vip_expires_at.strftime("%d/%m/%Y") if user.vip_expires_at else "N/A"
-
-            text = Messages.Operations.VIP_PURCHASE_SUCCESS.format(
-                expiry_date=expiry_date,
-                max_keys=settings.VIP_PLAN_MAX_KEYS,
-                data_limit=settings.VIP_PLAN_DATA_LIMIT_GB
-            )
-
-            await query.edit_message_text(
-                text=text,
-                reply_markup=Keyboards.operations_menu_inline(),
-                parse_mode="Markdown"
+            # Crear la factura usando Telegram Stars
+            prices = [LabeledPrice(label=f"Plan VIP {months} meses", amount=cost)]
+            await query.message.reply_invoice(
+                title=f"Plan VIP {months} Meses",
+                description=f"Activa tu plan VIP por {months} meses con {cost} estrellas.",
+                payload=f"vip_{telegram_id}_{months}",
+                provider_token="",  # Para Telegram Stars, dejar vacío
+                currency="XTR",  # Moneda para estrellas
+                prices=prices,
+                start_parameter="vip_purchase"
             )
 
         except Exception as e:
@@ -198,16 +309,28 @@ class PaymentHandler:
                 lambda u, c: self.balance_display_handler(u, c),
                 pattern="^my_balance$"
             ),
-            CallbackQueryHandler(
-                lambda u, c: self.deposit_instructions_handler(u, c),
-                pattern="^deposit_stars$"
+
+            # Conversation handler para depósito de estrellas
+            ConversationHandler(
+                entry_points=[
+                    CallbackQueryHandler(
+                        lambda u, c: self.deposit_instructions_handler(u, c),
+                        pattern="^deposit_stars$"
+                    )
+                ],
+                states={
+                    DEPOSIT_AMOUNT: [
+                        MessageHandler(filters.TEXT & ~filters.COMMAND, self.deposit_amount_handler)
+                    ]
+                },
+                fallbacks=[]
             ),
 
-            # Handler para pagos con estrellas
-            CallbackQueryHandler(
-                lambda u, c: self.star_payments_handler(u, c),
-                pattern="^star_payments$"
-            ),
+            # Handler para pre-checkout
+            PreCheckoutQueryHandler(self.pre_checkout_handler),
+
+            # Handler para pagos exitosos
+            MessageHandler(filters.SUCCESSFUL_PAYMENT, self.successful_payment_handler),
 
             # Handlers para planes VIP
             CallbackQueryHandler(
