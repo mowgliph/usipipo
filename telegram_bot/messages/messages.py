@@ -319,12 +319,12 @@ class Messages:
         )
         
         SHARE_REFERRAL = (
-            "🌐 **uSipipo VPN** — Internet sin límites\n\n"
+            "🌐 <b>uSipipo VPN</b> — Internet sin límites\n\n"
             "Te invito a usar mi VPN privada:\n\n"
             "✅ WireGuard + Outline\n"
             "✅ Sin registros\n"
             "✅ Alta velocidad\n\n"
-            "👉 Usa mi código: **{referral_code}**\n"
+            "👉 Usa mi código: <code>{referral_code}</code>\n"
             "🔗 https://t.me/{bot_username}?start={referral_code}"
         )
 

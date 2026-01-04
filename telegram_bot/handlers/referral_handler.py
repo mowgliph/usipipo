@@ -155,8 +155,8 @@ class ReferralHandler:
         try:
             referral_code = await self.referral_service.get_referral_code(telegram_id)
 
-            # Escape markdown special characters in referral_code
-            escaped_referral_code = self._escape_markdown(referral_code)
+            # Escape HTML special characters in referral_code
+            escaped_referral_code = self._escape_html(referral_code)
 
             text = Messages.Operations.SHARE_REFERRAL.format(
                 referral_code=escaped_referral_code,
@@ -166,7 +166,7 @@ class ReferralHandler:
             await query.edit_message_text(
                 text=text,
                 reply_markup=Keyboards.referral_actions(),
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
 
         except Exception as e:
@@ -228,12 +228,14 @@ class ReferralHandler:
         import uuid
         return str(uuid.uuid4())[:8].upper()
 
-    def _escape_markdown(self, text: str) -> str:
-        """Escape markdown special characters."""
-        special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-        for char in special_chars:
-            text = text.replace(char, f'\\{char}')
-        return text
+    def _escape_html(self, text: str) -> str:
+        """Escape HTML special characters."""
+        return (text
+                .replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+                .replace('"', '&quot;')
+                .replace("'", '&#39;'))
 
     def get_handlers(self):
         """Retorna la lista de handlers para el sistema de referidos."""
