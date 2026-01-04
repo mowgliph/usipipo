@@ -4,7 +4,7 @@ from loguru import logger
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.keyboard import Keyboards
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 
 async def list_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """
@@ -20,7 +20,7 @@ async def list_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         if not keys:
             await update.message.reply_text(
                 text=Messages.Keys.NO_KEYS,
-                reply_markup=Keyboards.main_menu()
+                reply_markup=InlineKeyboards.main_menu()
             )
             return
 
@@ -42,7 +42,7 @@ async def list_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             
             await update.message.reply_text(
                 text=text,
-                reply_markup=Keyboards.key_management(str(key.id)),
+                reply_markup=InlineKeyboards.key_management(str(key.id)),
                 parse_mode="Markdown"
             )
             
@@ -63,7 +63,7 @@ async def delete_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     if data.startswith("delete_confirm_"):
         key_id = data.replace("delete_confirm_", "")
         await query.edit_message_reply_markup(
-            reply_markup=Keyboards.confirm_delete(key_id)
+            reply_markup=InlineKeyboards.confirm_delete(key_id)
         )
 
     # 2. Ejecutar la eliminación real

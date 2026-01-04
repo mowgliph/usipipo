@@ -12,7 +12,7 @@ from loguru import logger
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.keyboard import Keyboards
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 from utils.qr_generator import QrGenerator
 
 # Estados de la conversación
@@ -22,7 +22,7 @@ async def start_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Inicia el flujo de creación preguntando el tipo de VPN."""
     await update.message.reply_text(
         text=Messages.Keys.SELECT_TYPE,
-        reply_markup=Keyboards.vpn_types(),
+        reply_markup=InlineKeyboards.vpn_types(),
         parse_mode="Markdown"
     )
     return SELECT_TYPE
@@ -77,7 +77,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                     photo=photo, 
                     caption=caption, 
                     parse_mode="MarkdownV2",
-                    reply_markup=Keyboards.main_menu()
+                    reply_markup=InlineKeyboards.main_menu()
                 )
 
         elif key_type == "wireguard":
@@ -100,7 +100,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                     document=document, 
                     filename=f"{key_name}.conf",
                     caption="📄 Configuración de WireGuard",
-                    reply_markup=Keyboards.main_menu()
+                    reply_markup=InlineKeyboards.main_menu()
                 )
 
         await loading_msg.delete()
@@ -112,7 +112,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
             await loading_msg.delete()
         await update.message.reply_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=Keyboards.main_menu()
+            reply_markup=InlineKeyboards.main_menu()
         )
     
     return ConversationHandler.END
@@ -121,7 +121,7 @@ async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancela la conversación."""
     await update.message.reply_text(
         "❌ Operación cancelada.",
-        reply_markup=Keyboards.main_menu()
+        reply_markup=InlineKeyboards.main_menu()
     )
     return ConversationHandler.END
 

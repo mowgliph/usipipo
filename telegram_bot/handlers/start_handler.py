@@ -6,6 +6,7 @@ from telegram_bot.messages import Messages
 from telegram_bot.keyboard import InlineKeyboards, Keyboards
 from config import settings
 from loguru import logger
+from telegram import ReplyKeyboardRemove
 
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
@@ -62,20 +63,20 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
             
             welcome_message = Messages.Welcome.EXISTING_USER.format(name=user.first_name)
         
-        # Enviar mensaje de bienvenida con menú principal
-        # Si es admin, mostrar menú con acceso de administración
-        if user.id == int(settings.ADMIN_ID):
-            await update.message.reply_text(
-                text=welcome_message,
-                reply_markup=InlineKeyboards.admin_main_menu(),
-                parse_mode="Markdown"
-            )
-        else:
-            await update.message.reply_text(
-                text=welcome_message,
-                reply_markup=InlineKeyboards.main_menu(),
-                parse_mode="Markdown"
-            )
+        # Enviar mensaje de bienvenida con botón de respaldo
+        # Primero limpiar cualquier menú keyboard antiguo y luego mostrar el botón "📋 Mostrar Menú"
+        await update.message.reply_text(
+            text=welcome_message,
+            reply_markup=ReplyKeyboardRemove(),
+            parse_mode="Markdown"
+        )
+        
+        # Enviar segundo mensaje con el botón de respaldo
+        await update.message.reply_text(
+            text="📋 Presiona el botón para mostrar el menú principal:",
+            reply_markup=Keyboards.show_menu_button()
+        )
+        
             
     except Exception as e:
         logger.error(f"Error en start_handler: {e}")

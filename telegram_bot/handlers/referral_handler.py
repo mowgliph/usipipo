@@ -5,7 +5,7 @@ from loguru import logger
 from application.services.referral_service import ReferralService
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.keyboard import Keyboards
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 
 # Estados de conversación para aplicar código de referido
 APPLY_REFERRAL = range(1)
@@ -22,7 +22,7 @@ class ReferralHandler:
 
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=Keyboards.operations_menu_inline(),
+            reply_markup=InlineKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
 
@@ -199,19 +199,19 @@ class ReferralHandler:
             if success:
                 await update.message.reply_text(
                     text="✅ ¡Código de referido aplicado exitosamente!\n\nAhora ganarás estrellas cuando hagas depósitos.",
-                    reply_markup=Keyboards.main_menu()
+                    reply_markup=InlineKeyboards.main_menu()
                 )
             else:
                 await update.message.reply_text(
                     text=Messages.Errors.REFERRAL_CODE_INVALID.format(code=referral_code),
-                    reply_markup=Keyboards.main_menu()
+                    reply_markup=InlineKeyboards.main_menu()
                 )
 
         except Exception as e:
             logger.error(f"Error applying referral code: {e}")
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.main_menu()
+                reply_markup=InlineKeyboards.main_menu()
             )
 
         return ConversationHandler.END
@@ -220,7 +220,7 @@ class ReferralHandler:
         """Cancela la aplicación de código de referido."""
         await update.message.reply_text(
             "❌ Operación cancelada.",
-            reply_markup=Keyboards.main_menu()
+            reply_markup=InlineKeyboards.main_menu()
         )
         return ConversationHandler.END
 

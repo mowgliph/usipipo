@@ -5,7 +5,7 @@ from loguru import logger
 
 from application.services.support_service import SupportService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.keyboard import Keyboards
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 
 # Estado de la conversación
 CHATTING = 1
@@ -26,7 +26,7 @@ async def start_support(update: Update, context: ContextTypes.DEFAULT_TYPE, supp
         
         await update.message.reply_text(
             text=Messages.Support.OPEN_TICKET,
-            reply_markup=Keyboards.support_menu(),
+            reply_markup=InlineKeyboards.support_active(),
             parse_mode="Markdown"
         )
         return CHATTING
@@ -67,7 +67,7 @@ async def close_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE, suppo
         
         await update.message.reply_text(
             text=Messages.Support.TICKET_CLOSED,
-            reply_markup=Keyboards.main_menu()
+            reply_markup=InlineKeyboards.main_menu()
         )
         
         # Notificar al admin
