@@ -3,6 +3,7 @@ from telegram.ext import CommandHandler, MessageHandler, filters, CallbackQueryH
 
 from config import settings
 from telegram_bot.keyboard.keyboard import Keyboards
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
 from telegram_bot.messages.messages import Messages
 
 # Importación de Handlers
@@ -24,6 +25,7 @@ from telegram_bot.handlers.achievement_handler import (
     achievements_category_handler, achievements_next_handler, achievements_rewards_handler,
     claim_reward_handler, achievements_leaderboard_handler, leaderboard_category_handler
 )
+from telegram_bot.handlers.inline_callbacks_handler import get_inline_callback_handlers
 from utils.bot_logger import get_logger
 from application.services.game_service import GameService
 from application.services.achievement_service import AchievementService
@@ -73,7 +75,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=Keyboards.operations_menu_inline(),
+            reply_markup=InlineKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
 
@@ -96,7 +98,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             
             await update.message.reply_text(
                 text=text,
-                reply_markup=Keyboards.operations_menu(),
+                reply_markup=InlineKeyboards.operations_menu(),
                 parse_mode="Markdown"
             )
         except Exception as e:
@@ -104,7 +106,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             logger.error(f"Error in mi_balance_handler: {e}")
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.operations_menu()
+                reply_markup=InlineKeyboards.operations_menu()
             )
 
     async def plan_vip_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -117,7 +119,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
         await update.message.reply_text(
             text=text,
-            reply_markup=Keyboards.vip_plans(),
+            reply_markup=InlineKeyboards.vip_plans(),
             parse_mode="Markdown"
         )
 
@@ -171,7 +173,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             from telegram_bot.messages.game_messages import GameMessages
             await update.message.reply_text(
                 f"{GameMessages.MENU}\n\n{status_text}",
-                reply_markup=reply_markup,
+                reply_markup=InlineKeyboards.games_menu(),
                 parse_mode="Markdown"
             )
         except Exception as e:
@@ -179,7 +181,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             logger.error(f"Error in juega_y_gana_handler: {e}")
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.operations_menu()
+                reply_markup=InlineKeyboards.operations_menu()
             )
 
     async def referidos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -198,7 +200,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             
             await update.message.reply_text(
                 text=text,
-                reply_markup=Keyboards.referral_actions(),
+                reply_markup=InlineKeyboards.referral_actions(),
                 parse_mode="Markdown"
             )
         except Exception as e:
@@ -206,14 +208,14 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             logger.log_error(e, context="referidos_handler", user_id=user_id)
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.operations_menu()
+                reply_markup=InlineKeyboards.operations_menu()
             )
 
     async def atras_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para el botón 'Atrás' en el menú de operaciones."""
         await update.message.reply_text(
             text="👇 Menú Principal",
-            reply_markup=Keyboards.main_menu()
+            reply_markup=InlineKeyboards.main_menu()
         )
 
     handlers.append(MessageHandler(filters.Regex("^💰 Mi Balance$"), mi_balance_handler))
@@ -230,7 +232,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=Keyboards.operations_menu_inline(),
+            reply_markup=InlineKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
 
@@ -297,5 +299,8 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     # Sistema de Administración (solo para admin)
     admin_service = container.resolve(AdminService)
     handlers.append(get_admin_handler(admin_service))
+
+    # Handlers para callbacks inline del nuevo sistema
+    handlers.extend(get_inline_callback_handlers(vpn_service, achievement_service))
 
     return handlers

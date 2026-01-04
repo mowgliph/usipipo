@@ -1,0 +1,201 @@
+"""
+Handlers para callbacks de teclados inline del bot uSipipo.
+
+Author: uSipipo Team
+Version: 2.0.0 - Sistema de teclados inline
+"""
+
+from telegram import Update
+from telegram.ext import ContextTypes, CallbackQueryHandler
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
+from telegram_bot.messages import Messages
+from loguru import logger
+
+
+async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para volver al menú principal."""
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        text="👇 Menú Principal",
+        reply_markup=InlineKeyboards.main_menu(),
+        parse_mode="Markdown"
+    )
+
+
+async def my_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service):
+    """Handler para mostrar las llaves del usuario."""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        user_id = update.effective_user.id
+        keys = await vpn_service.get_user_keys(user_id)
+        
+        if not keys:
+            text = "🔑 No tienes llaves VPN activas.\n\nUsa el botón '➕ Crear Nueva' para obtener tu primera llave."
+        else:
+            text = "🔑 **Tus Llaves VPN Activas:**\n\n"
+            for i, key in enumerate(keys, 1):
+                status = "✅ Activa" if key.is_active else "❌ Inactiva"
+                text += f"{i}. **{key.name}** - {status}\n"
+                text += f"   📅 Creada: {key.created_at.strftime('%d/%m/%Y')}\n"
+                text += f"   📊 Datos usados: {key.data_used_mb}MB\n\n"
+        
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboards.main_menu(),
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error en my_keys_handler: {e}")
+        await query.edit_message_text(
+            text=Messages.Errors.GENERIC.format(error=str(e)),
+            reply_markup=InlineKeyboards.main_menu()
+        )
+
+
+async def create_key_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para iniciar el proceso de creación de llave."""
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        text="🔑 **Selecciona el tipo de VPN:**",
+        reply_markup=InlineKeyboards.vpn_types(),
+        parse_mode="Markdown"
+    )
+
+
+async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service):
+    """Handler para mostrar el estado del usuario."""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        user_id = update.effective_user.id
+        user_status = await vpn_service.get_user_status(user_id)
+        user = user_status["user"]
+        
+        text = f"📊 **Estado de tu Cuenta:**\n\n"
+        text += f"👤 **Usuario:** {user.full_name or user.username or 'N/A'}\n"
+        text += f"⭐ **Balance:** {user.balance_stars} estrellas\n"
+        text += f"🔑 **Llaves Activas:** {user_status['active_keys']}\n"
+        text += f"📅 **Miembro desde:** {user.created_at.strftime('%d/%m/%Y')}\n"
+        
+        if user.is_vip:
+            text += f"👑 **Estado VIP:** Activo hasta {user.vip_expires.strftime('%d/%m/%Y')}\n"
+        
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboards.main_menu(),
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error en status_handler: {e}")
+        await query.edit_message_text(
+            text=Messages.Errors.GENERIC.format(error=str(e)),
+            reply_markup=InlineKeyboards.main_menu()
+        )
+
+
+async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para mostrar el menú de operaciones."""
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        text=Messages.Operations.MENU_TITLE,
+        reply_markup=InlineKeyboards.operations_menu(),
+        parse_mode="Markdown"
+    )
+
+
+async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, achievement_service):
+    """Handler para mostrar el menú de logros."""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        user_id = update.effective_user.id
+        user_achievements = await achievement_service.get_user_achievements(user_id)
+        
+        text = "🏆 **Sistema de Logros**\n\n"
+        text += f"📊 **Progreso General:** {user_achievements['total_unlocked']}/{user_achievements['total_achievements']} logros desbloqueados\n"
+        text += f"⭐ **Puntos de Logro:** {user_achievements['achievement_points']}\n"
+        text += f"🎁 **Recompensas Pendientes:** {len(user_achievements['pending_rewards'])}\n\n"
+        text += "Selecciona una opción para ver más detalles:"
+        
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboards.achievements_menu(),
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error en achievements_handler: {e}")
+        await query.edit_message_text(
+            text=Messages.Errors.GENERIC.format(error=str(e)),
+            reply_markup=InlineKeyboards.main_menu()
+        )
+
+
+async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para mostrar el menú de ayuda."""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "⚙️ **Centro de Ayuda**\n\n"
+    text += "¿En qué podemos ayudarte?\n\n"
+    text += "Selecciona una opción:"
+    
+    await query.edit_message_text(
+        text=text,
+        reply_markup=InlineKeyboards.help_menu(),
+        parse_mode="Markdown"
+    )
+
+
+async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para el menú de administración."""
+    query = update.callback_query
+    await query.answer()
+    
+    # Verificar si es admin
+    from config import settings
+    if update.effective_user.id != int(settings.ADMIN_ID):
+        await query.edit_message_text(
+            text="🚫 **Acceso Denegado**\n\nNo tienes permisos de administración.",
+            reply_markup=InlineKeyboards.main_menu()
+        )
+        return
+    
+    text = "🔧 **Panel de Administración**\n\n"
+    text += "Selecciona una opción para gestionar el sistema:"
+    
+    await query.edit_message_text(
+        text=text,
+        reply_markup=InlineAdminKeyboards.main_menu(),
+        parse_mode="Markdown"
+    )
+
+
+# Función para registrar todos los handlers de callbacks inline
+def get_inline_callback_handlers(vpn_service=None, achievement_service=None):
+    """Retorna una lista de handlers para callbacks inline."""
+    handlers = []
+    
+    # Navegación principal
+    handlers.append(CallbackQueryHandler(main_menu_handler, pattern="^main_menu$"))
+    handlers.append(CallbackQueryHandler(lambda u, c: my_keys_handler(u, c, vpn_service), pattern="^my_keys$"))
+    handlers.append(CallbackQueryHandler(create_key_handler, pattern="^create_key$"))
+    handlers.append(CallbackQueryHandler(lambda u, c: status_handler(u, c, vpn_service), pattern="^status$"))
+    handlers.append(CallbackQueryHandler(operations_handler, pattern="^operations$"))
+    handlers.append(CallbackQueryHandler(lambda u, c: achievements_handler(u, c, achievement_service), pattern="^achievements$"))
+    handlers.append(CallbackQueryHandler(help_handler, pattern="^help$"))
+    handlers.append(CallbackQueryHandler(admin_handler, pattern="^admin$"))
+    
+    return handlers
