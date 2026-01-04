@@ -41,7 +41,7 @@ async def my_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vp
                 status = "✅ Activa" if key.is_active else "❌ Inactiva"
                 text += f"{i}. **{key.name}** - {status}\n"
                 text += f"   📅 Creada: {key.created_at.strftime('%d/%m/%Y')}\n"
-                text += f"   📊 Datos usados: {key.data_used_mb}MB\n\n"
+                text += f"   📊 Datos usados: {key.used_mb:.1f}MB\n\n"
         
         await query.edit_message_text(
             text=text,
@@ -82,7 +82,7 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         text = f"📊 **Estado de tu Cuenta:**\n\n"
         text += f"👤 **Usuario:** {user.full_name or user.username or 'N/A'}\n"
         text += f"⭐ **Balance:** {user.balance_stars} estrellas\n"
-        text += f"🔑 **Llaves Activas:** {user_status['active_keys']}\n"
+        text += f"🔑 **Llaves Activas:** {user_status['keys_count']}\n"
         text += f"📅 **Miembro desde:** {user.created_at.strftime('%d/%m/%Y')}\n"
         
         if user.is_vip:
@@ -121,12 +121,12 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     
     try:
         user_id = update.effective_user.id
-        user_achievements = await achievement_service.get_user_achievements(user_id)
+        user_achievements = await achievement_service.get_user_summary(user_id)
         
         text = "🏆 **Sistema de Logros**\n\n"
-        text += f"📊 **Progreso General:** {user_achievements['total_unlocked']}/{user_achievements['total_achievements']} logros desbloqueados\n"
-        text += f"⭐ **Puntos de Logro:** {user_achievements['achievement_points']}\n"
-        text += f"🎁 **Recompensas Pendientes:** {len(user_achievements['pending_rewards'])}\n\n"
+        text += f"📊 **Progreso General:** {user_achievements['completed_achievements']}/{user_achievements['total_achievements']} logros desbloqueados\n"
+        text += f"⭐ **Puntos de Logro:** {user_achievements['total_reward_stars']}\n"
+        text += f"🎁 **Recompensas Pendientes:** {user_achievements['pending_rewards']}\n\n"
         text += "Selecciona una opción para ver más detalles:"
         
         await query.edit_message_text(
