@@ -68,11 +68,19 @@ def main():
         logger.error("❌ No se encontró el TELEGRAM_TOKEN en el archivo .env")
         sys.exit(1)
 
+    async def post_init_callback(app):
+        """Callback ejecutado después de inicializar la aplicación."""
+        await startup()
+
+    async def post_shutdown_callback(app):
+        """Callback ejecutado después de cerrar la aplicación."""
+        await shutdown()
+
     application = (
         ApplicationBuilder()
         .token(settings.TELEGRAM_TOKEN)
-        .post_init(lambda app: app.create_task(startup()))
-        .post_shutdown(lambda app: app.create_task(shutdown()))
+        .post_init(post_init_callback)
+        .post_shutdown(post_shutdown_callback)
         .build()
     )
 
