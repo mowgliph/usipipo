@@ -153,8 +153,7 @@ def get_container() -> punq.Container:
     
     def create_referral_service() -> ReferralService:
         return ReferralService(
-            user_repo=create_user_repo(),
-            transaction_repo=create_transaction_repo()
+            user_repo=create_user_repo()
         )
     
     def create_payment_service() -> PaymentService:
