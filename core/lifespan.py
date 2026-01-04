@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from loguru import logger
 from config import settings
+from infrastructure.persistence.database import close_database
 
 # Configuración inicial de Loguru
 logger.remove() # Quitar handler por defecto
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI):
     # ================= SHUTDOWN =================
     logger.info("🛑 Apagando sistema...")
     
+    await close_database()
     _cleanup_temp()
     
     logger.info("👋 Hasta luego.")
