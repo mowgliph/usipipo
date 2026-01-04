@@ -173,7 +173,8 @@ class ReferralHandler:
             logger.error(f"Error in share_referral_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.referral_actions()
+                reply_markup=Keyboards.referral_actions(),
+                parse_mode="HTML"
             )
 
     async def apply_referral_start_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

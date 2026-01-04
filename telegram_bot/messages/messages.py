@@ -180,9 +180,9 @@ class Messages:
 
     class Errors:
         """Mensajes de error."""
-        
+
         GENERIC = (
-            "❌ **Algo salió mal**\n\n"
+            "❌ <b>Algo salió mal</b>\n\n"
             "{error}\n\n"
             "Si persiste, contacta a soporte."
         )
