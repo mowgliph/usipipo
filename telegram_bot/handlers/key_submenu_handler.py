@@ -636,13 +636,14 @@ class KeySubmenuHandler:
                         chat_id=update.effective_chat.id,
                         document=f,
                         filename=f"{key_data['name']}_wireguard.conf",
-                        caption=f"📁 *Configuración WireGuard*\n\n🔑 *Llave:* {key_data['name']}\n🆔 *ID:* `{key_data['id']}`\n\n⚠️ *Guarda este archivo en un lugar seguro*"
+                        caption=f"📁 <b>Configuración WireGuard</b>\n\n🔑 <b>Llave:</b> {key_data['name']}\n🆔 <b>ID:</b> <code>{key_data['id']}</code>\n\n⚠️ <i>Guarda este archivo en un lugar seguro</i>",
+                    parse_mode="HTML"
                     )
                 
                 await query.edit_message_text(
-                    text="✅ *Configuración enviada*\n\n📁 Tu archivo de configuración WireGuard ha sido enviado correctamente.\n\n📋 *Instrucciones:*\n1. Descarga el archivo `.conf`\n2. Impórtalo en tu cliente WireGuard\n3. Conéctate y disfruta de tu VPN segura\n\n🔒 *Mantén tu archivo de configuración privado*",
+                    text="✅ <b>Configuración enviada</b>\n\n📁 Tu archivo de configuración WireGuard ha sido enviado correctamente.\n\n📋 <b>Instrucciones:</b>\n1. Descarga el archivo <code>.conf</code>\n2. Impórtalo en tu cliente WireGuard\n3. Conéctate y disfruta de tu VPN segura\n\n🔒 <i>Mantén tu archivo de configuración privado</i>",
                     reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
             
             finally:
