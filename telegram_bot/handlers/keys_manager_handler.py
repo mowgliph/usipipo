@@ -5,6 +5,7 @@ from loguru import logger
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from utils.spinner import with_spinner, vpn_spinner
 
 async def list_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """
@@ -38,20 +39,24 @@ async def delete_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     elif data.startswith("delete_execute_"):
         key_id = data.replace("delete_execute_", "")
         
-        try:
-            # El VpnService se encarga de borrar en la API (Outline/WG) y en DB
-            success = await vpn_service.revoke_key(key_id)
-            
-            if success:
-                await query.edit_message_text(
-                    text=f"{Messages.Keys.DELETED}\n\nLa configuración ha sido revocada del servidor.",
-                    reply_markup=None # Quitamos los botones
-                )
-            else:
-                await query.edit_message_text(text="❌ Error: La llave no pudo ser eliminada o ya no existe.")
-        except Exception as e:
-            logger.error(f"Error al ejecutar borrado: {e}")
-            await query.edit_message_text(text=Messages.Errors.GENERIC.format(error="No se pudo contactar con el servidor VPN"))
+        @vpn_spinner
+        async def execute_delete():
+            try:
+                # El VpnService se encarga de borrar en la API (Outline/WG) y en DB
+                success = await vpn_service.revoke_key(key_id)
+                
+                if success:
+                    await query.edit_message_text(
+                        text=f"{Messages.Keys.DELETED}\n\nLa configuración ha sido revocada del servidor.",
+                        reply_markup=None # Quitamos los botones
+                    )
+                else:
+                    await query.edit_message_text(text="❌ Error: La llave no pudo ser eliminada o ya no existe.")
+            except Exception as e:
+                logger.error(f"Error al ejecutar borrado: {e}")
+                await query.edit_message_text(text=Messages.Errors.GENERIC.format(error="No se pudo contactar con el servidor VPN"))
+        
+        await execute_delete()
 
     # 3. Cancelar la operación y volver al estado inicial del mensaje
     elif data == "cancel_delete":

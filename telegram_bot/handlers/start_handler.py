@@ -7,8 +7,10 @@ from telegram_bot.keyboard import InlineKeyboards, Keyboards
 from config import settings
 from loguru import logger
 from telegram import ReplyKeyboardRemove
+from utils.spinner import registration_spinner
 
 
+@registration_spinner
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """
     Maneja el comando /start y el registro de usuarios.

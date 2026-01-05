@@ -12,9 +12,11 @@ from application.services.achievement_service import AchievementService
 from telegram_bot.messages.achievement_messages import AchievementMessages
 from telegram_bot.keyboard import Keyboards
 from domain.entities.achievement import AchievementType
+from utils.spinner import with_spinner, database_spinner
 
 logger = logging.getLogger(__name__)
 
+@database_spinner
 async def achievements_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, achievement_service: AchievementService):
     """Maneja el menú principal de logros."""
     user_id = update.effective_user.id

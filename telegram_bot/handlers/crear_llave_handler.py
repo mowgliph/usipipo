@@ -14,6 +14,7 @@ from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 from utils.qr_generator import QrGenerator
+from utils.spinner import with_spinner, vpn_spinner
 
 # Estados de la conversación
 SELECT_TYPE, INPUT_NAME = range(2)
@@ -42,13 +43,12 @@ async def type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return INPUT_NAME
 
+@vpn_spinner
 async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """Finaliza la creación, genera archivos/QR y entrega al usuario."""
     key_name = update.message.text
     key_type = context.user_data.get("tmp_key_type")
     telegram_id = update.effective_user.id
-
-    loading_msg = await update.message.reply_text("⏳ Generando acceso seguro, por favor espera...")
 
     try:
         # 1. Crear llave mediante el Servicio de Aplicación
@@ -103,13 +103,10 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                     reply_markup=InlineKeyboards.main_menu()
                 )
 
-        await loading_msg.delete()
         logger.info(f"✅ Llave {key_type} creada para usuario {telegram_id}")
 
     except Exception as e:
         logger.error(f"❌ Error en creación de llave: {e}")
-        if loading_msg:
-            await loading_msg.delete()
         await update.message.reply_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
             reply_markup=InlineKeyboards.main_menu()
