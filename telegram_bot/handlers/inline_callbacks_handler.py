@@ -28,15 +28,12 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def create_key_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler para iniciar el proceso de creación de llave."""
-    query = update.callback_query
-    await query.answer()
-    
-    await query.edit_message_text(
-        text="🔑 **Selecciona el tipo de VPN:**",
-        reply_markup=InlineKeyboards.vpn_types(),
-        parse_mode="Markdown"
-    )
+    """
+    Handler DEPRECATED para iniciar el proceso de creación de llave.
+    Ahora manejado por el ConversationHandler en crear_llave_handler.py
+    """
+    # Este handler está obsoleto. El ConversationHandler maneja create_key directamente.
+    pass
 
 
 async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service):
@@ -170,7 +167,8 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None):
         lambda u, c: key_submenu_handler.show_key_submenu(u, c), 
         pattern="^my_keys$"
     ))
-    handlers.append(CallbackQueryHandler(create_key_handler, pattern="^create_key$"))
+    # DEPRECATED: create_key ahora manejado por ConversationHandler en crear_llave_handler.py
+    # handlers.append(CallbackQueryHandler(create_key_handler, pattern="^create_key$"))
     handlers.append(CallbackQueryHandler(lambda u, c: status_handler(u, c, vpn_service), pattern="^status$"))
     handlers.append(CallbackQueryHandler(operations_handler, pattern="^operations$"))
     handlers.append(CallbackQueryHandler(lambda u, c: achievements_handler(u, c, achievement_service), pattern="^achievements$"))

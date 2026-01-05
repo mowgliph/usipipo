@@ -11,10 +11,15 @@ from utils.spinner import registration_spinner
 
 
 @registration_spinner
-async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
+async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Maneja el comando /start y el registro de usuarios.
     """
+    # Obtener vpn_service del contenedor
+    from application.services.common.container import get_container
+    container = get_container()
+    vpn_service = container.resolve(VpnService)
+    
     user = update.effective_user
     chat_id = update.effective_chat.id
     

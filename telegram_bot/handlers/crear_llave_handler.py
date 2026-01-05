@@ -21,11 +21,22 @@ SELECT_TYPE, INPUT_NAME = range(2)
 
 async def start_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Inicia el flujo de creación preguntando el tipo de VPN."""
-    await update.message.reply_text(
-        text=Messages.Keys.SELECT_TYPE,
-        reply_markup=InlineKeyboards.vpn_types(),
-        parse_mode="Markdown"
-    )
+    # Manejar tanto Message como CallbackQuery
+    if hasattr(update, 'callback_query') and update.callback_query:
+        # Es un callback
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(
+            text=Messages.Keys.SELECT_TYPE,
+            reply_markup=InlineKeyboards.vpn_types(),
+            parse_mode="Markdown"
+        )
+    else:
+        # Es un mensaje directo
+        await update.message.reply_text(
+            text=Messages.Keys.SELECT_TYPE,
+            reply_markup=InlineKeyboards.vpn_types(),
+            parse_mode="Markdown"
+        )
     return SELECT_TYPE
 
 async def type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -125,7 +136,10 @@ async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_creation_handler(vpn_service: VpnService) -> ConversationHandler:
     """Configuración del ConversationHandler para ser registrado en main.py."""
     return ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^➕ Crear Nueva$"), start_creation)],
+        entry_points=[
+            MessageHandler(filters.Regex("^➕ Crear Nueva$"), start_creation),
+            CallbackQueryHandler(start_creation, pattern="^create_key$")
+        ],
         states={
             SELECT_TYPE: [CallbackQueryHandler(type_selected, pattern="^type_")],
             INPUT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, 

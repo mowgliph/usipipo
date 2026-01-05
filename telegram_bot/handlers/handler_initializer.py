@@ -57,7 +57,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         achievement_service = container.resolve(AchievementService)
 
     # Comando /start y botón de registro
-    handlers.append(CommandHandler("start", lambda u, c: start_handler(u, c, vpn_service)))
+    handlers.append(CommandHandler("start", start_handler))
 
     # Flujo de Creación de Llaves (ConversationHandler)
     handlers.append(get_creation_handler(vpn_service))
@@ -279,22 +279,31 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     async def show_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para el botón '📋 Mostrar Menú' del teclado de respaldo."""
         user = update.effective_user
+        logger = get_logger()
+        logger.info(f"Botón 'Mostrar Menú' presionado por usuario {user.id}")
         
-        # Determinar si es admin para mostrar el menú correspondiente
-        if user.id == int(settings.ADMIN_ID):
+        try:
+            # Determinar si es admin para mostrar el menú correspondiente
+            if user.id == int(settings.ADMIN_ID):
+                await update.message.reply_text(
+                    text="👇 Menú Principal (Admin)",
+                    reply_markup=InlineKeyboards.admin_main_menu(),
+                    parse_mode="Markdown"
+                )
+            else:
+                await update.message.reply_text(
+                    text="👇 Menú Principal",
+                    reply_markup=InlineKeyboards.main_menu(),
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error(f"Error en show_menu_handler: {e}")
             await update.message.reply_text(
-                text="👇 Menú Principal",
-                reply_markup=InlineKeyboards.admin_main_menu(),
-                parse_mode="Markdown"
-            )
-        else:
-            await update.message.reply_text(
-                text="👇 Menú Principal",
-                reply_markup=InlineKeyboards.main_menu(),
-                parse_mode="Markdown"
+                text="❌ Error al mostrar el menú. Por favor, intenta nuevamente.",
+                reply_markup=Keyboards.show_menu_button()
             )
 
-    handlers.append(MessageHandler(filters.Regex("^📋 Mostrar Menú$"), show_menu_handler))
+    handlers.append(MessageHandler(filters.Regex(r"^📋\s*Mostrar\s*Menú$"), show_menu_handler))
 
     # Soporte Directo Chat-to-Admin (ConversationHandler)
     handlers.append(get_support_handler(support_service))
