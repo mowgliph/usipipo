@@ -7,7 +7,7 @@ Version: 2.0.0 - Sistema de submenús para llaves
 """
 
 from telegram import Update
-from telegram.ext import ContextTypes, CallbackQueryHandler
+from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters
 from loguru import logger
 from typing import Dict, Any, List, Optional
 
@@ -514,7 +514,79 @@ class KeySubmenuHandler:
             pattern="^key_config_refresh_"
         ))
         
+        # Renombrar llaves
+        handlers.append(CallbackQueryHandler(
+            lambda u, c: self._handle_key_rename(u, c), 
+            pattern="^key_rename_"
+        ))
+        
         return handlers
+    
+    def get_message_handlers(self) -> List[MessageHandler]:
+        """
+        Retorna los handlers de mensajes para el submenu de llaves.
+        """
+        handlers = []
+        
+        # Handler para procesar el renombrado de llaves
+        handlers.append(MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            self._handle_rename_message
+        ))
+        
+        return handlers
+    
+    async def _handle_rename_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Maneja los mensajes de texto para el renombrado de llaves.
+        """
+        # Verificar si el usuario está en modo de renombrado
+        if 'renaming_key_id' not in context.user_data:
+            return  # No hacer nada si no se está renombrando
+        
+        key_id = context.user_data['renaming_key_id']
+        new_name = update.message.text.strip()
+        
+        # Validar el nuevo nombre
+        if len(new_name) < 3:
+            await update.message.reply_text(
+                "❌ El nombre debe tener al menos 3 caracteres.\n\nPor favor, intenta nuevamente:",
+                reply_markup=KeySubmenuKeyboards.key_rename(key_id)
+            )
+            return
+        
+        if len(new_name) > 30:
+            await update.message.reply_text(
+                "❌ El nombre no puede tener más de 30 caracteres.\n\nPor favor, intenta nuevamente:",
+                reply_markup=KeySubmenuKeyboards.key_rename(key_id)
+            )
+            return
+        
+        # Ejecutar el renombrado
+        try:
+            success = await self.vpn_service.rename_key(key_id, new_name)
+            
+            if success:
+                await update.message.reply_text(
+                    f"✅ **Llave renombrada exitosamente**\n\n🔑 **Nuevo nombre:** {new_name}\n🆔 **ID:** `{key_id}`",
+                    parse_mode="Markdown",
+                    reply_markup=KeySubmenuKeyboards.quick_actions()
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ No se pudo renombrar la llave. Por favor, intenta nuevamente más tarde.",
+                    reply_markup=KeySubmenuKeyboards.quick_actions()
+                )
+                
+        except Exception as e:
+            logger.error(f"Error al renombrar llave {key_id}: {e}")
+            await update.message.reply_text(
+                f"❌ Error al renombrar la llave: {str(e)}",
+                reply_markup=KeySubmenuKeyboards.quick_actions()
+            )
+        
+        # Limpiar el estado de renombrado
+        del context.user_data['renaming_key_id']
     
     async def _handle_server_pagination(self, update: Update, context: ContextTypes.DEFAULT_TYPE, server_type: str):
         """Maneja la paginación de llaves por servidor."""
@@ -730,6 +802,60 @@ class KeySubmenuHandler:
         
         # Recargar configuración
         await self.show_key_details(update, context, key_id)
+    
+    async def _handle_key_rename(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja el flujo de renombrado de llave."""
+        query = update.callback_query
+        await query.answer()
+        
+        parts = query.data.split('_')
+        
+        if len(parts) >= 4:
+            action = parts[2]
+            key_id = parts[3]
+            
+            if action == 'start':
+                await self._start_rename_key(update, context, key_id)
+        elif len(parts) == 3:
+            # Es el callback directo del botón "✏️ Renombrar"
+            key_id = parts[2]
+            await self._start_rename_key(update, context, key_id)
+    
+    async def _start_rename_key(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
+        """Inicia el proceso de renombrado de llave."""
+        query = update.callback_query
+        await query.answer()
+        
+        try:
+            key_data = await self._get_key_data(key_id)
+            if not key_data:
+                raise ValueError("Llave no encontrada")
+            
+            message = f"✏️ **Renombrar Llave**\n\n"
+            message += f"🔑 **Llave actual:** {key_data['name']}\n"
+            message += f"🆔 **ID:** `{key_data['id']}`\n\n"
+            message += f"Por favor, escribe el nuevo nombre para tu llave:\n\n"
+            message += f"💡 *Ejemplos:*\n"
+            message += f"• Mi VPN Personal\n"
+            message += f"• Trabajo Seguro\n"
+            message += f"• Viajes 2024\n\n"
+            message += f"⚠️ *El nombre debe tener entre 3 y 30 caracteres*"
+            
+            await query.edit_message_text(
+                text=message,
+                reply_markup=KeySubmenuKeyboards.key_rename(key_id),
+                parse_mode="Markdown"
+            )
+            
+            # Guardar el estado de renombrado en el contexto
+            context.user_data['renaming_key_id'] = key_id
+            
+        except Exception as e:
+            logger.error(f"Error al iniciar renombrado: {e}")
+            await query.edit_message_text(
+                text=f"❌ Error al iniciar renombrado: {str(e)}",
+                reply_markup=KeySubmenuKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
+            )
 
 
 def get_key_submenu_handler(vpn_service: VpnService) -> KeySubmenuHandler:

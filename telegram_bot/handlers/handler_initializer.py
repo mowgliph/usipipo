@@ -70,6 +70,9 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     # Submenú de llaves - Callback handlers
     handlers.extend(key_submenu_handler.get_handlers())
     
+    # Submenú de llaves - Message handlers
+    handlers.extend(key_submenu_handler.get_message_handlers())
+    
     # Legacy handlers (mantener compatibilidad)
     handlers.append(CallbackQueryHandler(lambda u, c: delete_callback_handler(u, c, vpn_service),
                                          pattern="^(delete_|cancel_delete)"))
