@@ -603,8 +603,9 @@ class KeySubmenuHandler:
             
             if key_data['server_type'] != 'wireguard':
                 await query.edit_message_text(
-                    text=" La descarga de configuración solo está disponible para WireGuard.",
-                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type'])
+                    text="⚠️ *Función no disponible*\n\nLa descarga de configuración solo está disponible para llaves WireGuard.\n\nPara llaves Outline, puedes ver la configuración en la opción '📋 Ver Detalles'.",
+                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                    parse_mode="Markdown"
                 )
                 return
             
@@ -614,8 +615,9 @@ class KeySubmenuHandler:
             
             if not config_text:
                 await query.edit_message_text(
-                    text=" No se pudo obtener la configuración de la llave.",
-                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type'])
+                    text="❌ *Error de configuración*\n\nNo se pudo obtener la configuración de la llave.\n\nPor favor, intenta nuevamente más tarde o contacta al soporte.",
+                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                    parse_mode="Markdown"
                 )
                 return
             
@@ -634,12 +636,13 @@ class KeySubmenuHandler:
                         chat_id=update.effective_chat.id,
                         document=f,
                         filename=f"{key_data['name']}_wireguard.conf",
-                        caption=f" **Configuración WireGuard**\n\nLlave: {key_data['name']}\nID: `{key_data['id']}`"
+                        caption=f"📁 *Configuración WireGuard*\n\n🔑 *Llave:* {key_data['name']}\n🆔 *ID:* `{key_data['id']}`\n\n⚠️ *Guarda este archivo en un lugar seguro*"
                     )
                 
                 await query.edit_message_text(
-                    text=" **Configuración enviada**\n\nRevisa el archivo descargado above.",
-                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type'])
+                    text="✅ *Configuración enviada*\n\n📁 Tu archivo de configuración WireGuard ha sido enviado correctamente.\n\n📋 *Instrucciones:*\n1. Descarga el archivo `.conf`\n2. Impórtalo en tu cliente WireGuard\n3. Conéctate y disfruta de tu VPN segura\n\n🔒 *Mantén tu archivo de configuración privado*",
+                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                    parse_mode="Markdown"
                 )
             
             finally:
@@ -649,8 +652,9 @@ class KeySubmenuHandler:
         except Exception as e:
             logger.error(f"Error en descarga de configuración: {e}")
             await query.edit_message_text(
-                text=f" Error al descargar configuración: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data.get('server_type', 'wireguard') if 'key_data' in locals() else 'wireguard')
+                text=f"❌ *Error inesperado*\n\nHa ocurrido un error al procesar tu solicitud:\n`{str(e)}`\n\n🔄 Por favor, intenta nuevamente más tarde.",
+                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data.get('server_type', 'wireguard') if 'key_data' in locals() else 'wireguard'),
+                parse_mode="Markdown"
             )
     
     async def _handle_key_details_view(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -677,29 +681,29 @@ class KeySubmenuHandler:
                 config_type = "Outline"
             
             # Mensaje detallado
-            message = f" **Detalles Técnicos - {config_type}**\n"
-            message += f" **Llave:** {key_data['name']}\n"
-            message += f" **ID:** `{key_data['id']}`\n"
-            message += f" **Creada:** {key_data['created_date']}\n"
-            message += f" **Protocolo:** {key_data['protocol']}\n\n"
+            message = f"🔧 *Detalles Técnicos - {config_type}*\n\n"
+            message += f"🔑 *Llave:* {key_data['name']}\n"
+            message += f"🆔 *ID:* `{key_data['id']}`\n"
+            message += f"📅 *Creada:* {key_data['created_date']}\n"
+            message += f"🌐 *Protocolo:* {key_data['protocol']}\n\n"
             
             if key_data['server_type'] == 'wireguard':
-                message += f" **Configuración Completa:**\n"
+                message += f"📄 *Configuración Completa:*\n"
                 message += f"```\n{config_text}\n```\n\n"
-                message += f" **Instrucciones:**\n"
+                message += f"📋 *Instrucciones:*\n"
                 message += f"1. Guarda este archivo con extensión `.conf`\n"
-                message += f"2. Importa en tu cliente WireGuard\n"
-                message += f"3. Conéctate y disfruta de tu VPN"
+                message += f"2. Impórtalo en tu cliente WireGuard\n"
+                message += f"3. Conéctate y disfruta de tu VPN segura"
             else:  # Outline
-                message += f" **URL de Acceso:**\n"
+                message += f"🔗 *URL de Acceso:*\n"
                 message += f"`{config_text}`\n\n"
-                message += f" **Instrucciones:**\n"
-                message += f"1. Copia la URL above\n"
+                message += f"📋 *Instrucciones:*\n"
+                message += f"1. Copia la URL de acceso\n"
                 message += f"2. Pégala en tu cliente Outline\n"
-                message += f"3. Conéctate y disfruta de tu VPN"
+                message += f"3. Conéctate y disfruta de tu VPN segura"
             
-            message += f"\n\n **Estado:** {KeySubmenuMessages.get_status_badge(key_data)}\n"
-            message += f" **Servidor:** {key_data['server_info']['location']}"
+            message += f"\n\n📊 *Estado:* {KeySubmenuMessages.get_status_badge(key_data)}\n"
+            message += f"🌍 *Servidor:* {key_data['server_info']['location']}"
             
             await query.edit_message_text(
                 text=message,
@@ -710,8 +714,9 @@ class KeySubmenuHandler:
         except Exception as e:
             logger.error(f"Error en vista detallada: {e}")
             await query.edit_message_text(
-                text=f" Error al cargar detalles: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
+                text=f"❌ *Error al cargar detalles*\n\nNo se pudo cargar la información de la llave:\n`{str(e)}`\n\n🔄 Por favor, intenta nuevamente más tarde.",
+                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data.get('server_type', 'main') if 'key_data' in locals() else 'main'),
+                parse_mode="Markdown"
             )
     
     async def _handle_config_refresh(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

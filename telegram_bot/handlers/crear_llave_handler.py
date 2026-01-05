@@ -99,7 +99,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                 await update.message.reply_document(
                     document=document, 
                     filename=f"{key_name}.conf",
-                    caption="📄 Configuración de WireGuard",
+                    caption="📁 *Configuración WireGuard*\n\n🔑 Tu nueva llave VPN está lista para usar\n\n⚠️ *Guarda este archivo en un lugar seguro*",
                     reply_markup=InlineKeyboards.main_menu()
                 )
 
