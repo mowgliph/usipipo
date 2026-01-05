@@ -275,15 +275,40 @@ class KeySubmenuKeyboards:
         """
         keyboard = [
             [
-                InlineKeyboardButton("📈 Ver Gráfico", callback_data=f"key_chart_{key_id}"),
-                InlineKeyboardButton("📋 Ver Detalles", callback_data=f"key_details_{key_id}")
-            ],
-            [
-                InlineKeyboardButton("🔄 Actualizar", callback_data=f"key_stats_refresh_{key_id}")
+                InlineKeyboardButton("🔄 Actualizar", callback_data=f"key_stats_refresh_{key_id}"),
+                InlineKeyboardButton("📋 Ver Configuración", callback_data=f"key_config_{key_id}")
             ],
             [
                 InlineKeyboardButton("🔙 Volver", callback_data=f"key_detail_{key_id}")
             ]
         ]
+        
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def key_config(key_id: str, server_type: str) -> InlineKeyboardMarkup:
+        """
+        Menú de configuración de llave.
+        """
+        keyboard = []
+        
+        if server_type.lower() == 'wireguard':
+            # WireGuard tiene archivo de configuración descargable
+            keyboard.append([
+                InlineKeyboardButton("💾 Descargar Config", callback_data=f"key_download_{key_id}"),
+                InlineKeyboardButton("📋 Ver Detalles", callback_data=f"key_details_{key_id}")
+            ])
+        else:  # Outline
+            # Outline solo muestra la clave para copiar
+            keyboard.append([
+                InlineKeyboardButton("📋 Ver Detalles", callback_data=f"key_details_{key_id}")
+            ])
+        
+        keyboard.append([
+            InlineKeyboardButton("🔄 Actualizar", callback_data=f"key_config_refresh_{key_id}")
+        ])
+        keyboard.append([
+            InlineKeyboardButton("🔙 Volver", callback_data=f"key_detail_{key_id}")
+        ])
         
         return InlineKeyboardMarkup(keyboard)

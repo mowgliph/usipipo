@@ -318,7 +318,7 @@ class KeySubmenuHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=KeySubmenuKeyboards.key_statistics(key_id),
+                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
                 parse_mode="Markdown"
             )
             
@@ -496,6 +496,24 @@ class KeySubmenuHandler:
             pattern="^key_delete_"
         ))
         
+        # Descarga de configuración
+        handlers.append(CallbackQueryHandler(
+            lambda u, c: self._handle_key_download(u, c), 
+            pattern="^key_download_"
+        ))
+        
+        # Detalles de configuración
+        handlers.append(CallbackQueryHandler(
+            lambda u, c: self._handle_key_details_view(u, c), 
+            pattern="^key_details_"
+        ))
+        
+        # Refresh configuración
+        handlers.append(CallbackQueryHandler(
+            lambda u, c: self._handle_config_refresh(u, c), 
+            pattern="^key_config_refresh_"
+        ))
+        
         return handlers
     
     async def _handle_server_pagination(self, update: Update, context: ContextTypes.DEFAULT_TYPE, server_type: str):
@@ -569,6 +587,143 @@ class KeySubmenuHandler:
                 await self.handle_delete_confirmation(update, context, key_id)
             elif action == 'execute':
                 await self.execute_delete(update, context, key_id)
+
+    async def _handle_key_download(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja la descarga de configuración WireGuard."""
+        query = update.callback_query
+        await query.answer()
+        
+        # Extraer ID de llave del callback_data
+        key_id = query.data.replace('key_download_', '')
+        
+        try:
+            key_data = await self._get_key_data(key_id)
+            if not key_data:
+                raise ValueError("Llave no encontrada")
+            
+            if key_data['server_type'] != 'wireguard':
+                await query.edit_message_text(
+                    text=" La descarga de configuración solo está disponible para WireGuard.",
+                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type'])
+                )
+                return
+            
+            # Obtener configuración completa
+            config = await self.vpn_service.get_wireguard_config(key_id)
+            config_text = config.get('config_string', '')
+            
+            if not config_text:
+                await query.edit_message_text(
+                    text=" No se pudo obtener la configuración de la llave.",
+                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type'])
+                )
+                return
+            
+            # Crear archivo temporal
+            import tempfile
+            import os
+            
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+                f.write(config_text)
+                temp_file = f.name
+            
+            try:
+                # Enviar archivo
+                with open(temp_file, 'rb') as f:
+                    await context.bot.send_document(
+                        chat_id=update.effective_chat.id,
+                        document=f,
+                        filename=f"{key_data['name']}_wireguard.conf",
+                        caption=f" **Configuración WireGuard**\n\nLlave: {key_data['name']}\nID: `{key_data['id']}`"
+                    )
+                
+                await query.edit_message_text(
+                    text=" **Configuración enviada**\n\nRevisa el archivo descargado above.",
+                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type'])
+                )
+            
+            finally:
+                # Limpiar archivo temporal
+                os.unlink(temp_file)
+                
+        except Exception as e:
+            logger.error(f"Error en descarga de configuración: {e}")
+            await query.edit_message_text(
+                text=f" Error al descargar configuración: {str(e)}",
+                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data.get('server_type', 'wireguard') if 'key_data' in locals() else 'wireguard')
+            )
+    
+    async def _handle_key_details_view(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja la vista detallada de configuración."""
+        query = update.callback_query
+        await query.answer()
+        
+        # Extraer ID de llave del callback_data
+        key_id = query.data.replace('key_details_', '')
+        
+        try:
+            key_data = await self._get_key_data(key_id)
+            if not key_data:
+                raise ValueError("Llave no encontrada")
+            
+            # Obtener configuración completa según el tipo
+            if key_data['server_type'] == 'wireguard':
+                config = await self.vpn_service.get_wireguard_config(key_id)
+                config_text = config.get('config_string', 'Configuración no disponible')
+                config_type = "WireGuard"
+            else:  # outline
+                config = await self.vpn_service.get_outline_config(key_id)
+                config_text = config.get('access_url', 'Configuración no disponible')
+                config_type = "Outline"
+            
+            # Mensaje detallado
+            message = f" **Detalles Técnicos - {config_type}**\n"
+            message += f" **Llave:** {key_data['name']}\n"
+            message += f" **ID:** `{key_data['id']}`\n"
+            message += f" **Creada:** {key_data['created_date']}\n"
+            message += f" **Protocolo:** {key_data['protocol']}\n\n"
+            
+            if key_data['server_type'] == 'wireguard':
+                message += f" **Configuración Completa:**\n"
+                message += f"```\n{config_text}\n```\n\n"
+                message += f" **Instrucciones:**\n"
+                message += f"1. Guarda este archivo con extensión `.conf`\n"
+                message += f"2. Importa en tu cliente WireGuard\n"
+                message += f"3. Conéctate y disfruta de tu VPN"
+            else:  # Outline
+                message += f" **URL de Acceso:**\n"
+                message += f"`{config_text}`\n\n"
+                message += f" **Instrucciones:**\n"
+                message += f"1. Copia la URL above\n"
+                message += f"2. Pégala en tu cliente Outline\n"
+                message += f"3. Conéctate y disfruta de tu VPN"
+            
+            message += f"\n\n **Estado:** {KeySubmenuMessages.get_status_badge(key_data)}\n"
+            message += f" **Servidor:** {key_data['server_info']['location']}"
+            
+            await query.edit_message_text(
+                text=message,
+                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                parse_mode="Markdown"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error en vista detallada: {e}")
+            await query.edit_message_text(
+                text=f" Error al cargar detalles: {str(e)}",
+                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
+            )
+    
+    async def _handle_config_refresh(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja el refresh de configuración."""
+        query = update.callback_query
+        await query.answer()
+        
+        # Extraer ID de llave del callback_data
+        key_id = query.data.replace('key_config_refresh_', '')
+        
+        # Recargar configuración
+        await self.show_key_details(update, context, key_id)
 
 
 def get_key_submenu_handler(vpn_service: VpnService) -> KeySubmenuHandler:
