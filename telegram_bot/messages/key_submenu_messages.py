@@ -62,20 +62,6 @@ class KeySubmenuMessages:
         "¿Qué deseas hacer con esta llave?"
     )
     
-    # Confirmación de migración entre servidores
-    CONFIRM_SERVER_SWITCH = (
-        "🔄 **Confirmar Migración**\n"
-        "━━━━━━━━━━━━\n\n"
-        "**Desde:** {from_server}\n"
-        "**Hacia:** {to_server}\n"
-        "**Llave:** {key_name}\n\n"
-        "⚠️ Esta acción:\n"
-        "• Eliminará la configuración actual\n"
-        "• Creará una nueva en el servidor destino\n"
-        "• Mantendrá tu límite de datos\n\n"
-        "¿Continuar con la migración?"
-    )
-    
     # Estados y badges
     @staticmethod
     def get_status_badge(key_data: Dict[str, Any]) -> str:
@@ -150,24 +136,11 @@ class KeySubmenuMessages:
         "Intenta más tarde o usa otro protocolo."
     )
     
-    MIGRATION_SUCCESS = (
-        "✅ **Migración exitosa**\n\n"
-        "Tu llave **{key_name}** ha sido migrada a {server_name}.\n"
-        "La configuración anterior ha sido eliminada."
-    )
-    
-    MIGRATION_FAILED = (
-        "❌ **Error en migración**\n\n"
-        "No se pudo completar la migración de la llave.\n"
-        "Verifica que ambos servidores estén disponibles."
-    )
-    
     KEY_LIMIT_REACHED_SERVER = (
         "🔒 **Límite alcanzado en {server_name}**\n\n"
         "Has alcanzado el máximo de llaves permitidas en este servidor.\n\n"
         "💡 **Opciones:**\n"
         "• Elimina una llave existente\n"
-        "• Migra a otro servidor\n"
         "• Actualiza a VIP para más llaves"
     )
     
@@ -180,6 +153,5 @@ class KeySubmenuMessages:
     QUICK_ACTIONS_HINT = (
         "⚡ **Acciones Rápidas:**\n"
         "• Ver todas las llaves\n"
-        "• Crear nueva llave\n"
-        "• Migrar entre servidores"
+        "• Crear nueva llave"
     )

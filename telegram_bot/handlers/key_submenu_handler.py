@@ -166,73 +166,6 @@ class KeySubmenuHandler:
                 reply_markup=KeySubmenuKeyboards.back_to_server('main')
             )
     
-    async def handle_server_migration(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str, target_server: str):
-        """
-        Maneja la migración de una llave entre servidores.
-        """
-        query = update.callback_query
-        await query.answer()
-        
-        try:
-            # Obtener datos actuales de la llave
-            key_data = await self._get_key_data(key_id)
-            if not key_data:
-                raise ValueError("Llave no encontrada")
-            
-            current_server = key_data['server_type']
-            
-            # Mostrar confirmación de migración
-            message = KeySubmenuMessages.CONFIRM_SERVER_SWITCH.format(
-                from_server=current_server,
-                to_server=target_server,
-                key_name=key_data['name']
-            )
-            
-            await query.edit_message_text(
-                text=message,
-                reply_markup=KeySubmenuKeyboards.migration_confirmation(key_id, current_server, target_server),
-                parse_mode="Markdown"
-            )
-            
-        except Exception as e:
-            logger.error(f"Error en handle_server_migration: {e}")
-            await query.edit_message_text(
-                text=KeySubmenuMessages.MIGRATION_FAILED,
-                reply_markup=KeySubmenuKeyboards.key_detail_menu(key_id, "Llave", key_data.get('server_type', 'unknown'))
-            )
-    
-    async def execute_migration(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str, target_server: str):
-        """
-        Ejecuta la migración de la llave.
-        """
-        query = update.callback_query
-        await query.answer()
-        
-        try:
-            # Ejecutar migración a través del servicio VPN
-            success = await self.vpn_service.migrate_key(key_id, target_server)
-            
-            if success:
-                await query.edit_message_text(
-                    text=KeySubmenuMessages.MIGRATION_SUCCESS.format(
-                        key_name="Llave migrada",
-                        server_name=target_server
-                    ),
-                    reply_markup=KeySubmenuKeyboards.back_to_server(target_server.lower())
-                )
-            else:
-                await query.edit_message_text(
-                    text=KeySubmenuMessages.MIGRATION_FAILED,
-                    reply_markup=KeySubmenuKeyboards.back_to_server('main')
-                )
-                
-        except Exception as e:
-            logger.error(f"Error en execute_migration: {e}")
-            await query.edit_message_text(
-                text=KeySubmenuMessages.MIGRATION_FAILED,
-                reply_markup=KeySubmenuKeyboards.back_to_server('main')
-            )
-    
     async def handle_delete_confirmation(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
         """
         Maneja la confirmación de eliminación de llave.
@@ -286,6 +219,114 @@ class KeySubmenuHandler:
             await query.edit_message_text(
                 text=f"Error al eliminar la llave: {str(e)}",
                 reply_markup=KeySubmenuKeyboards.quick_actions()
+            )
+    
+    async def show_key_statistics(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
+        """
+        Muestra estadísticas detalladas de una llave.
+        """
+        query = update.callback_query
+        await query.answer()
+        
+        try:
+            key_data = await self._get_key_data(key_id)
+            if not key_data:
+                raise ValueError("Llave no encontrada")
+            
+            # Calcular porcentaje de uso
+            usage_percent = (key_data['used_gb'] / key_data['limit_gb']) * 100 if key_data['limit_gb'] > 0 else 0
+            remaining_gb = max(0, key_data['limit_gb'] - key_data['used_gb'])
+            
+            # Construir mensaje de estadísticas
+            message = f"📊 **Estadísticas de {key_data['name']}**\n━━━━━━━━━━━━━━━━━━━━\n\n"
+            message += f"🔑 **ID:** `{key_data['id']}`\n"
+            message += f"🌐 **Protocolo:** {key_data['protocol']}\n"
+            message += f"📅 **Creada:** {key_data['created_date']}\n\n"
+            message += f"📈 **Uso de Datos:**\n"
+            message += f"• **Usado:** {key_data['used_gb']:.1f} GB ({usage_percent:.1f}%)\n"
+            message += f"• **Límite:** {key_data['limit_gb']:.1f} GB\n"
+            message += f"• **Disponible:** {remaining_gb:.1f} GB\n\n"
+            message += f"📊 **Estado:** {KeySubmenuMessages.get_status_badge(key_data)}\n"
+            message += f"📍 **Servidor:** {key_data['server_info']['location']}\n"
+            message += f"🏓 **Ping:** {key_data['server_info']['ping']}ms\n"
+            message += f"⚡ **Carga:** {key_data['server_info']['load']}%\n\n"
+            
+            # Barra de progreso
+            progress_bars = {
+                'low': '▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░',
+                'medium': '▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░',
+                'high': '▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░',
+                'critical': '▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓'
+            }
+            
+            if usage_percent < 50:
+                progress = progress_bars['low']
+            elif usage_percent < 75:
+                progress = progress_bars['medium']
+            elif usage_percent < 90:
+                progress = progress_bars['high']
+            else:
+                progress = progress_bars['critical']
+            
+            message += f"**Progreso:**\n{progress} {usage_percent:.1f}%"
+            
+            await query.edit_message_text(
+                text=message,
+                reply_markup=KeySubmenuKeyboards.key_statistics(key_id),
+                parse_mode="Markdown"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error en show_key_statistics: {e}")
+            await query.edit_message_text(
+                text=f"Error al cargar estadísticas: {str(e)}",
+                reply_markup=KeySubmenuKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
+            )
+    
+    async def show_key_details(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
+        """
+        Muestra detalles técnicos de la configuración de la llave.
+        """
+        query = update.callback_query
+        await query.answer()
+        
+        try:
+            key_data = await self._get_key_data(key_id)
+            if not key_data:
+                raise ValueError("Llave no encontrada")
+            
+            # Obtener configuración técnica según el tipo
+            if key_data['server_type'] == 'wireguard':
+                config = await self.vpn_service.get_wireguard_config(key_id)
+                config_text = config.get('config_string', 'Configuración no disponible')
+            else:  # outline
+                config = await self.vpn_service.get_outline_config(key_id)
+                config_text = config.get('access_url', 'Configuración no disponible')
+            
+            message = f"📋 **Configuración de {key_data['name']}**\n━━━━━━━━━━━━━━━━━━━━\n\n"
+            message += f"🔑 **ID:** `{key_data['id']}`\n"
+            message += f"🌐 **Protocolo:** {key_data['protocol']}\n"
+            message += f"📅 **Creada:** {key_data['created_date']}\n\n"
+            message += f"⚙️ **Configuración Técnica:**\n"
+            message += f"```\n{config_text[:500]}\n```\n\n"
+            
+            if len(config_text) > 500:
+                message += f"*La configuración ha sido truncada. Longitud total: {len(config_text)} caracteres*\n\n"
+            
+            message += f"🔒 **Estado:** {KeySubmenuMessages.get_status_badge(key_data)}\n"
+            message += f"📍 **Servidor:** {key_data['server_info']['location']}"
+            
+            await query.edit_message_text(
+                text=message,
+                reply_markup=KeySubmenuKeyboards.key_statistics(key_id),
+                parse_mode="Markdown"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error en show_key_details: {e}")
+            await query.edit_message_text(
+                text=f"Error al cargar configuración: {str(e)}",
+                reply_markup=KeySubmenuKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
             )
     
     async def show_all_keys_overview(self, update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 1):
@@ -431,16 +472,22 @@ class KeySubmenuHandler:
             pattern="^key_submenu_all_page_"
         ))
         
+        # Estadísticas de llaves
+        handlers.append(CallbackQueryHandler(
+            lambda u, c: self._handle_key_statistics(u, c), 
+            pattern="^key_stats_"
+        ))
+        
+        # Configuración de llaves
+        handlers.append(CallbackQueryHandler(
+            lambda u, c: self._handle_key_config(u, c), 
+            pattern="^key_config_"
+        ))
+        
         # Detalle de llave específica
         handlers.append(CallbackQueryHandler(
             lambda u, c: self._handle_key_detail(u, c), 
             pattern="^key_detail_"
-        ))
-        
-        # Migración de llaves
-        handlers.append(CallbackQueryHandler(
-            lambda u, c: self._handle_migration_menu(u, c), 
-            pattern="^key_migrate_"
         ))
         
         # Eliminación de llaves
@@ -460,14 +507,34 @@ class KeySubmenuHandler:
         page = int(query.data.split('_')[-1])
         await self.show_server_keys(update, context, server_type, page)
     
-    async def _handle_all_keys_pagination(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Maneja la paginación de la vista general."""
+    async def _handle_key_statistics(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja las estadísticas de llave."""
         query = update.callback_query
         await query.answer()
         
-        # Extraer número de página del callback_data
-        page = int(query.data.split('_')[-1])
-        await self.show_all_keys_overview(update, context, page)
+        # Extraer ID de llave del callback_data
+        key_id = query.data.replace('key_stats_', '')
+        
+        parts = query.data.split('_')
+        if len(parts) >= 3 and parts[2] in ['refresh', 'chart', 'details']:
+            action = parts[2]
+            if action == 'refresh':
+                await self.show_key_statistics(update, context, key_id)
+            elif action == 'chart':
+                await self.show_key_statistics(update, context, key_id)  # Por ahora muestra estadísticas
+            elif action == 'details':
+                await self.show_key_details(update, context, key_id)
+        else:
+            await self.show_key_statistics(update, context, key_id)
+    
+    async def _handle_key_config(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja la configuración de llave."""
+        query = update.callback_query
+        await query.answer()
+        
+        # Extraer ID de llave del callback_data
+        key_id = query.data.replace('key_config_', '')
+        await self.show_key_details(update, context, key_id)
     
     async def _handle_key_detail(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Maneja la visualización de detalle de llave."""
@@ -478,24 +545,14 @@ class KeySubmenuHandler:
         key_id = query.data.replace('key_detail_', '')
         await self.show_key_detail(update, context, key_id)
     
-    async def _handle_migration_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Maneja el menú de migración."""
+    async def _handle_all_keys_pagination(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja la paginación de la vista general."""
         query = update.callback_query
         await query.answer()
         
-        parts = query.data.split('_')
-        
-        if len(parts) >= 4:
-            action = parts[2]
-            key_id = parts[3]
-            
-            if action == 'menu':
-                # Mostrar menú de migración
-                await self.show_key_detail(update, context, key_id)
-            elif action == 'execute' and len(parts) == 5:
-                # Ejecutar migración directa
-                target_server = parts[4]
-                await self.execute_migration(update, context, key_id, target_server)
+        # Extraer número de página del callback_data
+        page = int(query.data.split('_')[-1])
+        await self.show_all_keys_overview(update, context, page)
     
     async def _handle_delete_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Maneja el flujo de eliminación."""

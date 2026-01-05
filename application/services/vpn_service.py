@@ -180,6 +180,67 @@ class VpnService:
         await self.user_repo.save(user)
         return True
 
+    async def rename_key(self, key_id: str, new_name: str) -> bool:
+        """Renombra una llave VPN."""
+        try:
+            from uuid import UUID
+            key_uuid = UUID(key_id)
+            
+            key = await self.key_repo.get_by_id(key_uuid)
+            if not key:
+                logger.warning(f"Intentando renombrar llave inexistente: {key_id}")
+                return False
+            
+            # Actualizar nombre en la base de datos
+            key.name = new_name
+            await self.key_repo.save(key)
+            
+            logger.info(f"🔑 Llave {key_id} renombrada a '{new_name}'")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error al renombrar llave {key_id}: {e}")
+            return False
+    
+    async def get_wireguard_config(self, key_id: str) -> dict:
+        """Obtiene la configuración de WireGuard de una llave."""
+        try:
+            from uuid import UUID
+            key_uuid = UUID(key_id)
+            
+            key = await self.key_repo.get_by_id(key_uuid)
+            if not key or key.key_type != 'wireguard':
+                return {'config_string': 'Configuración no disponible'}
+            
+            return {
+                'config_string': key.key_data,
+                'external_id': key.external_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Error obteniendo configuración WireGuard para {key_id}: {e}")
+            return {'config_string': 'Error al obtener configuración'}
+    
+    async def get_outline_config(self, key_id: str) -> dict:
+        """Obtiene la configuración de Outline de una llave."""
+        try:
+            from uuid import UUID
+            key_uuid = UUID(key_id)
+            
+            key = await self.key_repo.get_by_id(key_uuid)
+            if not key or key.key_type != 'outline':
+                return {'access_url': 'Configuración no disponible'}
+            
+            return {
+                'access_url': key.key_data,
+                'external_id': key.external_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Error obteniendo configuración Outline para {key_id}: {e}")
+            return {'access_url': 'Error al obtener configuración'}
+    
+        
     async def deactivate_inactive_key(self, key_id: uuid.UUID) -> bool:
         """Desactiva una llave por inactividad (soft delete)."""
         try:

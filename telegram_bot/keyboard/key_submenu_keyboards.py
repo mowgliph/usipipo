@@ -113,8 +113,7 @@ class KeySubmenuKeyboards:
         
         # Fila de acciones
         keyboard.append([
-            InlineKeyboardButton("➕ Crear Nueva", callback_data="create_key"),
-            InlineKeyboardButton("🔄 Migrar Llave", callback_data=f"key_submenu_migrate_{server_type}")
+            InlineKeyboardButton("➕ Crear Nueva", callback_data="create_key")
         ])
         
         # Fila de navegación
@@ -132,13 +131,10 @@ class KeySubmenuKeyboards:
         keyboard = [
             [
                 InlineKeyboardButton("📊 Ver Estadísticas", callback_data=f"key_stats_{key_id}"),
-                InlineKeyboardButton("🔄 Migrar", callback_data=f"key_migrate_{key_id}")
+                InlineKeyboardButton("✏️ Renombrar", callback_data=f"key_rename_{key_id}")
             ],
             [
-                InlineKeyboardButton("✏️ Renombrar", callback_data=f"key_rename_{key_id}"),
-                InlineKeyboardButton("🗑️ Eliminar", callback_data=f"key_delete_confirm_{key_id}")
-            ],
-            [
+                InlineKeyboardButton("🗑️ Eliminar", callback_data=f"key_delete_confirm_{key_id}"),
                 InlineKeyboardButton("📋 Ver Configuración", callback_data=f"key_config_{key_id}")
             ],
             [
@@ -159,60 +155,6 @@ class KeySubmenuKeyboards:
                 InlineKeyboardButton("❌ Cancelar", callback_data=f"key_detail_{key_id}")
             ]
         ]
-        
-        return InlineKeyboardMarkup(keyboard)
-    
-    @staticmethod
-    def server_migration_menu(key_id: str, current_server: str) -> InlineKeyboardMarkup:
-        """
-        Menú de migración entre servidores.
-        """
-        keyboard = []
-        
-        # Opciones de migración
-        if current_server.lower() == 'wireguard':
-            keyboard.append([
-                InlineKeyboardButton("🟩 Migrar a Outline", callback_data=f"key_migrate_execute_{key_id}_outline")
-            ])
-        elif current_server.lower() == 'outline':
-            keyboard.append([
-                InlineKeyboardButton("🟦 Migrar a WireGuard", callback_data=f"key_migrate_execute_{key_id}_wireguard")
-            ])
-        
-        # En caso de servidores múltiples
-        keyboard.append([
-            InlineKeyboardButton("🔄 Elegir Servidor", callback_data=f"key_migrate_choose_{key_id}")
-        ])
-        
-        # Cancelar
-        keyboard.append([
-            InlineKeyboardButton("❌ Cancelar", callback_data=f"key_detail_{key_id}")
-        ])
-        
-        return InlineKeyboardMarkup(keyboard)
-    
-    @staticmethod
-    def server_selection(key_id: str, available_servers: List[Dict[str, str]]) -> InlineKeyboardMarkup:
-        """
-        Selección específica de servidor para migración.
-        """
-        keyboard = []
-        
-        for server in available_servers:
-            server_name = server.get('name', 'Unknown')
-            server_type = server.get('type', 'unknown')
-            
-            keyboard.append([
-                InlineKeyboardButton(
-                    f"📡 {server_name}",
-                    callback_data=f"key_migrate_execute_{key_id}_{server_type}"
-                )
-            ])
-        
-        # Cancelar
-        keyboard.append([
-            InlineKeyboardButton("❌ Cancelar", callback_data=f"key_detail_{key_id}")
-        ])
         
         return InlineKeyboardMarkup(keyboard)
     
@@ -300,8 +242,7 @@ class KeySubmenuKeyboards:
         
         # Fila de acciones
         keyboard.append([
-            InlineKeyboardButton("➕ Crear Nueva", callback_data="create_key"),
-            InlineKeyboardButton("🔄 Por Servidor", callback_data="key_submenu_main")
+            InlineKeyboardButton("➕ Crear Nueva", callback_data="create_key")
         ])
         
         # Fila de navegación
@@ -342,20 +283,6 @@ class KeySubmenuKeyboards:
             ],
             [
                 InlineKeyboardButton("🔙 Volver", callback_data=f"key_detail_{key_id}")
-            ]
-        ]
-        
-        return InlineKeyboardMarkup(keyboard)
-    
-    @staticmethod
-    def migration_confirmation(key_id: str, from_server: str, to_server: str) -> InlineKeyboardMarkup:
-        """
-        Confirmación específica de migración.
-        """
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Confirmar Migración", callback_data=f"key_migrate_confirm_{key_id}_{to_server}"),
-                InlineKeyboardButton("❌ Cancelar", callback_data=f"key_detail_{key_id}")
             ]
         ]
         
