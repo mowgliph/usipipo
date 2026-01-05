@@ -8,6 +8,7 @@ del usuario al proporcionar feedback visual inmediato.
 
 import asyncio
 import random
+import time
 from typing import Callable, Optional, Any
 from functools import wraps
 from telegram import Update
@@ -44,12 +45,15 @@ class SpinnerManager:
     def get_random_spinner_message(operation_type: str = "default") -> str:
         """Obtiene un mensaje de spinner con emoji animado."""
         base_message = SpinnerManager.MESSAGES.get(operation_type, SpinnerManager.MESSAGES["default"])
-        frame = random.choice(SpinnerManager.FRAMES)
+        # Usar índice simple en lugar de random.choice para evitar importaciones
+        
+        frame_index = int(time.time() * 10) % len(SpinnerManager.FRAMES)
+        frame = SpinnerManager.FRAMES[frame_index]
         return f"{frame} {base_message}"
     
     @staticmethod
     async def send_spinner_message(
-        update: Update, 
+        update: Update,
         operation_type: str = "default",
         custom_message: Optional[str] = None
     ) -> int:
@@ -60,12 +64,18 @@ class SpinnerManager:
             update: Objeto Update de Telegram
             operation_type: Tipo de operación para mensaje predefinido
             custom_message: Mensaje personalizado (sobrescribe operation_type)
-            
+             
         Returns:
             message_id del spinner enviado
         """
         try:
             message_text = custom_message or SpinnerManager.get_random_spinner_message(operation_type)
+            logger.info(f"🌀 Preparando spinner: {message_text}")
+            
+            # Verificar si update.message existe
+            if not update.message:
+                logger.error("❌ No se puede enviar spinner: update.message es None")
+                return None
             
             # Enviar mensaje de spinner
             spinner_message = await update.message.reply_text(
@@ -73,11 +83,12 @@ class SpinnerManager:
                 parse_mode="Markdown"
             )
             
-            logger.debug(f"Spinner enviado: {message_text} (ID: {spinner_message.message_id})")
+            logger.info(f"✅ Spinner enviado: {message_text} (ID: {spinner_message.message_id})")
             return spinner_message.message_id
-            
+             
         except Exception as e:
-            logger.error(f"Error enviando spinner: {e}")
+            logger.error(f"❌ Error enviando spinner: {e}")
+            logger.error(f"Tipo de excepción: {type(e).__name__}")
             return None
     
     @staticmethod
@@ -166,12 +177,14 @@ def with_spinner(
             update = None
             context = None
             
-            for arg in args:
+            # Método más robusto: buscar por tipo y posición
+            for i, arg in enumerate(args):
                 if isinstance(arg, Update):
                     update = arg
-                elif hasattr(arg, 'bot') and hasattr(arg, 'chat_data'):
+                elif i == 1:  # Context suele ser el segundo argumento en handlers
                     # Verificación más robusta para ContextTypes.DEFAULT_TYPE
-                    context = arg
+                    if hasattr(arg, 'bot') and hasattr(arg, 'application'):
+                        context = arg
             
             # Si no hay update, no podemos mostrar spinner
             if not update:
@@ -182,48 +195,67 @@ def with_spinner(
             start_time = None
             
             try:
+                logger.info(f"🌀 Iniciando spinner para {func.__name__}")
+                
                 # Enviar spinner
                 spinner_message_id = await SpinnerManager.send_spinner_message(
                     update, operation_type, custom_message
                 )
                 
+                logger.info(f"🌀 Spinner enviado con ID: {spinner_message_id}")
+                 
                 if show_duration:
                     import time
                     start_time = time.time()
-                
+                 
                 # Ejecutar la función original
                 result = await func(*args, **kwargs)
                 
+                # Asegurar que el spinner sea visible por al menos 1 segundo
+                if show_duration and start_time:
+                    duration = time.time() - start_time
+                    if duration < 1.0:
+                        await asyncio.sleep(1.0 - duration)
+                 
                 # Eliminar spinner si se envió correctamente
                 if spinner_message_id and context:
-                    await SpinnerManager.delete_spinner_message(
+                    logger.info(f"🗑️  Eliminando spinner ID: {spinner_message_id}")
+                    success = await SpinnerManager.delete_spinner_message(
                         context, chat_id, spinner_message_id
                     )
-                
+                    logger.info(f"🗑️  Spinner eliminado: {success}")
+                else:
+                    logger.warning(f"⚠️  No se pudo eliminar spinner - ID: {spinner_message_id}, Context: {context is not None}")
+                 
                 # Mostrar duración si se solicita
                 if show_duration and start_time and context:
                     duration = time.time() - start_time
                     await update.message.reply_text(
                         f"✅ Operación completada en {duration:.2f}s"
                     )
-                
+                 
                 return result
-                
+                 
             except Exception as e:
-                logger.error(f"Error en función con spinner {func.__name__}: {e}")
+                logger.error(f"❌ Error en función con spinner {func.__name__}: {e}")
+                logger.error(f"❌ Tipo de excepción: {type(e).__name__}")
                 
                 # Intentar eliminar spinner y mostrar error
                 if spinner_message_id and context:
                     try:
+                        logger.info(f"🗑️  Intentando eliminar spinner después de error")
                         await SpinnerManager.delete_spinner_message(
                             context, chat_id, spinner_message_id
                         )
                         await update.message.reply_text(
                             "❌ Ocurrió un error durante la operación. Por favor, intenta nuevamente."
                         )
-                    except:
+                    except Exception as delete_error:
+                        logger.error(f"❌ Error eliminando spinner: {delete_error}")
                         pass  # Si no podemos eliminar el spinner, continuamos
-                
+                else:
+                    logger.warning(f"⚠️  No se pudo eliminar spinner después de error - ID: {spinner_message_id}, Context: {context is not None}")
+                 
                 # Re-lanzar la excepción para manejo normal
                 raise e
         
@@ -343,7 +375,7 @@ def vpn_spinner(func: Callable) -> Callable:
 
 def registration_spinner(func: Callable) -> Callable:
     """Spinner específico para registro de usuarios."""
-    return with_spinner("register")(func)
+    return with_spinner("register", show_duration=True)(func)
 
 def payment_spinner(func: Callable) -> Callable:
     """Spinner específico para operaciones de pago."""

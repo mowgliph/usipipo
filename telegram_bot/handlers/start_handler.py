@@ -15,6 +15,11 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Maneja el comando /start y el registro de usuarios.
     """
+    # Debug: Log the start of the handler
+    logger.info(f"🔄 start_handler iniciado para usuario {update.effective_user.id}")
+    logger.info(f"🔄 Contexto disponible: {context is not None}")
+    logger.info(f"🔄 Update disponible: {update is not None}")
+    
     # Obtener vpn_service del contenedor
     from application.services.common.container import get_container
     container = get_container()
@@ -70,19 +75,36 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             welcome_message = Messages.Welcome.EXISTING_USER.format(name=user.first_name)
         
-        # Enviar mensaje de bienvenida con botón de respaldo
-        # Primero limpiar cualquier menú keyboard antiguo y luego mostrar el botón "📋 Mostrar Menú"
+        # Enviar mensaje de bienvenida y mostrar menú inline directamente
         await update.message.reply_text(
             text=welcome_message,
             reply_markup=ReplyKeyboardRemove(),
             parse_mode="Markdown"
         )
         
-        # Enviar segundo mensaje con el botón de respaldo
-        await update.message.reply_text(
-            text="📋 Presiona el botón para mostrar el menú principal:",
-            reply_markup=Keyboards.show_menu_button()
-        )
+        # Mostrar menú principal inline directamente
+        user = update.effective_user
+        try:
+            # Determinar si es admin para mostrar el menú correspondiente
+            if user.id == int(settings.ADMIN_ID):
+                await update.message.reply_text(
+                    text="👇 Menú Principal (Admin)",
+                    reply_markup=InlineKeyboards.admin_main_menu(),
+                    parse_mode="Markdown"
+                )
+            else:
+                await update.message.reply_text(
+                    text="👇 Menú Principal",
+                    reply_markup=InlineKeyboards.main_menu(),
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error(f"Error mostrando menú inline en start_handler: {e}")
+            # Fallback: mostrar botón de respaldo si falla el menú inline
+            await update.message.reply_text(
+                text="📋 Presiona el botón para mostrar el menú principal:",
+                reply_markup=Keyboards.show_menu_button()
+            )
         
             
     except Exception as e:
