@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional
 
@@ -25,7 +25,7 @@ class VpnKey:
     external_id: str = ""             # El ID que le asigna el servidor (Outline/WG)
     
     # Estado y fechas
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
     
     # Métricas de uso (sincronizadas desde los servidores VPN)
@@ -33,7 +33,7 @@ class VpnKey:
     last_seen_at: Optional[datetime] = None  # Última actividad del cliente
     
     data_limit_bytes: int = 10 * 1024**3  # 10 GB por defecto
-    billing_reset_at: datetime = field(default_factory=datetime.now)
+    billing_reset_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self):
         """
@@ -97,18 +97,9 @@ class VpnKey:
         if billing_reset is None:
             return False
         
-        # Debug logging para diagnóstico
-        logger.debug(f"needs_reset() - now: {now}, tzinfo: {now.tzinfo}")
-        logger.debug(f"needs_reset() - billing_reset: {billing_reset}, tzinfo: {billing_reset.tzinfo}")
-        
         # Si billing_reset_at tiene timezone, convertir a naive UTC
         if billing_reset.tzinfo is not None:
             billing_reset = billing_reset.astimezone(timezone.utc).replace(tzinfo=None)
-        else:
-            # Si billing_reset_at es naive, asumir que está en UTC
-            # y convertir now a naive UTC para comparación consistente
-            now = now.replace(tzinfo=None)
         
         result = now > billing_reset + timedelta(days=30)
-        logger.debug(f"needs_reset() - comparison result: {result}")
         return result

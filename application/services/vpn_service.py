@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 
 from domain.entities.user import User
@@ -58,7 +58,7 @@ class VpnService:
             key_data=access_data,
             external_id=external_id,
             data_limit_bytes=data_limit_bytes,
-            billing_reset_at=datetime.now()
+            billing_reset_at=datetime.now(timezone.utc)
         )
         
         await self.key_repo.save(new_key)
@@ -165,7 +165,7 @@ class VpnService:
             # Extender la fecha de expiración
             new_expiry = user.vip_expires_at + timedelta(days=30*months)
         else:
-            new_expiry = datetime.now() + timedelta(days=30*months)
+            new_expiry = datetime.now(timezone.utc) + timedelta(days=30*months)
 
         user.is_vip = True
         user.vip_expires_at = new_expiry

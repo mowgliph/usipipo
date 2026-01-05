@@ -1,10 +1,9 @@
 from application.services.vpn_service import VpnService
 from telegram.ext import ContextTypes
-from loguru import logger
 from datetime import datetime, timedelta, timezone
 from typing import List
 from domain.entities.vpn_key import VpnKey
-
+from loguru import logger
 
 def _normalize_datetime(dt: datetime) -> datetime:
     """
@@ -47,6 +46,7 @@ async def key_cleanup_job(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"❌ Error en key_cleanup_job: {e}")
 
+
 async def cleanup_inactive_keys(vpn_service: VpnService, keys: List[VpnKey]):
     """
     Desactiva llaves que no han sido usadas en los últimos 90 días.
@@ -68,6 +68,7 @@ async def cleanup_inactive_keys(vpn_service: VpnService, keys: List[VpnKey]):
 
     logger.info(f"🗑️ {deactivated_count} llaves desactivadas por inactividad.")
 
+
 async def reset_data_usage(vpn_service: VpnService, keys: List[VpnKey]):
     """
     Resetea el uso de datos para llaves que han completado su ciclo de facturación.
@@ -80,6 +81,7 @@ async def reset_data_usage(vpn_service: VpnService, keys: List[VpnKey]):
             logger.info(f"🔄 Uso de datos reseteado para llave {key.id}")
 
     logger.info(f"📊 {reset_count} ciclos de facturación reseteados.")
+
 
 async def check_and_notify_data_limits(context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService, keys: List[VpnKey]):
     """
