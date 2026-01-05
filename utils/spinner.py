@@ -47,9 +47,15 @@ class SpinnerManager:
         base_message = SpinnerManager.MESSAGES.get(operation_type, SpinnerManager.MESSAGES["default"])
         # Usar índice simple en lugar de random.choice para evitar importaciones
         
-        frame_index = int(time.time() * 10) % len(SpinnerManager.FRAMES)
-        frame = SpinnerManager.FRAMES[frame_index]
-        return f"{frame} {base_message}"
+        try:
+            frame_index = int(time.time() * 10) % len(SpinnerManager.SPINNER_FRAMES)
+            frame = SpinnerManager.SPINNER_FRAMES[frame_index]
+            return f"{frame} {base_message}"
+        except AttributeError as e:
+            logger.error(f"❌ Error en get_random_spinner_message: {e}")
+            logger.error(f"Atributos disponibles en SpinnerManager: {dir(SpinnerManager)}")
+            # Fallback a mensaje simple
+            return f"🌀 {base_message}"
     
     @staticmethod
     async def send_spinner_message(

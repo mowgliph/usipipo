@@ -97,8 +97,18 @@ class VpnKey:
         if billing_reset is None:
             return False
         
+        # Debug logging para diagnóstico
+        logger.debug(f"needs_reset() - now: {now}, tzinfo: {now.tzinfo}")
+        logger.debug(f"needs_reset() - billing_reset: {billing_reset}, tzinfo: {billing_reset.tzinfo}")
+        
         # Si billing_reset_at tiene timezone, convertir a naive UTC
         if billing_reset.tzinfo is not None:
             billing_reset = billing_reset.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            # Si billing_reset_at es naive, asumir que está en UTC
+            # y convertir now a naive UTC para comparación consistente
+            now = now.replace(tzinfo=None)
         
-        return now > billing_reset + timedelta(days=30)
+        result = now > billing_reset + timedelta(days=30)
+        logger.debug(f"needs_reset() - comparison result: {result}")
+        return result
