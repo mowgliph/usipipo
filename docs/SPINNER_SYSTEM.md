@@ -4,6 +4,8 @@
 
 El sistema de spinner mejora la experiencia del usuario (UX) durante operaciones asíncronas que pueden tomar tiempo, como conexiones a base de datos, operaciones VPN o procesos de registro.
 
+**Última actualización:** Corregido error de TypeError con Python 3.13 usando verificación de atributos en lugar de `isinstance()`.
+
 ## Características
 
 - **Decoradores fáciles de usar**: Solo añade un decorador a tu función
@@ -11,6 +13,7 @@ El sistema de spinner mejora la experiencia del usuario (UX) durante operaciones
 - **Animación opcional**: Spinners animados que se actualizan periódicamente
 - **Manejo automático de errores**: Elimina el spinner y muestra mensajes de error
 - **Tipos específicos**: Spinners especializados para VPN, base de datos, pagos, etc.
+- **Compatible con Python 3.13**: Usa verificación robusta de tipos sin `isinstance()` genéricos
 
 ## Uso Básico
 

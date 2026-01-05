@@ -169,7 +169,8 @@ def with_spinner(
             for arg in args:
                 if isinstance(arg, Update):
                     update = arg
-                elif isinstance(arg, ContextTypes.DEFAULT_TYPE):
+                elif hasattr(arg, 'bot') and hasattr(arg, 'chat_data'):
+                    # Verificación más robusta para ContextTypes.DEFAULT_TYPE
                     context = arg
             
             # Si no hay update, no podemos mostrar spinner
@@ -253,7 +254,8 @@ def with_animated_spinner(
             for arg in args:
                 if isinstance(arg, Update):
                     update = arg
-                elif isinstance(arg, ContextTypes.DEFAULT_TYPE):
+                elif hasattr(arg, 'bot') and hasattr(arg, 'chat_data'):
+                    # Verificación más robusta para ContextTypes.DEFAULT_TYPE
                     context = arg
             
             if not update:
