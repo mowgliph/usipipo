@@ -6,6 +6,7 @@ from .ayuda_handler import ayuda_handler
 from .support_handler import get_support_handler, admin_reply_handler
 from .error_handler import error_handler
 from .referral_handler import get_referral_handlers
+from .key_submenu_handler import get_key_submenu_handler, KeySubmenuHandler
 
 __all__ = [
     'start_handler',
@@ -17,5 +18,7 @@ __all__ = [
     'get_support_handler',
     'admin_reply_handler',
     'error_handler',
-    'get_referral_handlers'
+    'get_referral_handlers',
+    'get_key_submenu_handler',
+    'KeySubmenuHandler'
 ]

@@ -8,47 +8,15 @@ from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 
 async def list_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """
-    Lista todas las llaves del usuario. 
-    Envía un mensaje independiente por cada llave con su botón de gestión.
+    DEPRECATED: Lista todas las llaves del usuario.
+    REDIRIGIDO AL SISTEMA DE SUBMENÚS para mejor organización por servidor.
     """
-    telegram_id = update.effective_user.id
+    # Redirigir al nuevo sistema de submenús
+    from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
+    key_submenu_handler = get_key_submenu_handler(vpn_service)
     
-    try:
-        status = await vpn_service.get_user_status(telegram_id)
-        keys = status.get("keys", [])
-
-        if not keys:
-            await update.message.reply_text(
-                text=Messages.Keys.NO_KEYS,
-                reply_markup=InlineKeyboards.main_menu()
-            )
-            return
-
-        await update.message.reply_text(
-            text=Messages.Keys.LIST_HEADER, 
-            parse_mode="Markdown"
-        )
-
-        for key in keys:
-            # Formateamos el detalle de la llave usando nuestra clase Messages
-            usage_str = f"{key.used_gb:.2f} GB / {key.data_limit_gb:.2f} GB"
-            text = Messages.Keys.DETAIL.format(
-                name=key.name,
-                type=key.key_type.upper(),
-                date=key.created_at.strftime("%d/%m/%Y"),
-                usage=usage_str,
-                id=key.id
-            )
-            
-            await update.message.reply_text(
-                text=text,
-                reply_markup=InlineKeyboards.key_management(str(key.id)),
-                parse_mode="Markdown"
-            )
-            
-    except Exception as e:
-        logger.error(f"Error al listar llaves: {e}")
-        await update.message.reply_text(Messages.Errors.GENERIC.format(error=str(e)))
+    # Usar el handler directamente
+    await key_submenu_handler.show_key_submenu(update, context)
 
 async def delete_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """

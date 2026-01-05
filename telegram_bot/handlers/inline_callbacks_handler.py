@@ -24,37 +24,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def my_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service):
-    """Handler para mostrar las llaves del usuario."""
-    query = update.callback_query
-    await query.answer()
-    
-    try:
-        user_id = update.effective_user.id
-        keys = await vpn_service.get_user_keys(user_id)
-        
-        if not keys:
-            text = "🔑 No tienes llaves VPN activas.\n\nUsa el botón '➕ Crear Nueva' para obtener tu primera llave."
-        else:
-            text = "🔑 **Tus Llaves VPN Activas:**\n\n"
-            for i, key in enumerate(keys, 1):
-                status = "✅ Activa" if key.is_active else "❌ Inactiva"
-                text += f"{i}. **{key.name}** - {status}\n"
-                text += f"   📅 Creada: {key.created_at.strftime('%d/%m/%Y')}\n"
-                text += f"   📊 Datos usados: {key.used_mb:.1f}MB\n\n"
-        
-        await query.edit_message_text(
-            text=text,
-            reply_markup=InlineKeyboards.main_menu(),
-            parse_mode="Markdown"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error en my_keys_handler: {e}")
-        await query.edit_message_text(
-            text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.main_menu()
-        )
+
 
 
 async def create_key_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -190,7 +160,16 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None):
     
     # Navegación principal
     handlers.append(CallbackQueryHandler(main_menu_handler, pattern="^main_menu$"))
-    handlers.append(CallbackQueryHandler(lambda u, c: my_keys_handler(u, c, vpn_service), pattern="^my_keys$"))
+    # DEPRECATED: Handler de llaves básico reemplazado por sistema de submenús
+    # handlers.append(CallbackQueryHandler(lambda u, c: my_keys_handler(u, c, vpn_service), pattern="^my_keys$"))
+    
+    # Usar el nuevo sistema de submenús para "my_keys"
+    from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
+    key_submenu_handler = get_key_submenu_handler(vpn_service)
+    handlers.append(CallbackQueryHandler(
+        lambda u, c: key_submenu_handler.show_key_submenu(u, c), 
+        pattern="^my_keys$"
+    ))
     handlers.append(CallbackQueryHandler(create_key_handler, pattern="^create_key$"))
     handlers.append(CallbackQueryHandler(lambda u, c: status_handler(u, c, vpn_service), pattern="^status$"))
     handlers.append(CallbackQueryHandler(operations_handler, pattern="^operations$"))

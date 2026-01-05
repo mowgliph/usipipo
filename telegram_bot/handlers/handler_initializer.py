@@ -26,6 +26,7 @@ from telegram_bot.handlers.achievement_handler import (
     claim_reward_handler, achievements_leaderboard_handler, leaderboard_category_handler
 )
 from telegram_bot.handlers.inline_callbacks_handler import get_inline_callback_handlers
+from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
 from utils.bot_logger import get_logger
 from application.services.game_service import GameService
 from application.services.achievement_service import AchievementService
@@ -61,9 +62,15 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     # Flujo de Creación de Llaves (ConversationHandler)
     handlers.append(get_creation_handler(vpn_service))
 
-    # Gestión de Llaves (Listar y Botones Inline de borrado)
+    # Gestión de Llaves (Sistema de Submenús)
+    key_submenu_handler = get_key_submenu_handler(vpn_service)
     handlers.append(MessageHandler(filters.Regex("^🛡️ Mis Llaves$"),
-                                   lambda u, c: list_keys_handler(u, c, vpn_service)))
+                                   lambda u, c: key_submenu_handler.show_key_submenu(u, c)))
+    
+    # Submenú de llaves - Callback handlers
+    handlers.extend(key_submenu_handler.get_handlers())
+    
+    # Legacy handlers (mantener compatibilidad)
     handlers.append(CallbackQueryHandler(lambda u, c: delete_callback_handler(u, c, vpn_service),
                                          pattern="^(delete_|cancel_delete)"))
 
@@ -323,5 +330,6 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Handlers para callbacks inline del nuevo sistema
     handlers.extend(get_inline_callback_handlers(vpn_service, achievement_service))
+    
 
     return handlers
