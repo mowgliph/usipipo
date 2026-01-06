@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timedelta, timezone
-from loguru import logger
+from utils.logger import logger
 
 from domain.entities.user import User
 from domain.entities.vpn_key import VpnKey

@@ -16,7 +16,7 @@ from telegram.error import (
     ChatMigrated,
     NetworkError
 )
-from loguru import logger
+#from loguru import logger
 from datetime import datetime
 import traceback
 import sys
@@ -24,6 +24,7 @@ import sys
 from config import settings
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 from telegram_bot.messages.messages import Messages
+from utils.logger import logger
 
 
 class ErrorHandler:
@@ -56,22 +57,9 @@ class ErrorHandler:
                 if update.effective_chat:
                     chat_info = f"{update.effective_chat.id} ({update.effective_chat.type})"
             
-            # Log detallado del error
-            logger.error("=" * 80)
-            logger.error(f"🔥 ERROR CAPTURADO: {error_type}")
-            logger.error(f"👤 Usuario: {user_info}")
-            logger.error(f"💬 Chat: {chat_info}")
-            logger.error(f"⏰ Timestamp: {datetime.now().isoformat()}")
-            logger.error(f"📋 Detalles: {str(error)}")
-            
-            # Traceback completo en desarrollo
-            if settings.is_development:
-                logger.error("🔍 Traceback completo:")
-                logger.error("".join(traceback.format_exception(
-                    type(error), error, error.__traceback__
-                )))
-            
-            logger.error("=" * 80)
+            # Log detallado del error usando unified_logger
+            context = f"Error en bot - Usuario: {user_info}, Chat: {chat_info}, Timestamp: {datetime.now().isoformat()}"
+            logger.log_error(error, context)
             
             # Manejar diferentes tipos de errores
             await ErrorHandler._handle_specific_error(update, context, error)
@@ -82,8 +70,7 @@ class ErrorHandler:
         
         except Exception as e:
             # Error en el handler de errores (meta-error)
-            logger.critical(f"💥 ERROR EN EL ERROR HANDLER: {e}")
-            logger.critical("".join(traceback.format_exception(*sys.exc_info())))
+            logger.critical(f"💥 ERROR EN EL ERROR HANDLER: {e}", error=e)
     
     @staticmethod
     async def _handle_specific_error(
@@ -128,7 +115,7 @@ class ErrorHandler:
                 if "message is not modified" in error_str:
                     logger.debug("ℹ️ Intento de modificar mensaje sin cambios (ignorado)")
                     return
-                
+
                 elif "message to delete not found" in error_str:
                     logger.debug("ℹ️ Intento de borrar mensaje inexistente (ignorado)")
                     return
@@ -180,7 +167,7 @@ class ErrorHandler:
                 )
         
         except Exception as e:
-            logger.error(f"❌ Error al enviar mensaje de error al usuario: {e}")
+            logger.error(f"❌ Error al enviar mensaje de error al usuario: {e}", error=e)
     
     @staticmethod
     def _is_critical_error(error: Exception) -> bool:
@@ -246,9 +233,9 @@ class ErrorHandler:
             )
             
             logger.info(f"✅ Notificación de error enviada al admin {settings.ADMIN_ID}")
-        
+
         except Exception as e:
-            logger.error(f"❌ No se pudo notificar al admin: {e}")
+            logger.error(f"❌ No se pudo notificar al admin: {e}", error=e)
 
 
 # Función standalone para compatibilidad con main.py

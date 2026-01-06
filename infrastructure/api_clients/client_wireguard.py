@@ -5,7 +5,7 @@ import uuid
 import ipaddress
 from pathlib import Path
 from typing import Optional, Dict, List
-from loguru import logger
+from utils.logger import logger
 from config import settings
 
 class WireGuardClient:

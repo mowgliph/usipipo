@@ -8,7 +8,7 @@ Version: 2.0.0 - Sistema de submenús para llaves
 
 from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters
-from loguru import logger
+from utils.logger import logger
 from typing import Dict, Any, List, Optional
 
 from application.services.vpn_service import VpnService

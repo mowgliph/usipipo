@@ -1,5 +1,5 @@
 from typing import Optional
-from loguru import logger
+from utils.logger import logger
 
 from domain.entities.user import User
 from domain.interfaces.iuser_repository import IUserRepository

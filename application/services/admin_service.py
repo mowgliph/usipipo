@@ -8,7 +8,7 @@ Version: 1.0.0
 import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional
-from loguru import logger
+from utils.logger import logger
 
 from domain.interfaces.iadmin_service import IAdminService
 from domain.entities.admin import AdminUserInfo, AdminKeyInfo, ServerStatus, AdminOperationResult

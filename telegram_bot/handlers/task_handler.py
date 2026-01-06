@@ -7,7 +7,7 @@ Version: 1.0.0
 
 from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler
-from loguru import logger
+from utils.logger import logger
 import uuid
 
 from application.services.task_service import TaskService

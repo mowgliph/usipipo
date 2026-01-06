@@ -1,6 +1,6 @@
 import httpx
 from urllib.parse import quote
-from loguru import logger
+from utils.logger import logger
 from config import settings
 
 class OutlineClient:

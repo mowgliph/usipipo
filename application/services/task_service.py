@@ -8,7 +8,7 @@ Version: 1.0.0
 from typing import List, Optional, Dict
 from datetime import datetime
 import uuid
-from loguru import logger
+from utils.logger import logger
 
 from domain.entities.task import Task, UserTask
 from infrastructure.persistence.supabase.task_repository import TaskRepository

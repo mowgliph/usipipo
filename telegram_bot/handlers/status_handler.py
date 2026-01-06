@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from loguru import logger
+from utils.logger import logger
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages

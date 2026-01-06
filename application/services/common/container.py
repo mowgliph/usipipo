@@ -13,7 +13,7 @@ from functools import lru_cache
 from typing import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from loguru import logger
+from utils.logger import logger
 
 from config import settings
 

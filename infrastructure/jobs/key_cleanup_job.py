@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 from datetime import datetime, timedelta, timezone
 from typing import List
 from domain.entities.vpn_key import VpnKey
-from loguru import logger
+from utils.logger import logger
 
 def _normalize_datetime(dt: datetime) -> datetime:
     """

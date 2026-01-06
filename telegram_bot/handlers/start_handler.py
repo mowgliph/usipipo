@@ -5,7 +5,7 @@ from application.services.achievement_service import AchievementService
 from telegram_bot.messages import Messages
 from telegram_bot.keyboard import InlineKeyboards, Keyboards
 from config import settings
-from loguru import logger
+from utils.logger import logger
 from telegram import ReplyKeyboardRemove
 from utils.spinner import registration_spinner
 

@@ -11,10 +11,10 @@ import re
 from typing import List, Optional, Dict, Any
 from telegram import Update, Message, PhotoSize
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler
-from loguru import logger
+from utils.logger import logger
 
 from config import settings
-from utils.bot_logger import get_logger
+
 
 # Estados de conversación para broadcast
 AWAITING_MESSAGE = 1
@@ -25,7 +25,7 @@ class BroadcastHandler:
     """Sistema de broadcast para mensajes masivos."""
     
     def __init__(self):
-        self.bot_logger = get_logger()
+
         self.pending_broadcast: Dict[int, Dict[str, Any]] = {}
         
     def is_admin(self, user_id: int) -> bool:

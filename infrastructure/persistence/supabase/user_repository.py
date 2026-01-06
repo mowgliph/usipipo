@@ -11,7 +11,7 @@ import secrets
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from loguru import logger
+from utils.logger import logger
 
 from domain.entities.user import User, UserStatus
 from domain.interfaces.iuser_repository import IUserRepository

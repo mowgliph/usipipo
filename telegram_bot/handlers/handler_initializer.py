@@ -33,7 +33,7 @@ from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminK
 from telegram_bot.keyboard.keyboard import Keyboards
 from telegram_bot.messages.game_messages import GameMessages
 from telegram_bot.messages.messages import Messages
-from utils.bot_logger import get_logger
+from utils.logger import logger, get_logger
 
 def initialize_handlers(vpn_service, support_service, referral_service, payment_service, achievement_service=None):
     """
@@ -121,8 +121,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
                 parse_mode="Markdown"
             )
         except Exception as e:
-            logger = get_logger()
-            logger.log_error(e, context="mi_balance_handler", user_id=user_id)
+            logger.log_error(e, context='mi_balance_handler', user_id=user_id)
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=InlineKeyboards.operations_menu()
@@ -194,8 +193,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
                 parse_mode="Markdown"
             )
         except Exception as e:
-            logger = get_logger()
-            logger.log_error(e, context="juega_y_gana_handler", user_id=user_id)
+            logger.log_error(e, context='juega_y_gana_handler', user_id=user_id)
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=InlineKeyboards.operations_menu()
@@ -221,8 +219,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
                 parse_mode="Markdown"
             )
         except Exception as e:
-            logger = get_logger()
-            logger.log_error(e, context="referidos_handler", user_id=user_id)
+            logger.log_error(e, context='referidos_handler', user_id=user_id)
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=InlineKeyboards.operations_menu()
@@ -292,7 +289,6 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     async def show_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para el botón '📋 Mostrar Menú' del teclado de respaldo."""
         user = update.effective_user
-        logger = get_logger()
         logger.log_bot_event("INFO", f"Botón 'Mostrar Menú' presionado por usuario {user.id}")
         
         try:
@@ -331,8 +327,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     handlers.extend(monitoring_handlers)
     
     # Conectar el logger con el sistema de monitorización
-    bot_logger = get_logger()
-    bot_logger.set_monitoring_handler(monitoring_instance)
+    logger.set_monitoring_handler(monitoring_instance)
 
     # Sistema de Broadcast (solo para admin)
     handlers.append(get_broadcast_handler())

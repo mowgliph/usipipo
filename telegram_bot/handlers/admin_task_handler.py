@@ -7,7 +7,7 @@ Version: 1.0.0
 
 from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
-from loguru import logger
+from utils.logger import logger
 import uuid
 import re
 from config import settings

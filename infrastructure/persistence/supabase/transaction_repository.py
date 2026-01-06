@@ -11,7 +11,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from loguru import logger
+from utils.logger import logger
 
 from domain.interfaces.itransaction_repository import ITransactionRepository
 from .models import TransactionModel

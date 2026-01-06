@@ -7,7 +7,7 @@ Version: 2.0.0
 
 import sys
 import asyncio
-from loguru import logger
+from utils.logger import logger
 from telegram.ext import ApplicationBuilder
 
 from config import settings
@@ -29,9 +29,7 @@ from infrastructure.jobs.ticket_cleaner import close_stale_tickets_job
 from infrastructure.jobs.usage_sync import sync_vpn_usage_job
 from infrastructure.jobs.key_cleanup_job import key_cleanup_job
 
-# Configuración de Loguru
-logger.add("logs/bot.log", rotation="10 MB", retention="10 days", level="INFO")
-logger.add("logs/errors.log", rotation="5 MB", retention="30 days", level="ERROR")
+# Logging configurado desde utils.logger (centralizado en settings)
 
 
 async def startup():

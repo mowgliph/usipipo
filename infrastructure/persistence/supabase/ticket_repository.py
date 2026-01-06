@@ -10,7 +10,7 @@ import uuid
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from loguru import logger
+from utils.logger import logger
 
 from domain.entities.ticket import Ticket
 from .models import TicketModel

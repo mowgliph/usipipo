@@ -6,7 +6,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from loguru import logger
+from utils.logger import logger
 from config import settings
 from infrastructure.persistence.database import close_database
 

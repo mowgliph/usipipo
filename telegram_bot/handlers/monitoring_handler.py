@@ -3,9 +3,10 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
-from loguru import logger
+from utils.logger import logger
 
 from telegram_bot.messages.messages import Messages
+
 
 
 class MonitoringHandler:
@@ -51,94 +52,101 @@ class MonitoringHandler:
     async def logs_command_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Maneja el comando /logs - solo para admin."""
         user_id = update.effective_user.id
-        
+
         # Verificar si es admin
         if user_id != self.admin_telegram_id:
             await update.message.reply_text("❌ Comando no autorizado")
             return
-        
+
         # Parsear argumentos
         args = context.args if context.args else []
-        lines = 10  # Por defecto 10 logs
-        level_filter = None
-        
+        lines = 15  # Por defecto 15 logs (aumentado para mejor visibilidad)
+
         if args:
             try:
-                if args[0].startswith("/") and len(args[0]) > 1:
-                    # Formato: /logs /ERROR 100
-                    level_filter = args[0][1:].upper()
-                    if len(args) > 1:
-                        lines = int(args[1])
-                else:
-                    # Formato: /logs 100 o /logs ERROR
-                    if args[0].isdigit():
-                        lines = int(args[0])
-                    else:
-                        level_filter = args[0].upper()
-                        if len(args) > 1 and args[1].isdigit():
-                            lines = int(args[1])
+                if args[0].isdigit():
+                    lines = min(int(args[0]), 50)  # Máximo 50 líneas para evitar sobrecarga
             except (ValueError, IndexError):
                 pass
-        
-        # Obtener logs
-        if level_filter:
-            logs = self.get_logs_by_level(level_filter)
-            title = f"📋 <b>Logs Nivel {level_filter}</b>"
+
+        # Obtener logs del archivo usando el logger unificado
+        logs_text = logger.get_last_logs(lines)
+
+        # Información adicional
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        footer = f"\n\n🕐 <i>Generado el {timestamp}</i>"
+
+        # Formatear respuesta profesional
+        if "❌ Error leyendo logs" in logs_text or "El archivo de log aún no existe" in logs_text:
+            title = "📋 <b>Logs del Sistema</b>"
+            message = f"{title}\n\n{logs_text}{footer}"
         else:
-            logs = self.get_recent_logs(lines)
-            title = f"📋 <b>Últimos {len(logs)} Logs</b>"
-        
-        # Formatear respuesta con HTML
-        if not logs:
-            logs_text = "No hay logs disponibles"
-        else:
-            # Limitar a 10 líneas por defecto y formatear con HTML
-            logs_to_show = logs[-10:] if len(logs) > 10 else logs
-            logs_text = ""
-            for log in logs_to_show:
-                # Reemplazar caracteres especiales para HTML
-                log_html = log.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                # Colorear según nivel
-                if "[ERROR]" in log_html:
-                    log_html = f"<code style='color: #ff6b6b;'>{log_html}</code>"
-                elif "[WARNING]" in log_html:
-                    log_html = f"<code style='color: #ffa726;'>{log_html}</code>"
-                elif "[INFO]" in log_html:
-                    log_html = f"<code style='color: #66bb6a;'>{log_html}</code>"
-                else:
-                    log_html = f"<code>{log_html}</code>"
-                logs_text += f"• {log_html}\n"
-        
-        # Límite de caracteres de Telegram (4096)
-        max_length = 4000  # Dejar margen de seguridad
-        
-        if len(logs_text) > max_length:
-            # Dividir en múltiples mensajes si es muy largo
-            lines_list = logs_text.split("\n")
-            current_message = title + "\n\n"
-            messages = []
-            
+            title = f"📋 <b>Últimos {lines} Logs del Sistema</b>"
+
+            # Procesar y formatear las líneas de log
+            lines_list = logs_text.strip().split('\n')
+            formatted_logs = []
+
             for line in lines_list:
-                if len(current_message + line + "\n") > max_length:
-                    messages.append(current_message)
-                    current_message = title + f" (Parte {len(messages) + 1})\n\n" + line + "\n"
-                else:
-                    current_message += line + "\n"
-            
-            if current_message.strip():
-                messages.append(current_message)
-            
-            # Enviar mensajes
-            for message in messages:
+                if line.strip():
+                    # Detectar nivel de log y agregar emoji apropiado
+                    if 'ERROR' in line.upper():
+                        emoji = "🔴"
+                    elif 'WARNING' in line.upper():
+                        emoji = "🟡"
+                    elif 'INFO' in line.upper():
+                        emoji = "🟢"
+                    elif 'DEBUG' in line.upper():
+                        emoji = "🔵"
+                    else:
+                        emoji = "⚪"
+
+                    # Escapar caracteres especiales para HTML
+                    safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    formatted_logs.append(f"{emoji} <code>{safe_line}</code>")
+
+            logs_content = "\n".join(formatted_logs)
+            message = f"{title}\n\n{logs_content}{footer}"
+
+        # Límite de caracteres de Telegram (4096)
+        max_length = 4000
+
+        if len(message) > max_length:
+            # Dividir en múltiples mensajes si es muy largo
+            if "❌ Error leyendo logs" in logs_text or "El archivo de log aún no existe" in logs_text:
+                # Para mensajes de error, enviar completo
                 await update.message.reply_text(
                     message,
                     parse_mode="HTML",
                     disable_web_page_preview=True
                 )
+            else:
+                # Dividir logs formateados
+                parts = []
+                current_part = f"{title}\n\n"
+
+                for line in formatted_logs:
+                    if len(current_part + line + "\n") > max_length:
+                        parts.append(current_part)
+                        current_part = f"{title} (Parte {len(parts) + 1})\n\n{line}\n"
+                    else:
+                        current_part += line + "\n"
+
+                if current_part.strip():
+                    parts.append(current_part)
+
+                # Enviar mensajes
+                for i, part in enumerate(parts):
+                    is_last = (i == len(parts) - 1)
+                    await update.message.reply_text(
+                        part + footer if is_last else part,
+                        parse_mode="HTML",
+                        disable_web_page_preview=True
+                    )
         else:
             # Mensaje único
             await update.message.reply_text(
-                f"{title}\n\n{logs_text}",
+                message,
                 parse_mode="HTML",
                 disable_web_page_preview=True
             )

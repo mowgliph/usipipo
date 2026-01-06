@@ -1,6 +1,6 @@
 from application.services.support_service import SupportService
 from telegram.ext import ContextTypes
-from loguru import logger
+from utils.logger import logger
 
 async def close_stale_tickets_job(context: ContextTypes.DEFAULT_TYPE):
     """

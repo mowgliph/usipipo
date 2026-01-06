@@ -8,7 +8,7 @@ Version: 2.0.0
 """
 
 import asyncio
-from loguru import logger
+from utils.logger import logger
 
 from infrastructure.persistence.database import init_database, close_database, get_session_context
 from infrastructure.persistence.supabase.models import UserModel

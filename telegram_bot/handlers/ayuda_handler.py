@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from loguru import logger
+from utils.logger import logger
 
 from telegram_bot.messages.messages import Messages
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards

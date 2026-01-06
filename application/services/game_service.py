@@ -11,7 +11,7 @@ from typing import List, Optional, Dict
 
 from domain.interfaces.igame_service import IGameService
 from domain.entities.game import GameSession, UserBalance, GameStats, GameType, GameResult
-from utils.bot_logger import get_logger
+from utils.logger import get_logger
 
 class GameService(IGameService):
     """Implementación del servicio de juegos."""

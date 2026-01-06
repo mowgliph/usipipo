@@ -21,7 +21,7 @@ from pydantic import (
     validator
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from loguru import logger
+from utils.logger import logger
 
 
 class Settings(BaseSettings):

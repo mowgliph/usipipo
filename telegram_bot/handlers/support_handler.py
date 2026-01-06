@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters, CommandHandler
 from config import settings
-from loguru import logger
+from utils.logger import logger
 
 from application.services.support_service import SupportService
 from telegram_bot.messages.messages import Messages

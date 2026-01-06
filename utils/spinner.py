@@ -13,7 +13,7 @@ from typing import Callable, Optional, Any
 from functools import wraps
 from telegram import Update
 from telegram.ext import ContextTypes
-from loguru import logger
+from utils.logger import logger
 
 
 class SpinnerManager:

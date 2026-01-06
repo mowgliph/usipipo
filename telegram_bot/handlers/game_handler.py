@@ -12,7 +12,7 @@ from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, 
 
 from domain.entities.game import GameType, GameResult
 from telegram_bot.messages.game_messages import GameMessages
-from utils.bot_logger import get_logger
+from utils.logger import get_logger
 
 # Estados de conversación
 SELECTING_GAME = 1

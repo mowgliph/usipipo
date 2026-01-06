@@ -1,6 +1,6 @@
 from telegram import Update, LabeledPrice
 from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, filters, PreCheckoutQueryHandler
-from loguru import logger
+from utils.logger import logger
 
 from application.services.referral_service import ReferralService
 from application.services.vpn_service import VpnService

@@ -2,7 +2,7 @@ import qrcode
 import os
 from pathlib import Path
 from config import settings
-from loguru import logger
+from utils.logger import logger
 
 class QrGenerator:
     @staticmethod

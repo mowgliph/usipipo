@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql import text
-from loguru import logger
+from utils.logger import logger
 
 from config import settings
 

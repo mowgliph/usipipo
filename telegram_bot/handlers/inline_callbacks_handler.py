@@ -12,7 +12,7 @@ from telegram_bot.messages.messages import Messages
 from telegram_bot.messages.admin_messages import AdminMessages
 from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
 from config import settings
-from loguru import logger
+from utils.logger import logger
 from application.services.support_service import SupportService
 from application.services.common.container import get_container
 

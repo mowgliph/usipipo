@@ -8,7 +8,7 @@ Version: 1.0.0
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, ConversationHandler
 from config import settings
-from loguru import logger
+from utils.logger import logger
 
 from application.services.admin_service import AdminService
 from telegram_bot.messages.admin_messages import AdminMessages

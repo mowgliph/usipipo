@@ -12,7 +12,7 @@ from sqlalchemy import select, update, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
-from loguru import logger
+from utils.logger import logger
 
 from domain.entities.achievement import Achievement, UserAchievement, UserStats, AchievementType
 from domain.interfaces.iachievement_repository import IAchievementRepository, IUserStatsRepository

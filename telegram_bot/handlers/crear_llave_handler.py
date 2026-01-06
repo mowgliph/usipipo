@@ -8,7 +8,7 @@ from telegram.ext import (
     filters, 
     CallbackQueryHandler
 )
-from loguru import logger
+from utils.logger import logger
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages

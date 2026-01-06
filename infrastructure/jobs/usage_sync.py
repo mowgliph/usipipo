@@ -1,6 +1,6 @@
 from application.services.vpn_service import VpnService
 from telegram.ext import ContextTypes
-from loguru import logger
+from utils.logger import logger
 
 async def sync_vpn_usage_job(context: ContextTypes.DEFAULT_TYPE):
     """
