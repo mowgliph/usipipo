@@ -33,12 +33,12 @@ class KeySubmenuMessages:
         "Protocolo ligero ideal para móviles\n"
     )
     
-    # Lista de llaves por servidor
+    # Lista de llaves por servidor (muestra en bloque de cita)
     SERVER_KEYS_LIST = (
-        "🔑 **Llaves en {server_name}:**\n"
-        "━━━━━━━━━━━━\n\n"
-        "> {keys_list}\n"
-        "━━━━━━━━━━━━"
+        "> 🔑 **Llaves en {server_name}:**\n"
+        "> ━━━━━━━━━━━━\n\n"
+        "{keys_list}\n"
+        "> ━━━━━━━━━━━━━"
     )
     
     # Vista detallada de llave
@@ -90,9 +90,9 @@ class KeySubmenuMessages:
     
     @staticmethod
     def format_key_list(keys: list, server_type: str) -> str:
-        """Formatea la lista de llaves para mostrar."""
+        """Formatea la lista de llaves para mostrar (prefija cada línea con '> ' para cita)."""
         if not keys:
-            return f"No hay llaves en {server_type}"
+            return f"> No hay llaves en {server_type}"
         
         formatted_keys = []
         for i, key in enumerate(keys, 1):
@@ -105,7 +105,9 @@ class KeySubmenuMessages:
                 f"   📊 {usage} / {key.get('limit_gb', 0):.1f} GB"
             )
         
-        return "\n".join(formatted_keys)
+        raw = "\n".join(formatted_keys)
+        # Prefijar cada línea con '> ' para que Telegram lo muestre como cita en Markdown
+        return "\n".join(f"> {line}" if line.strip() != "" else ">" for line in raw.splitlines())
     
     @staticmethod
     def format_server_info(server_data: Dict[str, Any]) -> str:
