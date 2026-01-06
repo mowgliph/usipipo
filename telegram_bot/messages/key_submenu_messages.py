@@ -35,10 +35,10 @@ class KeySubmenuMessages:
     
     # Lista de llaves por servidor (muestra en bloque de cita)
     SERVER_KEYS_LIST = (
-        "> 🔑 **Llaves en {server_name}:**\n"
-        "> ━━━━━━━━━━━━\n\n"
-        "{keys_list}\n"
-        "> ━━━━━━━━━━━━━"
+        "🔑 **Llaves en {server_name}:**\n"
+        "━━━━━━━━━━━━\n\n"
+        "**>{keys_list}**\n"
+        "━━━━━━━━━━━━━"
     )
     
     # Vista detallada de llave
