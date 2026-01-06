@@ -89,7 +89,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user.id == int(settings.ADMIN_ID):
                 await update.message.reply_text(
                     text="👇 Menú Principal (Admin)",
-                    reply_markup=InlineKeyboards.admin_main_menu(),
+                    reply_markup=InlineKeyboards.main_menu(is_admin=True),
                     parse_mode="Markdown"
                 )
             else:

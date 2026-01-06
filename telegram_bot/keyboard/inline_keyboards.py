@@ -33,7 +33,7 @@ class InlineKeyboards:
                 InlineKeyboardButton("💰 Operaciones", callback_data="operations")
             ]
         ]
-         
+          
         # Tercera fila: incluir botón de admin solo si es administrador
         if is_admin:
             keyboard.append([
@@ -46,12 +46,7 @@ class InlineKeyboards:
                 InlineKeyboardButton("🏆 Logros", callback_data="achievements"),
                 InlineKeyboardButton("⚙️ Ayuda", callback_data="help")
             ])
-         
-        # Cuarta fila: botón de cancelar
-        keyboard.append([
-            InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
-        ])
-         
+          
         return InlineKeyboardMarkup(keyboard)
     
     @staticmethod

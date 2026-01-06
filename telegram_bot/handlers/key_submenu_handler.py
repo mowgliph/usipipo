@@ -8,6 +8,7 @@ Version: 2.0.0 - Sistema de submenús para llaves
 
 from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters
+from telegram.error import BadRequest
 from utils.logger import logger
 from typing import Dict, Any, List, Optional
 
@@ -22,6 +23,26 @@ class KeySubmenuHandler:
     
     def __init__(self, vpn_service: VpnService):
         self.vpn_service = vpn_service
+
+    async def _safe_edit_message(self, query, context, text, reply_markup=None, parse_mode=None):
+        """
+        Intenta editar el mensaje; si no es posible (p. ej. 'There is no text in the message to edit'),
+        intenta editar la caption si existe, o envía un nuevo mensaje al chat como fallback.
+        """
+        try:
+            await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode=parse_mode)
+        except BadRequest as e:
+            err = str(e)
+            logger.warning(f"_safe_edit_message: edit failed: {err}")
+            try:
+                # Si el mensaje tiene caption, intentar editar caption
+                if getattr(query.message, 'caption', None) is not None:
+                    await query.edit_message_caption(caption=text, reply_markup=reply_markup, parse_mode=parse_mode)
+                else:
+                    # Enviar nuevo mensaje como fallback
+                    await context.bot.send_message(chat_id=query.message.chat.id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
+            except Exception as ex:
+                logger.error(f"_safe_edit_message fallback failed: {ex}")
     
     async def show_key_submenu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
@@ -51,7 +72,9 @@ class KeySubmenuHandler:
             message += f"\n🟩 **Outline:** {len(outline_keys)} llaves"
             message += f"\n\n📊 **Total:** {len(keys)} llaves activas"
             
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=message,
                 reply_markup=KeySubmenuKeyboards.main_menu(keys_summary),
                 parse_mode="Markdown"
@@ -59,7 +82,9 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en show_key_submenu: {e}")
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=Messages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=KeySubmenuKeyboards.quick_actions()
             )
