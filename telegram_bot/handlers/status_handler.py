@@ -14,7 +14,7 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
     - Estado de la suscripción/usuario.
     """
     telegram_id = update.effective_user.id
-    user_name = update.effective_user.first_name
+    user_name = update.effective_user.username or update.effective_user.first_name
     
     try:
         # Llamada al servicio para obtener el resumen del usuario
