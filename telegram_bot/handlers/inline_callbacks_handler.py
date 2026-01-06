@@ -9,6 +9,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
 from telegram_bot.messages import Messages
+from config import settings
 from loguru import logger
 
 
@@ -16,13 +17,20 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para volver al menú principal."""
     query = update.callback_query
     await query.answer()
+    user = update.effective_user
     
-    await query.edit_message_text(
-        text="👇 Menú Principal",
-        reply_markup=InlineKeyboards.main_menu(),
-        parse_mode="Markdown"
-    )
-
+    if user.id == int(settings.ADMIN_ID):
+        await query.edit_message_text(
+            text="👇 Menú Principal (Admin)",
+            reply_markup=InlineAdminKeyboards.main_menu(),
+            parse_mode="Markdown"
+        )
+    else:
+        await query.edit_message_text(
+            text="👇 Menú Principal",
+            reply_markup=InlineKeyboards.main_menu(),
+            parse_mode="Markdown"
+        )
 
 
 
@@ -132,7 +140,6 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     # Verificar si es admin
-    from config import settings
     if update.effective_user.id != int(settings.ADMIN_ID):
         await query.edit_message_text(
             text="🚫 **Acceso Denegado**\n\nNo tienes permisos de administración.",

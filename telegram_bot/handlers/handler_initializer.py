@@ -223,10 +223,20 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     async def atras_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler para el botón 'Atrás' en el menú de operaciones."""
-        await update.message.reply_text(
-            text="👇 Menú Principal",
-            reply_markup=InlineKeyboards.main_menu()
-        )
+        user = update.effective_user
+        
+        if user.id == int(settings.ADMIN_ID):
+            await update.message.reply_text(
+                text="👇 Menú Principal (Admin)",
+                reply_markup=InlineAdminKeyboards.main_menu(),
+                parse_mode="Markdown"
+            )
+        else:
+            await update.message.reply_text(
+                text="👇 Menú Principal",
+                reply_markup=InlineKeyboards.main_menu(),
+                parse_mode="Markdown"
+            )
 
     handlers.append(MessageHandler(filters.Regex("^💰 Mi Balance$"), mi_balance_handler))
     handlers.append(MessageHandler(filters.Regex("^👑 Plan VIP$"), plan_vip_handler))
@@ -287,7 +297,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             if user.id == int(settings.ADMIN_ID):
                 await update.message.reply_text(
                     text="👇 Menú Principal (Admin)",
-                    reply_markup=InlineKeyboards.admin_main_menu(),
+                    reply_markup=InlineAdminKeyboards.main_menu(),
                     parse_mode="Markdown"
                 )
             else:
