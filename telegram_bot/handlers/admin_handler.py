@@ -13,6 +13,8 @@ from loguru import logger
 from application.services.admin_service import AdminService
 from telegram_bot.messages.admin_messages import AdminMessages
 from telegram_bot.keyboard.admin_keyboard import AdminKeyboard
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from utils.spinner import with_spinner
 
 # Estados de la conversación de administración
 ADMIN_MENU = 0
@@ -339,6 +341,27 @@ class AdminHandler:
             per_chat=True,
             per_user=True,      # ← AÑADIDO: para tracking por usuario
         )
+
+@with_spinner(operation_type="loading")
+async def admin_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para el comando /admin."""
+    user = update.effective_user
+
+    if user.id == int(settings.ADMIN_ID):
+        # Mostrar menú de administración
+        await update.message.reply_text(
+            text=AdminMessages.MAIN_MENU,
+            reply_markup=AdminKeyboard.main_menu(),
+            parse_mode="Markdown"
+        )
+    else:
+        # Acceso denegado, mostrar menú principal
+        await update.message.reply_text(
+            "⚠️ Acceso denegado. Función solo para administradores.",
+            reply_markup=InlineKeyboards.main_menu(is_admin=False),
+            parse_mode="Markdown"
+        )
+
 
 def get_admin_handler(admin_service: AdminService) -> ConversationHandler:
     """Función para obtener el handler de administración."""

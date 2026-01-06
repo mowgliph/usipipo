@@ -1,38 +1,39 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
+from application.services.achievement_service import AchievementService
+from application.services.admin_service import AdminService
+from application.services.common.container import get_container
+from application.services.game_service import GameService
+from application.services.task_service import TaskService
 from config import settings
-from telegram_bot.keyboard.keyboard import Keyboards
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
-from telegram_bot.messages.messages import Messages
-
-# Importación de Handlers
-from telegram_bot.handlers.start_handler import start_handler
-from telegram_bot.handlers.crear_llave_handler import get_creation_handler
-from telegram_bot.handlers.keys_manager_handler import list_keys_handler, delete_callback_handler
-from telegram_bot.handlers.status_handler import status_handler
-from telegram_bot.handlers.ayuda_handler import ayuda_handler, help_command_handler
-from telegram_bot.handlers.support_handler import get_support_handler, admin_reply_handler
-from telegram_bot.handlers.support_menu_handler import get_support_menu_handler
-from telegram_bot.handlers.referral_handler import get_referral_handlers
-from telegram_bot.handlers.payment_handler import get_payment_handlers
-from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
-from telegram_bot.handlers.broadcast_handler import get_broadcast_handler
-from telegram_bot.handlers.game_handler import get_game_handlers
-from telegram_bot.handlers.admin_handler import get_admin_handler
 from telegram_bot.handlers.achievement_handler import (
     achievements_menu_handler, achievements_progress_handler, achievements_list_handler,
     achievements_category_handler, achievements_next_handler, achievements_rewards_handler,
     claim_reward_handler, achievements_leaderboard_handler, leaderboard_category_handler
 )
+from telegram_bot.handlers.admin_handler import get_admin_handler, admin_command_handler
+from telegram_bot.handlers.admin_task_handler import get_admin_task_handler
+from telegram_bot.handlers.ayuda_handler import ayuda_handler, help_command_handler
+from telegram_bot.handlers.broadcast_handler import get_broadcast_handler
+from telegram_bot.handlers.crear_llave_handler import get_creation_handler
+from telegram_bot.handlers.game_handler import get_game_handlers
 from telegram_bot.handlers.inline_callbacks_handler import get_inline_callback_handlers
 from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
+from telegram_bot.handlers.keys_manager_handler import list_keys_handler, delete_callback_handler
+from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
+from telegram_bot.handlers.payment_handler import get_payment_handlers
+from telegram_bot.handlers.referral_handler import get_referral_handlers
+from telegram_bot.handlers.start_handler import start_handler
+from telegram_bot.handlers.status_handler import status_handler
+from telegram_bot.handlers.support_handler import get_support_handler, admin_reply_handler
+from telegram_bot.handlers.support_menu_handler import get_support_menu_handler
 from telegram_bot.handlers.task_handler import get_task_handler
-from telegram_bot.handlers.admin_task_handler import get_admin_task_handler
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
+from telegram_bot.keyboard.keyboard import Keyboards
+from telegram_bot.messages.game_messages import GameMessages
+from telegram_bot.messages.messages import Messages
 from utils.bot_logger import get_logger
-from application.services.game_service import GameService
-from application.services.achievement_service import AchievementService
-from application.services.admin_service import AdminService
 
 def initialize_handlers(vpn_service, support_service, referral_service, payment_service, achievement_service=None):
     """
@@ -51,7 +52,6 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     handlers = []
     
     # Obtener contenedor de dependencias
-    from application.services.common.container import get_container
     container = get_container()
 
     # Si no se proporciona achievement_service, obtenerlo del contenedor
@@ -60,9 +60,12 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Comando /start y botón de registro
     handlers.append(CommandHandler("start", start_handler))
-    
+
     # Comando /help
     handlers.append(CommandHandler("help", help_command_handler))
+
+    # Comando /admin
+    handlers.append(CommandHandler("admin", admin_command_handler))
 
     # Flujo de Creación de Llaves (ConversationHandler)
     handlers.append(get_creation_handler(vpn_service))
@@ -88,6 +91,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Operaciones (Referidos, VIP, etc.)
     async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler para el botón '💰 Operaciones'."""
         await update.message.reply_text(
             text=Messages.Operations.MENU_TITLE,
             reply_markup=InlineKeyboards.operations_menu(),
@@ -118,7 +122,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             )
         except Exception as e:
             logger = get_logger()
-            logger.error(f"Error in mi_balance_handler: {e}")
+            logger.log_error(e, context="mi_balance_handler", user_id=user_id)
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=InlineKeyboards.operations_menu()
@@ -158,7 +162,6 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
                 status_message = "✅ ¡Puedes jugar y ganar hoy!"
             
             # Crear mensaje de estado
-            from telegram_bot.messages.game_messages import GameMessages
             status_text = GameMessages.GAME_STATUS.format(
                 stars=balance.stars_balance,
                 games_today=1 if not can_play else 0,
@@ -185,7 +188,6 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            from telegram_bot.messages.game_messages import GameMessages
             await update.message.reply_text(
                 f"{GameMessages.MENU}\n\n{status_text}",
                 reply_markup=InlineKeyboards.games_menu(),
@@ -193,7 +195,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
             )
         except Exception as e:
             logger = get_logger()
-            logger.error(f"Error in juega_y_gana_handler: {e}")
+            logger.log_error(e, context="juega_y_gana_handler", user_id=user_id)
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=InlineKeyboards.operations_menu()
@@ -291,7 +293,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         """Handler para el botón '📋 Mostrar Menú' del teclado de respaldo."""
         user = update.effective_user
         logger = get_logger()
-        logger.info(f"Botón 'Mostrar Menú' presionado por usuario {user.id}")
+        logger.log_bot_event("INFO", f"Botón 'Mostrar Menú' presionado por usuario {user.id}")
         
         try:
             # Determinar si es admin para mostrar el menú correspondiente
@@ -303,7 +305,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
                 parse_mode="Markdown"
             )
         except Exception as e:
-            logger.error(f"Error en show_menu_handler: {e}")
+            logger.log_error(e, context="show_menu_handler", user_id=user.id)
             await update.message.reply_text(
                 text="❌ Error al mostrar el menú. Por favor, intenta nuevamente.",
                 reply_markup=Keyboards.show_menu_button()
@@ -347,7 +349,6 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     handlers.append(get_admin_handler(admin_service))
 
     # Sistema de Tareas
-    from application.services.task_service import TaskService
     task_service = container.resolve(TaskService)
     task_handler = get_task_handler(task_service)
     handlers.extend(task_handler.get_handlers())
