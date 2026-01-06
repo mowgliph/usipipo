@@ -17,7 +17,7 @@
 DEFAULT_PYTHON="python3.13"  # Versión preferida
 FALLBACK_PYTHON="python3.12" # Versión alternativa
 CURRENT_USER=$(whoami)
-BOT_MAIN_FILE="bbalert.py"   # Archivo principal del bot
+BOT_MAIN_FILE="main.py"   # Archivo principal del bot
 REQUIREMENTS_FILE="requirements.txt"
 
 # Colores
