@@ -21,7 +21,8 @@ async def start_support(update: Update, context: ContextTypes.DEFAULT_TYPE, supp
         # Notificar al Admin con un mensaje que incluya el ID del usuario para facilitar el reply
         await context.bot.send_message(
             chat_id=settings.ADMIN_ID,
-            text=Messages.Support.NEW_TICKET_ADMIN.format(name=user.first_name, user_id=user.id)
+            text=Messages.Support.NEW_TICKET_ADMIN.format(name=user.first_name, user_id=user.id),
+            parse_mode="HTML"
         )
         
         await update.message.reply_text(

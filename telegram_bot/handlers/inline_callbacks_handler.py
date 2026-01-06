@@ -5,13 +5,15 @@ Author: uSipipo Team
 Version: 2.0.0 - Sistema de teclados inline
 """
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, ContextTypes
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, get_main_menu_for_user
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards, get_main_menu_for_user
 from telegram_bot.messages.messages import Messages
+from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
 from config import settings
 from loguru import logger
 from application.services.support_service import SupportService
+from application.services.common.container import get_container
 
 
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -29,43 +31,26 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-
-
-
-async def create_key_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Handler DEPRECATED para iniciar el proceso de creación de llave.
-    Ahora manejado por el ConversationHandler en crear_llave_handler.py
-    """
-    # Este handler está obsoleto. El ConversationHandler maneja create_key directamente.
-    pass
-
-
 async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service):
     """Handler para mostrar el estado del usuario."""
     query = update.callback_query
     await query.answer()
-    
     try:
         user_id = update.effective_user.id
         user_status = await vpn_service.get_user_status(user_id)
-        user = user_status["user"]
-        
+        user = user_status["user"]    
         text = f"📊 **Estado de tu Cuenta:**\n\n"
         text += f"👤 **Usuario:** {user.full_name or user.username or 'N/A'}\n"
         text += f"⭐ **Balance:** {user.balance_stars} estrellas\n"
         text += f"🔑 **Llaves Activas:** {user_status['keys_count']}\n"
-        text += f"📅 **Miembro desde:** {user.created_at.strftime('%d/%m/%Y')}\n"
-        
+        text += f"📅 **Miembro desde:** {user.created_at.strftime('%d/%m/%Y')}\n"     
         if user.is_vip:
-            text += f"👑 **Estado VIP:** Activo hasta {user.vip_expires_at.strftime('%d/%m/%Y')}\n"
-        
+            text += f"👑 **Estado VIP:** Activo hasta {user.vip_expires_at.strftime('%d/%m/%Y')}\n"    
         await query.edit_message_text(
             text=text,
             reply_markup=get_main_menu_for_user(user_id),
             parse_mode="Markdown"
-        )
-        
+        )     
     except Exception as e:
         logger.error(f"Error en status_handler: {e}")
         await query.edit_message_text(
@@ -73,12 +58,10 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
             reply_markup=get_main_menu_for_user(user_id)
         )
 
-
 async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para mostrar el menú de operaciones."""
     query = update.callback_query
-    await query.answer()
-    
+    await query.answer() 
     await query.edit_message_text(
         text=Messages.Operations.MENU_TITLE,
         reply_markup=InlineKeyboards.operations_menu(),
@@ -168,8 +151,6 @@ async def support_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.callback_query
     await query.answer()
     
-    # Crear un menú de soporte con botón de volver al centro de ayuda
-    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
     keyboard = [
         [
             InlineKeyboardButton("🎫 Crear Ticket", callback_data="create_ticket"),
@@ -197,16 +178,14 @@ async def create_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TY
     user = update.effective_user
     
     try:
-        # Importar la función start_support del módulo de soporte
-        from telegram_bot.handlers.support_handler import start_support
-        
         # Abrir ticket
         await support_service.open_ticket(user_id=user.id, user_name=user.first_name)
         
         # Notificar al Admin
         await context.bot.send_message(
             chat_id=settings.ADMIN_ID,
-            text=Messages.Support.NEW_TICKET_ADMIN.format(name=user.first_name, user_id=user.id)
+            text=Messages.Support.NEW_TICKET_ADMIN.format(name=user.first_name, user_id=user.id),
+            parse_mode="HTML"
         )
         
         await query.edit_message_text(
@@ -292,6 +271,37 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def close_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, support_service: SupportService):
+    """Handler para cerrar un ticket de soporte desde callback."""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id
+    
+    try:
+        # Cerrar ticket usando el servicio
+        await support_service.close_ticket(user_id)
+        
+        await query.edit_message_text(
+            text=Messages.Support.TICKET_CLOSED,
+            reply_markup=InlineKeyboards.main_menu(),
+            parse_mode="Markdown"
+        )
+        
+        # Notificar al admin
+        await context.bot.send_message(
+            chat_id=settings.ADMIN_ID,
+            text=f"🎫 Ticket del usuario {user_id} cerrado."
+        )
+        
+    except Exception as e:
+        logger.error(f"Error al cerrar ticket desde callback: {e}")
+        await query.edit_message_text(
+            text=Messages.Errors.GENERIC.format(error="No se pudo cerrar el ticket."),
+            reply_markup=InlineKeyboards.support_active()
+        )
+
+
 # Función para registrar todos los handlers de callbacks inline
 def get_inline_callback_handlers(vpn_service=None, achievement_service=None, support_service=None):
     """Retorna una lista de handlers para callbacks inline."""
@@ -299,33 +309,23 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     
     # Obtener support_service del contenedor si no se proporciona
     if support_service is None:
-        from application.services.common.container import get_container
-        from application.services.support_service import SupportService
         container = get_container()
         support_service = container.resolve(SupportService)
     
     # Navegación principal
     handlers.append(CallbackQueryHandler(main_menu_handler, pattern="^main_menu$"))
-    # DEPRECATED: Handler de llaves básico reemplazado por sistema de submenús
-    # handlers.append(CallbackQueryHandler(lambda u, c: my_keys_handler(u, c, vpn_service), pattern="^my_keys$"))
-    
     # Usar el nuevo sistema de submenús para "my_keys"
-    from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
     key_submenu_handler = get_key_submenu_handler(vpn_service)
     handlers.append(CallbackQueryHandler(
         lambda u, c: key_submenu_handler.show_key_submenu(u, c), 
         pattern="^my_keys$"
     ))
-    # DEPRECATED: create_key ahora manejado por ConversationHandler en crear_llave_handler.py
-    # handlers.append(CallbackQueryHandler(create_key_handler, pattern="^create_key$"))
+
     handlers.append(CallbackQueryHandler(lambda u, c: status_handler(u, c, vpn_service), pattern="^status$"))
     handlers.append(CallbackQueryHandler(operations_handler, pattern="^operations$"))
     handlers.append(CallbackQueryHandler(lambda u, c: achievements_handler(u, c, achievement_service), pattern="^achievements$"))
     handlers.append(CallbackQueryHandler(help_handler, pattern="^help$"))
-    
-    # Handler para el centro de tareas (se maneja en task_handler, pero agregamos aquí para compatibilidad)
-    # El handler real está en task_handler.py
-    
+       
     # Handlers del centro de ayuda
     handlers.append(CallbackQueryHandler(usage_guide_handler, pattern="^usage_guide$"))
     handlers.append(CallbackQueryHandler(configuration_handler, pattern="^configuration$"))
@@ -337,5 +337,8 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     handlers.append(CallbackQueryHandler(lambda u, c: my_tickets_handler(u, c, support_service), pattern="^my_tickets$"))
     
     handlers.append(CallbackQueryHandler(admin_handler, pattern="^admin$"))
+    
+    # Añadir handler para cerrar ticket
+    handlers.append(CallbackQueryHandler(lambda u, c: close_ticket_handler(u, c, support_service), pattern="^close_ticket$"))
     
     return handlers

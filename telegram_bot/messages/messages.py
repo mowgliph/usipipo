@@ -157,10 +157,10 @@ class Messages:
         )
         
         NEW_TICKET_ADMIN = (
-            "🔔 **Nuevo Ticket de Soporte**\n"
+            "🔔 <b>Nuevo Ticket de Soporte</b>\n"
             "━━━━━━━━━━━━\n\n"
-            "👤 Usuario: **{name}**\n"
-            "🆔 ID: `{user_id}`\n\n"
+            "👤 Usuario: <b>{name}</b>\n"
+            "🆔 ID: <code>{user_id}</code>\n\n"
             "Responde a este mensaje para contactar."
         )
         
@@ -578,3 +578,141 @@ class Messages:
             "📤 Enviados: **{sent}**\n"
             "❌ Fallidos: **{failed}**"
         )
+
+    class Broadcast:
+        """Mensajes del sistema de broadcast mejorado."""
+        
+        WELCOME = (
+            "📢 **Sistema de Broadcast**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Envía mensajes masivos a todos los usuarios.\n\n"
+            "**Opciones disponibles:**\n"
+            "• 📝 Escribir mensaje personalizado\n"
+            "• 📋 Usar template predefinido\n"
+            "• 📸 Enviar con foto\n"
+            "• ⚙️ Configurar opciones avanzadas\n\n"
+            "👇 Selecciona una opción:"
+        )
+        
+        SELECT_TEMPLATE = (
+            "📋 **Seleccionar Template**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Elige un template o escribe tu mensaje personalizado:\n\n"
+            "👇 Selecciona un template:"
+        )
+        
+        INPUT_MESSAGE = (
+            "✍️ **Crear Mensaje Personalizado**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Envía el contenido del mensaje:\n\n"
+            "**Formato soportado:**\n"
+            "• Texto con formato *Markdown*\n"
+            "• Emojis y símbolos\n"
+            "• Enlaces y menciones\n\n"
+            "💡 **Tip:** Puedes usar /cancel en cualquier momento."
+        )
+        
+        INPUT_PHOTO = (
+            "📸 **Agregar Foto**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Envía una foto para acompañar el mensaje.\n\n"
+            "O escribe 'continuar' para enviar solo texto."
+        )
+        
+        PREVIEW_HEADER = (
+            "👁️ **Vista Previa del Broadcast**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+        
+        PREVIEW_FOOTER = (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "👥 **Destinatarios:** {count} usuarios\n"
+            "📊 **Tipo:** {type}\n\n"
+            "¿Confirmar el envío?"
+        )
+        
+        SENDING = (
+            "🚀 **Enviando Broadcast...**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "⏳ Por favor espera, esto puede tomar unos momentos...\n\n"
+            "📊 Progreso: {current}/{total}"
+        )
+        
+        SUCCESS_SUMMARY = (
+            "✅ **Broadcast Completado**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📤 **Enviados exitosamente:** {success}\n"
+            "❌ **Errores:** {errors}\n"
+            "👥 **Total usuarios:** {total}\n"
+            "⏱️ **Tiempo:** {duration}s\n\n"
+            "📝 **Mensaje enviado:**\n"
+            "_{preview}_"
+        )
+        
+        CANCELLED = (
+            "❌ **Broadcast Cancelado**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "El proceso de broadcast ha sido cancelado.\n"
+            "No se envió ningún mensaje."
+        )
+        
+        NO_USERS = (
+            "⚠️ **Sin Usuarios**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "No hay usuarios registrados para enviar el broadcast."
+        )
+        
+        ERROR_PREVIEW = (
+            "❌ **Error al Generar Preview**\n\n"
+            "Por favor, intenta de nuevo o contacta al soporte técnico."
+        )
+        
+        # Templates predefinidos
+        TEMPLATES = {
+            "maintenance": (
+                "🔧 **Mantenimiento Programado**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "Estimado usuario,\n\n"
+                "Te informamos que realizaremos un mantenimiento programado.\n\n"
+                "**Fecha:** {date}\n"
+                "**Hora:** {time}\n"
+                "**Duración estimada:** {duration}\n\n"
+                "Durante este período, el servicio puede experimentar interrupciones.\n\n"
+                "Gracias por tu comprensión.\n\n"
+                "— Equipo uSipipo"
+            ),
+            "update": (
+                "🎉 **Nueva Actualización Disponible**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "¡Hola!\n\n"
+                "Tenemos excelentes noticias: hemos lanzado una nueva actualización con mejoras importantes.\n\n"
+                "**Nuevas características:**\n"
+                "• {feature1}\n"
+                "• {feature2}\n"
+                "• {feature3}\n\n"
+                "¡Actualiza la app para disfrutar de estas mejoras!\n\n"
+                "— Equipo uSipipo"
+            ),
+            "promotion": (
+                "🎁 **Oferta Especial**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "¡Aprovecha esta oportunidad única!\n\n"
+                "**{promo_title}**\n\n"
+                "{promo_description}\n\n"
+                "**Válido hasta:** {expiry_date}\n\n"
+                "No te lo pierdas. ¡Actúa ahora!\n\n"
+                "— Equipo uSipipo"
+            ),
+            "welcome": (
+                "👋 **¡Bienvenido a uSipipo VPN!**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "Gracias por unirte a nuestra comunidad.\n\n"
+                "**Para comenzar:**\n"
+                "1. Crea tu primera llave VPN\n"
+                "2. Configura tu dispositivo\n"
+                "3. ¡Disfruta de navegación segura!\n\n"
+                "Si necesitas ayuda, estamos aquí para ti.\n\n"
+                "— Equipo uSipipo"
+            ),
+            "custom": None  # Para mensajes personalizados
+        }
