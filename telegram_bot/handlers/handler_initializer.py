@@ -342,7 +342,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     handlers.append(get_admin_handler(admin_service))
 
     # Handlers para callbacks inline del nuevo sistema
-    handlers.extend(get_inline_callback_handlers(vpn_service, achievement_service))
+    handlers.extend(get_inline_callback_handlers(vpn_service, achievement_service, support_service))
     
 
     return handlers

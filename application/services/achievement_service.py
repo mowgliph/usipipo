@@ -258,8 +258,9 @@ class AchievementService(IAchievementService):
             # Estadísticas del usuario
             user_stats = await self.user_stats_repository.get_user_stats(user_id)
             
-            # Logros completados
+            # Logros completados - convertir a lista para evitar problemas con async generators
             completed_achievements = await self.get_user_completed_achievements(user_id)
+            completed_achievements = list(completed_achievements)
             
             # Recompensas pendientes
             pending_rewards = await self.get_user_pending_rewards(user_id)
@@ -276,7 +277,7 @@ class AchievementService(IAchievementService):
                 achievement = await self.achievement_repository.get_achievement_by_id(ua.achievement_id)
                 if achievement:
                     total_reward_stars += achievement.reward_stars
-
+ 
             # Construir lista de logros recientes
             recent_achievements = []
             for ua in sorted(completed_achievements, key=lambda x: x.completed_at or datetime.min, reverse=True)[:5]:

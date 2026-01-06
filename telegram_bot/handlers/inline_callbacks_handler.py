@@ -11,6 +11,7 @@ from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, get_main_men
 from telegram_bot.messages.messages import Messages
 from config import settings
 from loguru import logger
+from application.services.support_service import SupportService
 
 
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -119,15 +120,153 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    text = "⚙️ **Centro de Ayuda**\n\n"
-    text += "¿En qué podemos ayudarte?\n\n"
-    text += "Selecciona una opción:"
-    
     await query.edit_message_text(
-        text=text,
+        text=Messages.Help.MENU_TITLE,
         reply_markup=InlineKeyboards.help_menu(),
         parse_mode="Markdown"
     )
+
+
+async def usage_guide_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para mostrar la guía de uso."""
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        text=Messages.Help.USAGE_GUIDE,
+        reply_markup=InlineKeyboards.back_button("help"),
+        parse_mode="Markdown"
+    )
+
+
+async def configuration_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para mostrar la guía de configuración."""
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        text=Messages.Help.CONFIGURATION,
+        reply_markup=InlineKeyboards.back_button("help"),
+        parse_mode="Markdown"
+    )
+
+
+async def faq_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para mostrar las preguntas frecuentes."""
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        text=Messages.Help.FAQ,
+        reply_markup=InlineKeyboards.back_button("help"),
+        parse_mode="Markdown"
+    )
+
+
+async def support_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para mostrar el menú de soporte desde el centro de ayuda."""
+    query = update.callback_query
+    await query.answer()
+    
+    # Crear un menú de soporte con botón de volver al centro de ayuda
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+    keyboard = [
+        [
+            InlineKeyboardButton("🎫 Crear Ticket", callback_data="create_ticket"),
+            InlineKeyboardButton("📋 Mis Tickets", callback_data="my_tickets")
+        ],
+        [
+            InlineKeyboardButton("❓ FAQ", callback_data="faq"),
+            InlineKeyboardButton("🔙 Volver", callback_data="help")
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        text=Messages.Support.MENU_TITLE,
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+async def create_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, support_service: SupportService):
+    """Handler para crear un ticket de soporte desde callback."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = update.effective_user
+    
+    try:
+        # Importar la función start_support del módulo de soporte
+        from telegram_bot.handlers.support_handler import start_support
+        
+        # Abrir ticket
+        await support_service.open_ticket(user_id=user.id, user_name=user.first_name)
+        
+        # Notificar al Admin
+        await context.bot.send_message(
+            chat_id=settings.ADMIN_ID,
+            text=Messages.Support.NEW_TICKET_ADMIN.format(name=user.first_name, user_id=user.id)
+        )
+        
+        await query.edit_message_text(
+            text=Messages.Support.OPEN_TICKET,
+            reply_markup=InlineKeyboards.support_active(),
+            parse_mode="Markdown"
+        )
+        
+        # Notificar al usuario que puede escribir
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="💬 Ahora puedes escribir tu mensaje y será enviado al equipo de soporte."
+        )
+        
+    except Exception as e:
+        logger.error(f"Error al crear ticket desde callback: {e}")
+        await query.edit_message_text(
+            text=Messages.Errors.GENERIC.format(error="No se pudo abrir el canal de soporte."),
+            reply_markup=InlineKeyboards.back_button("support_menu")
+        )
+
+
+async def my_tickets_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, support_service: SupportService):
+    """Handler para mostrar los tickets del usuario."""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id
+    
+    try:
+        # Obtener ticket abierto si existe usando el repositorio del servicio
+        open_ticket = await support_service.ticket_repo.get_open_by_user(user_id)
+        
+        if open_ticket:
+            text = "📋 **Mis Tickets**\n"
+            text += "━━━━━━━━━━━━\n\n"
+            text += f"🎫 **Ticket Activo**\n\n"
+            text += f"📅 Creado: {open_ticket.created_at.strftime('%d/%m/%Y %H:%M')}\n"
+            if open_ticket.last_message_at:
+                text += f"💬 Último mensaje: {open_ticket.last_message_at.strftime('%d/%m/%Y %H:%M')}\n"
+            text += f"📊 Estado: {'Abierto' if open_ticket.status == 'open' else 'Cerrado'}\n\n"
+            text += "💡 Escribe un mensaje para continuar la conversación."
+        else:
+            text = "📋 **Mis Tickets**\n"
+            text += "━━━━━━━━━━━━\n\n"
+            text += "📭 No tienes tickets activos.\n\n"
+            text += "💡 Toca **🎫 Crear Ticket** para iniciar una conversación con soporte."
+        
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboards.back_button("support_menu"),
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error al obtener tickets: {e}")
+        await query.edit_message_text(
+            text=Messages.Errors.GENERIC.format(error=str(e)),
+            reply_markup=InlineKeyboards.back_button("support_menu")
+        )
 
 
 async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -154,9 +293,16 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # Función para registrar todos los handlers de callbacks inline
-def get_inline_callback_handlers(vpn_service=None, achievement_service=None):
+def get_inline_callback_handlers(vpn_service=None, achievement_service=None, support_service=None):
     """Retorna una lista de handlers para callbacks inline."""
     handlers = []
+    
+    # Obtener support_service del contenedor si no se proporciona
+    if support_service is None:
+        from application.services.common.container import get_container
+        from application.services.support_service import SupportService
+        container = get_container()
+        support_service = container.resolve(SupportService)
     
     # Navegación principal
     handlers.append(CallbackQueryHandler(main_menu_handler, pattern="^main_menu$"))
@@ -176,6 +322,17 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None):
     handlers.append(CallbackQueryHandler(operations_handler, pattern="^operations$"))
     handlers.append(CallbackQueryHandler(lambda u, c: achievements_handler(u, c, achievement_service), pattern="^achievements$"))
     handlers.append(CallbackQueryHandler(help_handler, pattern="^help$"))
+    
+    # Handlers del centro de ayuda
+    handlers.append(CallbackQueryHandler(usage_guide_handler, pattern="^usage_guide$"))
+    handlers.append(CallbackQueryHandler(configuration_handler, pattern="^configuration$"))
+    handlers.append(CallbackQueryHandler(faq_handler, pattern="^faq$"))
+    handlers.append(CallbackQueryHandler(support_menu_handler, pattern="^support_menu$"))
+    
+    # Handlers de soporte
+    handlers.append(CallbackQueryHandler(lambda u, c: create_ticket_handler(u, c, support_service), pattern="^create_ticket$"))
+    handlers.append(CallbackQueryHandler(lambda u, c: my_tickets_handler(u, c, support_service), pattern="^my_tickets$"))
+    
     handlers.append(CallbackQueryHandler(admin_handler, pattern="^admin$"))
     
     return handlers
