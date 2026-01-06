@@ -6,9 +6,9 @@ Version: 2.0.0 - Sistema de teclados inline
 """
 
 from telegram import Update
-from telegram.ext import ContextTypes, CallbackQueryHandler
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
-from telegram_bot.messages import Messages
+from telegram.ext import CallbackQueryHandler, ContextTypes
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, get_main_menu_for_user
+from telegram_bot.messages.messages import Messages
 from config import settings
 from loguru import logger
 
@@ -57,11 +57,11 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         text += f"📅 **Miembro desde:** {user.created_at.strftime('%d/%m/%Y')}\n"
         
         if user.is_vip:
-            text += f"👑 **Estado VIP:** Activo hasta {user.vip_expires.strftime('%d/%m/%Y')}\n"
+            text += f"👑 **Estado VIP:** Activo hasta {user.vip_expires_at.strftime('%d/%m/%Y')}\n"
         
         await query.edit_message_text(
             text=text,
-            reply_markup=InlineKeyboards.main_menu(),
+            reply_markup=get_main_menu_for_user(user_id),
             parse_mode="Markdown"
         )
         
@@ -69,7 +69,7 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         logger.error(f"Error en status_handler: {e}")
         await query.edit_message_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.main_menu()
+            reply_markup=get_main_menu_for_user(user_id)
         )
 
 
@@ -110,7 +110,7 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.error(f"Error en achievements_handler: {e}")
         await query.edit_message_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.main_menu()
+            reply_markup=get_main_menu_for_user(update.effective_user.id)
         )
 
 
@@ -139,7 +139,7 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != int(settings.ADMIN_ID):
         await query.edit_message_text(
             text="🚫 **Acceso Denegado**\n\nNo tienes permisos de administración.",
-            reply_markup=InlineKeyboards.main_menu()
+            reply_markup=get_main_menu_for_user(update.effective_user.id)
         )
         return
     
