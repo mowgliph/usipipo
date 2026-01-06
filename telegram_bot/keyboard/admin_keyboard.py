@@ -24,6 +24,9 @@ class AdminKeyboard:
             ],
             [
                 InlineKeyboardButton("✅ Gestionar Tareas", callback_data="admin_task_menu")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="main_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)

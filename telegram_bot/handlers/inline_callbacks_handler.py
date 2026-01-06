@@ -9,6 +9,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, ContextTypes
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards, get_main_menu_for_user
 from telegram_bot.messages.messages import Messages
+from telegram_bot.messages.admin_messages import AdminMessages
 from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
 from config import settings
 from loguru import logger
@@ -261,8 +262,7 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    text = "🔧 **Panel de Administración**\n\n"
-    text += "Selecciona una opción para gestionar el sistema:"
+    text = AdminMessages.MAIN_MENU
     
     await query.edit_message_text(
         text=text,
