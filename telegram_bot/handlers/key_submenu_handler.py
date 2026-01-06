@@ -143,7 +143,7 @@ class KeySubmenuHandler:
             await query.edit_message_text(
                 text=message,
                 reply_markup=KeySubmenuKeyboards.server_keys_menu(server_type, keys_data, page, total_pages),
-                parse_mode="MarkdownV2"
+                parse_mode="Markdown"
             )
             
         except Exception as e:
