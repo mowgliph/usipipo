@@ -37,7 +37,7 @@ class KeySubmenuMessages:
     SERVER_KEYS_LIST = (
         "🔑 **Llaves en {server_name}:**\n"
         "━━━━━━━━━━━━\n\n"
-        "```{keys_list}```\n"
+        "> {keys_list}\n"
         "━━━━━━━━━━━━"
     )
     
