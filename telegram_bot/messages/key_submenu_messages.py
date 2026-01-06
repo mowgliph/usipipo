@@ -90,9 +90,9 @@ class KeySubmenuMessages:
     
     @staticmethod
     def format_key_list(keys: list, server_type: str) -> str:
-        """Formatea la lista de llaves para mostrar (prefija cada línea con '> ' para cita)."""
+        """Formatea la lista de llaves para mostrar."""
         if not keys:
-            return f"> No hay llaves en {server_type}"
+            return f"No hay llaves en {server_type}"
         
         formatted_keys = []
         for i, key in enumerate(keys, 1):
@@ -105,9 +105,7 @@ class KeySubmenuMessages:
                 f"   📊 {usage} / {key.get('limit_gb', 0):.1f} GB"
             )
         
-        raw = "\n".join(formatted_keys)
-        # Prefijar cada línea con '> ' para que Telegram lo muestre como cita en Markdown
-        return "\n".join(f"> {line}" if line.strip() != "" else ">" for line in raw.splitlines())
+        return "\n".join(formatted_keys)
     
     @staticmethod
     def format_server_info(server_data: Dict[str, Any]) -> str:
