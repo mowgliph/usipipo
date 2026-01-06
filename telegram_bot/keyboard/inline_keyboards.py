@@ -7,6 +7,13 @@ Version: 2.0.0 - Migración a teclados inline
 
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from typing import List, Dict, Any, Optional
+from config import settings
+
+
+def get_main_menu_for_user(user_id: int) -> InlineKeyboardMarkup:
+    """Helper function para obtener el menú principal correcto según el usuario."""
+    is_admin = user_id == int(settings.ADMIN_ID)
+    return InlineKeyboards.main_menu(is_admin=is_admin)
 
 
 class InlineKeyboards:
@@ -14,8 +21,8 @@ class InlineKeyboards:
     
     # Navegación principal
     @staticmethod
-    def main_menu() -> InlineKeyboardMarkup:
-        """Menú principal inline - reemplaza al ReplyKeyboardMarkup."""
+    def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
+        """Menú principal inline - incluye botón de admin solo si el usuario es administrador."""
         keyboard = [
             [
                 InlineKeyboardButton("🛡️ Mis Llaves", callback_data="my_keys"),
@@ -24,33 +31,28 @@ class InlineKeyboards:
             [
                 InlineKeyboardButton("📊 Estado", callback_data="status"),
                 InlineKeyboardButton("💰 Operaciones", callback_data="operations")
-            ],
-            [
-                InlineKeyboardButton("🏆 Logros", callback_data="achievements"),
-                InlineKeyboardButton("⚙️ Ayuda", callback_data="help")
             ]
         ]
+        
+        # Tercera fila: incluir botón de admin solo si es administrador
+        if is_admin:
+            keyboard.append([
+                InlineKeyboardButton("🔧 Admin", callback_data="admin"),
+                InlineKeyboardButton("🏆 Logros", callback_data="achievements"),
+                InlineKeyboardButton("⚙️ Ayuda", callback_data="help")
+            ])
+        else:
+            keyboard.append([
+                InlineKeyboardButton("🏆 Logros", callback_data="achievements"),
+                InlineKeyboardButton("⚙️ Ayuda", callback_data="help")
+            ])
+        
         return InlineKeyboardMarkup(keyboard)
     
     @staticmethod
     def admin_main_menu() -> InlineKeyboardMarkup:
-        """Menú principal inline con acceso de administración."""
-        keyboard = [
-            [
-                InlineKeyboardButton("🛡️ Mis Llaves", callback_data="my_keys"),
-                InlineKeyboardButton("➕ Crear Nueva", callback_data="create_key")
-            ],
-            [
-                InlineKeyboardButton("📊 Estado", callback_data="status"),
-                InlineKeyboardButton("💰 Operaciones", callback_data="operations")
-            ],
-            [
-                InlineKeyboardButton("🔧 Admin", callback_data="admin"),
-                InlineKeyboardButton("🏆 Logros", callback_data="achievements"),
-                InlineKeyboardButton("⚙️ Ayuda", callback_data="help")
-            ]
-        ]
-        return InlineKeyboardMarkup(keyboard)
+        """Menú principal inline con acceso de administración (DEPRECATED - usar main_menu(is_admin=True))."""
+        return InlineKeyboards.main_menu(is_admin=True)
     
     # Sistema de VPN y Llaves
     @staticmethod

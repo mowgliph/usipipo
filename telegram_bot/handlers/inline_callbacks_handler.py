@@ -19,18 +19,14 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user = update.effective_user
     
-    if user.id == int(settings.ADMIN_ID):
-        await query.edit_message_text(
-            text="👇 Menú Principal (Admin)",
-            reply_markup=InlineAdminKeyboards.main_menu(),
-            parse_mode="Markdown"
-        )
-    else:
-        await query.edit_message_text(
-            text="👇 Menú Principal",
-            reply_markup=InlineKeyboards.main_menu(),
-            parse_mode="Markdown"
-        )
+    # Determinar si es admin
+    is_admin = user.id == int(settings.ADMIN_ID)
+    
+    await query.edit_message_text(
+        text="👇 Menú Principal",
+        reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+        parse_mode="Markdown"
+    )
 
 
 

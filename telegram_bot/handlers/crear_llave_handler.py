@@ -12,7 +12,7 @@ from loguru import logger
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, get_main_menu_for_user
 from utils.qr_generator import QrGenerator
 from utils.spinner import with_spinner, vpn_spinner
 
@@ -88,7 +88,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                     photo=photo, 
                     caption=caption, 
                     parse_mode="MarkdownV2",
-                    reply_markup=InlineKeyboards.main_menu()
+                    reply_markup=get_main_menu_for_user(telegram_id)
                 )
 
         elif key_type == "wireguard":
@@ -111,7 +111,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                     document=document, 
                     filename=f"{key_name}.conf",
                     caption="📁 *Configuración WireGuard*\n\n🔑 Tu nueva llave VPN está lista para usar\n\n⚠️ *Guarda este archivo en un lugar seguro*",
-                    reply_markup=InlineKeyboards.main_menu()
+                    reply_markup=get_main_menu_for_user(telegram_id)
                 )
 
         logger.info(f"✅ Llave {key_type} creada para usuario {telegram_id}")
@@ -120,7 +120,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
         logger.error(f"❌ Error en creación de llave: {e}")
         await update.message.reply_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.main_menu()
+            reply_markup=get_main_menu_for_user(telegram_id)
         )
     
     return ConversationHandler.END
@@ -129,7 +129,7 @@ async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancela la conversación."""
     await update.message.reply_text(
         "❌ Operación cancelada.",
-        reply_markup=InlineKeyboards.main_menu()
+        reply_markup=get_main_menu_for_user(update.effective_user.id)
     )
     return ConversationHandler.END
 

@@ -225,18 +225,14 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         """Handler para el botón 'Atrás' en el menú de operaciones."""
         user = update.effective_user
         
-        if user.id == int(settings.ADMIN_ID):
-            await update.message.reply_text(
-                text="👇 Menú Principal (Admin)",
-                reply_markup=InlineAdminKeyboards.main_menu(),
-                parse_mode="Markdown"
-            )
-        else:
-            await update.message.reply_text(
-                text="👇 Menú Principal",
-                reply_markup=InlineKeyboards.main_menu(),
-                parse_mode="Markdown"
-            )
+        # Determinar si es admin
+        is_admin = user.id == int(settings.ADMIN_ID)
+        
+        await update.message.reply_text(
+            text="👇 Menú Principal",
+            reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+            parse_mode="Markdown"
+        )
 
     handlers.append(MessageHandler(filters.Regex("^💰 Mi Balance$"), mi_balance_handler))
     handlers.append(MessageHandler(filters.Regex("^👑 Plan VIP$"), plan_vip_handler))
@@ -294,18 +290,13 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
         
         try:
             # Determinar si es admin para mostrar el menú correspondiente
-            if user.id == int(settings.ADMIN_ID):
-                await update.message.reply_text(
-                    text="👇 Menú Principal (Admin)",
-                    reply_markup=InlineAdminKeyboards.main_menu(),
-                    parse_mode="Markdown"
-                )
-            else:
-                await update.message.reply_text(
-                    text="👇 Menú Principal",
-                    reply_markup=InlineKeyboards.main_menu(),
-                    parse_mode="Markdown"
-                )
+            is_admin = user.id == int(settings.ADMIN_ID)
+            
+            await update.message.reply_text(
+                text="👇 Menú Principal",
+                reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+                parse_mode="Markdown"
+            )
         except Exception as e:
             logger.error(f"Error en show_menu_handler: {e}")
             await update.message.reply_text(

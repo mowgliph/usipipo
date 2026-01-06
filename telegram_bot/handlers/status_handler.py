@@ -4,7 +4,7 @@ from loguru import logger
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard.inline_keyboards import get_main_menu_for_user
 
 async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """
@@ -39,7 +39,7 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         
         await update.message.reply_text(
             text=text,
-            reply_markup=InlineKeyboards.main_menu(),
+            reply_markup=get_main_menu_for_user(telegram_id),
             parse_mode="Markdown"
         )
         
@@ -47,5 +47,5 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         logger.error(f"Error en status_handler: {e}")
         await update.message.reply_text(
             text=Messages.Errors.GENERIC.format(error="No se pudo recuperar la información de consumo."),
-            reply_markup=InlineKeyboards.main_menu()
+            reply_markup=get_main_menu_for_user(telegram_id)
         )
