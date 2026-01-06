@@ -11,23 +11,78 @@ import sys
 import traceback
 from pathlib import Path
 from typing import Optional, Union
-from loguru import logger as _loguru_logger
+try:
+    from loguru import logger as _loguru_logger
+except Exception:
+    # Fallback to stdlib logging if loguru isn't available (useful for tests/environments
+    # where optional deps aren't installed). The proxy implements the minimal API used below.
+    import logging as _std_logging
 
-from config import settings
+    _std_logger = _std_logging.getLogger("usipipo")
+    _std_logger.setLevel(_std_logging.INFO)
+    if not _std_logger.handlers:
+        _handler = _std_logging.StreamHandler(sys.stdout)
+        _handler.setFormatter(_std_logging.Formatter("%(asctime)s | %(levelname)s | %(name)s:%(lineno)s - %(message)s"))
+        _std_logger.addHandler(_handler)
+
+    class _StdLoggerProxy:
+        def debug(self, *args, **kwargs):
+            _std_logger.debug(*args, **kwargs)
+        def info(self, *args, **kwargs):
+            _std_logger.info(*args, **kwargs)
+        def warning(self, *args, **kwargs):
+            _std_logger.warning(*args, **kwargs)
+        def error(self, *args, **kwargs):
+            _std_logger.error(*args, **kwargs)
+        def critical(self, *args, **kwargs):
+            _std_logger.critical(*args, **kwargs)
+        def remove(self):
+            # no-op for proxy
+            return
+        def add(self, *args, **kwargs):
+            # no-op for proxy
+            return
+
+    _loguru_logger = _StdLoggerProxy()
 
 
 class Logger:
     """
     Logger unificado que combina las mejores características de logger.py y bot_logger.py.
-    Usa loguru para logging moderno con configuración flexible desde settings.
+    Se inicializa de forma mínima para evitar importaciones circulares con `config`.
+    Use `configure_from_settings(settings)` para aplicar la configuración completa cuando `settings` esté disponible.
     """
 
     def __init__(self):
         self.monitoring_handler = None
-        self._setup_logger()
+        self._configured_with_settings = False
+        self.log_file_path = None
+        # Initialize a minimal console logger so `logger` can be imported safely during bootstrap
+        self._setup_basic_logger()
 
-    def _setup_logger(self):
-        """Configura loguru con los ajustes del sistema."""
+    def _setup_basic_logger(self):
+        """Minimal console-only logger (used during early import to avoid circular imports)."""
+        _loguru_logger.remove()
+        _loguru_logger.add(
+            sys.stdout,
+            format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+            level="INFO",
+            colorize=True,
+            backtrace=True,
+            diagnose=False
+        )
+
+    def configure_from_settings(self, settings):
+        """Apply full configuration using provided Settings object."""
+        if self._configured_with_settings:
+            return
+        # Set up handlers and levels based on settings
+        self._setup_logger(settings)
+        self.log_file_path = settings.LOG_FILE_PATH
+        self._configured_with_settings = True
+
+    def _setup_logger(self, settings):
+        """Configura loguru con los ajustes provistos en el objeto `settings`."""
         # Remover handlers por defecto
         _loguru_logger.remove()
 
@@ -242,7 +297,15 @@ class Logger:
         Devuelve las últimas N líneas del archivo de log de forma segura.
         Compatible con logger.py.
         """
-        log_file = Path(settings.LOG_FILE_PATH)
+        log_file_path = self.log_file_path
+        if not log_file_path:
+            try:
+                from config import settings
+                log_file_path = settings.LOG_FILE_PATH
+            except Exception:
+                return "📂 El archivo de log aún no existe."
+
+        log_file = Path(log_file_path)
         if not log_file.exists():
             return "📂 El archivo de log aún no existe."
 

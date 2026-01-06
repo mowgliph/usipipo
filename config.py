@@ -621,6 +621,13 @@ try:
     # Import logger after settings are created to avoid circular import
     from utils.logger import logger
 
+    # Apply full logger configuration now that settings exists
+    try:
+        logger.configure_from_settings(settings)
+    except Exception:
+        # If logger configuration fails, continue with the minimal logger
+        pass
+
     # Log de inicio solo con información no sensible
     logger.info(f"✅ Configuración cargada correctamente")
     logger.info(f"📦 Proyecto: {settings.PROJECT_NAME}")
