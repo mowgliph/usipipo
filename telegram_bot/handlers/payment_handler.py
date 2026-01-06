@@ -7,6 +7,7 @@ from application.services.vpn_service import VpnService
 from application.services.payment_service import PaymentService
 from telegram_bot.messages.messages import Messages
 from telegram_bot.keyboard.keyboard import Keyboards
+from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 from config import settings
 
 # Estados de conversación para pagos con estrellas
@@ -25,7 +26,7 @@ class PaymentHandler:
 
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=Keyboards.operations_menu_inline(),
+            reply_markup=InlineKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
 
@@ -49,7 +50,7 @@ class PaymentHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=Keyboards.operations_menu_inline(),
+                reply_markup=InlineKeyboards.operations_menu(),
                 parse_mode="Markdown"
             )
 
@@ -57,7 +58,7 @@ class PaymentHandler:
             logger.error(f"Error in balance_display_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.operations_menu_inline()
+                reply_markup=InlineKeyboards.operations_menu()
             )
 
     async def deposit_instructions_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -242,7 +243,7 @@ class PaymentHandler:
 
         await query.edit_message_text(
             text=text,
-            reply_markup=Keyboards.vip_plans(),
+            reply_markup=InlineKeyboards.vip_plans(),
             parse_mode="Markdown"
         )
 
@@ -270,7 +271,7 @@ class PaymentHandler:
         else:
             await query.edit_message_text(
                 text="❌ Opción inválida.",
-                reply_markup=Keyboards.operations_menu_inline()
+                reply_markup=InlineKeyboards.operations_menu()
             )
             return
 
@@ -291,7 +292,7 @@ class PaymentHandler:
             logger.error(f"Error in vip_purchase_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=Keyboards.operations_menu_inline()
+                reply_markup=InlineKeyboards.operations_menu()
             )
 
 

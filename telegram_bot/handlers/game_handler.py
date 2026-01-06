@@ -78,6 +78,45 @@ class GameHandler:
             parse_mode="Markdown"
         )
     
+    async def show_game_menu_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Muestra el menú de juegos desde callback."""
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = update.effective_user.id
+        
+        # Obtener estadísticas del usuario
+        balance = await self.game_service.get_user_balance(user_id)
+        stats = await self.game_service.get_game_stats(user_id)
+        
+        # Determinar mensaje de estado
+        can_play = await self.game_service.can_play_today(user_id)
+        can_win = await self.game_service.can_win_this_week(user_id)
+        
+        if not can_play:
+            status_message = "⏰ Ya jugaste hoy. Vuelve mañana."
+        elif not can_win:
+            status_message = "🏆 ¡Límite de victorias semanales alcanzado!"
+        else:
+            status_message = "✅ ¡Puedes jugar y ganar hoy!"
+        
+        # Crear mensaje de estado
+        status_text = GameMessages.GAME_STATUS.format(
+            stars=balance.stars_balance,
+            games_today=1 if not can_play else 0,
+            weekly_wins=len(stats.current_week_wins),
+            last_game=stats.last_play_date.strftime("%d/%m/%Y") if stats.last_play_date else "Nunca",
+            status_message=status_message
+        )
+        
+        from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+        
+        await query.edit_message_text(
+            f"{GameMessages.MENU}\n\n{status_text}",
+            reply_markup=InlineKeyboards.games_menu(),
+            parse_mode="Markdown"
+        )
+    
     async def game_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Maneja callbacks del menú de juegos."""
         query = update.callback_query
@@ -86,7 +125,9 @@ class GameHandler:
         user_id = update.effective_user.id
         action = query.data
         
-        if action.startswith("game_"):
+        if action == "games_menu":
+            await self.show_game_menu_callback(update, context)
+        elif action.startswith("game_"):
             game_type_str = action.replace("game_", "")
             
             if game_type_str in ["bowling", "darts", "dice"]:
@@ -179,9 +220,10 @@ class GameHandler:
                 )
             
             # Teclado para volver al menú
+            from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
             keyboard = [
                 [
-                    InlineKeyboardButton("🎮 Volver a Juegos", callback_data="game_menu"),
+                    InlineKeyboardButton("🎮 Volver a Juegos", callback_data="games_menu"),
                     InlineKeyboardButton("💰 Ver Balance", callback_data="game_balance")
                 ]
             ]
@@ -199,7 +241,7 @@ class GameHandler:
             await query.edit_message_text(
                 "❌ Ocurrió un error al jugar. Inténtalo de nuevo.",
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🔙 Volver", callback_data="game_menu")
+                    InlineKeyboardButton("🔙 Volver", callback_data="games_menu")
                 ]])
             )
     
@@ -214,8 +256,8 @@ class GameHandler:
         
         keyboard = [
             [
-                InlineKeyboardButton("🎮 Volver a Juegos", callback_data="game_menu"),
-                InlineKeyboardButton("📊 Ver Planes", callback_data="show_plans")
+                InlineKeyboardButton("🎮 Volver a Juegos", callback_data="games_menu"),
+                InlineKeyboardButton("🔙 Volver a Operaciones", callback_data="operations")
             ]
         ]
         
@@ -254,8 +296,8 @@ class GameHandler:
         
         keyboard = [
             [
-                InlineKeyboardButton("🎮 Volver a Juegos", callback_data="game_menu"),
-                InlineKeyboardButton("🏆 Líderes", callback_data="game_leaderboard")
+                InlineKeyboardButton("🎮 Volver a Juegos", callback_data="games_menu"),
+                InlineKeyboardButton("🔙 Volver a Operaciones", callback_data="operations")
             ]
         ]
         
@@ -269,7 +311,12 @@ class GameHandler:
     
     async def _show_help(self, query):
         """Muestra la ayuda del sistema de juegos."""
-        keyboard = []
+        keyboard = [
+            [
+                InlineKeyboardButton("🎮 Volver a Juegos", callback_data="games_menu"),
+                InlineKeyboardButton("🔙 Volver a Operaciones", callback_data="operations")
+            ]
+        ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -294,6 +341,9 @@ class GameHandler:
         return [
             # Handler para comando /juegos o desde menú
             MessageHandler(filters.Regex("^🎮 Juga y Gana$"), self.show_game_menu),
+            
+            # Callback para mostrar menú de juegos desde operaciones
+            CallbackQueryHandler(self.show_game_menu_callback, pattern="^games_menu$"),
             
             # Callbacks del menú de juegos
             CallbackQueryHandler(self.game_callback, pattern="^(game_|play_)"),

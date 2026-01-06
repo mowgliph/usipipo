@@ -33,6 +33,11 @@ class Keyboards:
         return InlineKeyboards.confirm_delete(key_id)
     
     @staticmethod
+    def operations_menu_inline():
+        """Menú de operaciones inline - LEGACY: Usar InlineKeyboards.operations_menu()"""
+        return InlineKeyboards.operations_menu()
+    
+    @staticmethod
     def vip_plans():
         """Opciones de compra de VIP - LEGACY: Usar InlineKeyboards.vip_plans()"""
         return InlineKeyboards.vip_plans()
