@@ -11,7 +11,7 @@ from telegram_bot.handlers.start_handler import start_handler
 from telegram_bot.handlers.crear_llave_handler import get_creation_handler
 from telegram_bot.handlers.keys_manager_handler import list_keys_handler, delete_callback_handler
 from telegram_bot.handlers.status_handler import status_handler
-from telegram_bot.handlers.ayuda_handler import ayuda_handler
+from telegram_bot.handlers.ayuda_handler import ayuda_handler, help_command_handler
 from telegram_bot.handlers.support_handler import get_support_handler, admin_reply_handler
 from telegram_bot.handlers.support_menu_handler import get_support_menu_handler
 from telegram_bot.handlers.referral_handler import get_referral_handlers
@@ -60,6 +60,9 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Comando /start y botón de registro
     handlers.append(CommandHandler("start", start_handler))
+    
+    # Comando /help
+    handlers.append(CommandHandler("help", help_command_handler))
 
     # Flujo de Creación de Llaves (ConversationHandler)
     handlers.append(get_creation_handler(vpn_service))
