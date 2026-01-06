@@ -54,7 +54,16 @@ class SupabaseTransactionRepository(ITransactionRepository):
                 reference_id=reference_id,
                 description=description,
                 telegram_payment_id=telegram_payment_id,
-                    created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc)
+            )
+            
+            self.session.add(model)
+            await self.session.commit()
+            
+            logger.info(f"💾 Transacción registrada: {transaction_id}")
+            return transaction_id
+            
+        except Exception as e:
             await self.session.rollback()
             logger.error(f"❌ Error al registrar transacción: {e}")
             raise
