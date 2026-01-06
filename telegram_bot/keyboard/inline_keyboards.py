@@ -110,7 +110,7 @@ class InlineKeyboards:
             ],
             [
                 InlineKeyboardButton("👥 Referidos", callback_data="referrals_menu"),
-                InlineKeyboardButton("🎫 Soporte", callback_data="support_menu")
+                InlineKeyboardButton("✅ Centro de Tareas", callback_data="task_center")
             ],
             [
                 InlineKeyboardButton("🔙 Volver al Menú", callback_data="main_menu")
@@ -308,6 +308,116 @@ class InlineKeyboards:
         ]
         return InlineKeyboardMarkup(keyboard)
     
+    # Sistema de Tareas
+    @staticmethod
+    def task_center_menu() -> InlineKeyboardMarkup:
+        """Menú principal del centro de tareas."""
+        keyboard = [
+            [
+                InlineKeyboardButton("📋 Ver Tareas Disponibles", callback_data="tasks_available"),
+                InlineKeyboardButton("🔄 Mis Tareas en Progreso", callback_data="tasks_in_progress")
+            ],
+            [
+                InlineKeyboardButton("✅ Tareas Completadas", callback_data="tasks_completed"),
+                InlineKeyboardButton("📊 Resumen", callback_data="tasks_summary")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="operations")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def task_list_keyboard(tasks: List[Dict], prefix: str = "task") -> InlineKeyboardMarkup:
+        """Teclado para listar tareas."""
+        keyboard = []
+        
+        for task in tasks[:10]:  # Máximo 10 tareas por página
+            task_id = str(task.get("id", ""))
+            title = task.get("title", "Sin título")
+            # Truncar título si es muy largo
+            display_title = title[:30] + "..." if len(title) > 30 else title
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"📋 {display_title}",
+                    callback_data=f"{prefix}_detail_{task_id}"
+                )
+            ])
+        
+        keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="task_center")])
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def task_detail_keyboard(task_id: str, is_completed: bool = False, reward_claimed: bool = False) -> InlineKeyboardMarkup:
+        """Teclado para detalles de una tarea."""
+        keyboard = []
+        
+        if not is_completed:
+            keyboard.append([
+                InlineKeyboardButton("✅ Completar Tarea", callback_data=f"task_complete_{task_id}")
+            ])
+        elif not reward_claimed:
+            keyboard.append([
+                InlineKeyboardButton("🎁 Reclamar Recompensa", callback_data=f"task_claim_{task_id}")
+            ])
+        
+        keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="task_center")])
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def admin_task_menu() -> InlineKeyboardMarkup:
+        """Menú de administración de tareas."""
+        keyboard = [
+            [
+                InlineKeyboardButton("➕ Crear Tarea", callback_data="admin_task_create"),
+                InlineKeyboardButton("📋 Listar Tareas", callback_data="admin_task_list")
+            ],
+            [
+                InlineKeyboardButton("✏️ Editar Tarea", callback_data="admin_task_edit"),
+                InlineKeyboardButton("🗑️ Eliminar Tarea", callback_data="admin_task_delete")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="admin")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def admin_task_list_keyboard(tasks: List[Dict]) -> InlineKeyboardMarkup:
+        """Teclado para listar tareas (admin)."""
+        keyboard = []
+        
+        for task in tasks[:10]:
+            task_id = str(task.get("id", ""))
+            title = task.get("title", "Sin título")
+            is_active = task.get("is_active", True)
+            status_icon = "✅" if is_active else "❌"
+            display_title = title[:25] + "..." if len(title) > 25 else title
+            
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"{status_icon} {display_title}",
+                    callback_data=f"admin_task_detail_{task_id}"
+                )
+            ])
+        
+        keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="admin_task_menu")])
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def admin_task_detail_keyboard(task_id: str) -> InlineKeyboardMarkup:
+        """Teclado para detalles de tarea (admin)."""
+        keyboard = [
+            [
+                InlineKeyboardButton("✏️ Editar", callback_data=f"admin_task_edit_{task_id}"),
+                InlineKeyboardButton("🗑️ Eliminar", callback_data=f"admin_task_delete_{task_id}")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver", callback_data="admin_task_list")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
     # Sistema de Ayuda
     @staticmethod
     def help_menu() -> InlineKeyboardMarkup:

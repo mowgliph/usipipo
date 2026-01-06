@@ -21,6 +21,9 @@ class AdminKeyboard:
             [
                 InlineKeyboardButton("🖥️ Estado Servidores", callback_data="server_status"),
                 InlineKeyboardButton("📊 Estadísticas", callback_data="stats")
+            ],
+            [
+                InlineKeyboardButton("✅ Gestionar Tareas", callback_data="admin_task_menu")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)

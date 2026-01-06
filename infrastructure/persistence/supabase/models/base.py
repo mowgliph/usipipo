@@ -90,6 +90,9 @@ class UserModel(Base):
     achievements: Mapped[List["UserAchievementModel"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    tasks: Mapped[List["UserTaskModel"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     
     # Auto-referencia para referidos
     referrals: Mapped[List["UserModel"]] = relationship(
@@ -274,3 +277,62 @@ class UserAchievementModel(Base):
     # Relaciones
     user: Mapped["UserModel"] = relationship(back_populates="achievements")
     achievement: Mapped["AchievementModel"] = relationship(back_populates="user_achievements")
+
+
+# =============================================================================
+# MODELOS DE TAREAS
+# =============================================================================
+
+class TaskModel(Base):
+    """Modelo de tareas creadas por administradores."""
+    __tablename__ = "tasks"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    reward_stars: Mapped[int] = mapped_column(Integer, nullable=False)
+    guide_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    created_by: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    
+    # Relación
+    user_tasks: Mapped[List["UserTaskModel"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
+
+
+class UserTaskModel(Base):
+    """Modelo de progreso de tareas de usuarios."""
+    __tablename__ = "user_tasks"
+    
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), primary_key=True
+    )
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), primary_key=True
+    )
+    is_completed: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reward_claimed: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    reward_claimed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    
+    # Relaciones
+    user: Mapped["UserModel"] = relationship(back_populates="tasks")
+    task: Mapped["TaskModel"] = relationship(back_populates="user_tasks")

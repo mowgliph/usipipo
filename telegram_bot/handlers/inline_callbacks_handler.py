@@ -323,6 +323,9 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     handlers.append(CallbackQueryHandler(lambda u, c: achievements_handler(u, c, achievement_service), pattern="^achievements$"))
     handlers.append(CallbackQueryHandler(help_handler, pattern="^help$"))
     
+    # Handler para el centro de tareas (se maneja en task_handler, pero agregamos aquí para compatibilidad)
+    # El handler real está en task_handler.py
+    
     # Handlers del centro de ayuda
     handlers.append(CallbackQueryHandler(usage_guide_handler, pattern="^usage_guide$"))
     handlers.append(CallbackQueryHandler(configuration_handler, pattern="^configuration$"))

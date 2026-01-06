@@ -32,6 +32,7 @@ from infrastructure.persistence.supabase.key_repository import SupabaseKeyReposi
 from infrastructure.persistence.supabase.transaction_repository import SupabaseTransactionRepository
 from infrastructure.persistence.supabase.achievement_repository import AchievementRepository, UserStatsRepository
 from infrastructure.persistence.supabase.ticket_repository import TicketRepository
+from infrastructure.persistence.supabase.task_repository import TaskRepository
 
 # Clientes de Infraestructura
 from infrastructure.api_clients.client_outline import OutlineClient
@@ -44,6 +45,7 @@ from application.services.referral_service import ReferralService
 from application.services.payment_service import PaymentService
 from application.services.achievement_service import AchievementService
 from application.services.admin_service import AdminService
+from application.services.task_service import TaskService
 
 
 class SessionManager:
@@ -128,12 +130,17 @@ def get_container() -> punq.Container:
         session = session_factory()
         return TicketRepository(session)
     
+    def create_task_repo() -> TaskRepository:
+        session = session_factory()
+        return TaskRepository(session)
+    
     container.register(IUserRepository, factory=create_user_repo)
     container.register(IKeyRepository, factory=create_key_repo)
     container.register(ITransactionRepository, factory=create_transaction_repo)
     container.register(IAchievementRepository, factory=create_achievement_repo)
     container.register(IUserStatsRepository, factory=create_user_stats_repo)
     container.register(TicketRepository, factory=create_ticket_repo)
+    container.register(TaskRepository, factory=create_task_repo)
 
     # =========================================================================
     # 4. SERVICIOS DE APLICACIÓN
@@ -176,12 +183,19 @@ def get_container() -> punq.Container:
             payment_repository=create_transaction_repo()
         )
     
+    def create_task_service() -> TaskService:
+        return TaskService(
+            task_repo=create_task_repo(),
+            payment_service=create_payment_service()
+        )
+    
     container.register(VpnService, factory=create_vpn_service)
     container.register(SupportService, factory=create_support_service)
     container.register(ReferralService, factory=create_referral_service)
     container.register(PaymentService, factory=create_payment_service)
     container.register(AchievementService, factory=create_achievement_service)
     container.register(AdminService, factory=create_admin_service)
+    container.register(TaskService, factory=create_task_service)
 
     logger.debug("✅ Contenedor de dependencias configurado")
     

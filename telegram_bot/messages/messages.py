@@ -347,6 +347,98 @@ class Messages:
             "Perdiste: **-{amount}** ⭐"
         )
 
+    class Tasks:
+        """Mensajes del sistema de tareas."""
+        
+        MENU_TITLE = (
+            "✅ **Centro de Tareas**\n"
+            "━━━━━━━━━━━━\n\n"
+            "Completa tareas y gana estrellas ⭐\n"
+            "para comprar planes VIP 👑"
+        )
+        
+        NO_TASKS = (
+            "📭 **No hay tareas disponibles**\n\n"
+            "Vuelve más tarde para ver nuevas tareas."
+        )
+        
+        TASK_DETAIL = (
+            "📋 **{title}**\n"
+            "━━━━━━━━━━━━\n\n"
+            "{description}\n\n"
+            "━━━━━━━━━━━━\n\n"
+            "⭐ **Recompensa:** {reward_stars} estrellas\n"
+            "{guide_section}"
+        )
+        
+        TASK_GUIDE = (
+            "📖 **Guía:**\n{guide_text}\n\n"
+        )
+        
+        TASK_COMPLETED = (
+            "✅ **¡Tarea Completada!**\n\n"
+            "Has completado: **{title}**\n\n"
+            "🎁 Recompensa disponible: **{reward_stars}** ⭐\n\n"
+            "Toca el botón para reclamar tu recompensa."
+        )
+        
+        REWARD_CLAIMED = (
+            "🎉 **¡Recompensa Reclamada!**\n\n"
+            "Se han acreditado **{reward_stars}** ⭐ a tu cuenta.\n\n"
+            "💰 Nuevo balance: **{balance}** ⭐"
+        )
+        
+        TASK_ALREADY_COMPLETED = (
+            "ℹ️ Esta tarea ya está completada.\n\n"
+            "Puedes reclamar tu recompensa si aún no lo has hecho."
+        )
+        
+        TASK_ALREADY_CLAIMED = (
+            "ℹ️ Ya reclamaste la recompensa de esta tarea."
+        )
+        
+        SUMMARY = (
+            "📊 **Resumen de Tareas**\n"
+            "━━━━━━━━━━━━\n\n"
+            "✅ Disponibles: **{available}**\n"
+            "🔄 En progreso: **{in_progress}**\n"
+            "🎉 Completadas: **{completed}**\n\n"
+            "Selecciona una opción para ver más detalles:"
+        )
+        
+        ADMIN_CREATE_TASK = (
+            "📝 **Crear Nueva Tarea**\n\n"
+            "Envía los datos de la tarea en el siguiente formato:\n\n"
+            "**Título**\n"
+            "Descripción de la tarea\n\n"
+            "**Recompensa:** X estrellas\n"
+            "**Guía:** (opcional) Instrucciones detalladas\n\n"
+            "Ejemplo:\n"
+            "Únete a nuestro canal\n"
+            "Síguenos en nuestro canal de Telegram para recibir actualizaciones\n\n"
+            "**Recompensa:** 5 estrellas\n"
+            "**Guía:** 1. Busca @canal_usipipo\n2. Únete al canal\n3. ¡Listo!"
+        )
+        
+        ADMIN_TASK_CREATED = (
+            "✅ **Tarea Creada**\n\n"
+            "**Título:** {title}\n"
+            "**Recompensa:** {reward_stars} ⭐\n"
+            "**ID:** `{task_id}`"
+        )
+        
+        ADMIN_TASK_LIST = (
+            "📋 **Lista de Tareas**\n"
+            "━━━━━━━━━━━━\n\n"
+            "{tasks_list}"
+        )
+        
+        ADMIN_TASK_ITEM = (
+            "{status} **{title}**\n"
+            "Recompensa: {reward_stars} ⭐\n"
+            "ID: `{task_id}`\n\n"
+        )
+
     class Help:
         """Mensajes del centro de ayuda."""
         

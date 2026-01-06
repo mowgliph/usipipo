@@ -27,6 +27,8 @@ from telegram_bot.handlers.achievement_handler import (
 )
 from telegram_bot.handlers.inline_callbacks_handler import get_inline_callback_handlers
 from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
+from telegram_bot.handlers.task_handler import get_task_handler
+from telegram_bot.handlers.admin_task_handler import get_admin_task_handler
 from utils.bot_logger import get_logger
 from application.services.game_service import GameService
 from application.services.achievement_service import AchievementService
@@ -340,6 +342,16 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     # Sistema de Administración (solo para admin)
     admin_service = container.resolve(AdminService)
     handlers.append(get_admin_handler(admin_service))
+
+    # Sistema de Tareas
+    from application.services.task_service import TaskService
+    task_service = container.resolve(TaskService)
+    task_handler = get_task_handler(task_service)
+    handlers.extend(task_handler.get_handlers())
+    
+    # Sistema de Administración de Tareas (solo para admin)
+    admin_task_handler = get_admin_task_handler(task_service)
+    handlers.extend(admin_task_handler.get_handlers())
 
     # Handlers para callbacks inline del nuevo sistema
     handlers.extend(get_inline_callback_handlers(vpn_service, achievement_service, support_service))
