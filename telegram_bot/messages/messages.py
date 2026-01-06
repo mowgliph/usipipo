@@ -141,13 +141,13 @@ class Messages:
         )
         
         OPEN_TICKET = (
-            "💬 **Chat de Soporte Abierto**\n"
+            "💬 *Chat de Soporte Abierto*\n"
             "━━━━━━━━━━━━\n\n"
             "Estás conectado con nuestro equipo.\n\n"
             "📝 Describe tu problema y te\n"
             "responderemos lo antes posible.\n\n"
-            "💡 *Tip: Sé específico para una\n"
-            "respuesta más rápida.*"
+            "💡 _Tip: Sé específico para una_\n"
+            "_respuesta más rápida._"
         )
         
         TICKET_CLOSED = (

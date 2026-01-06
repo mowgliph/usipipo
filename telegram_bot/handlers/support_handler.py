@@ -119,10 +119,28 @@ def get_support_handler(support_service: SupportService) -> ConversationHandler:
         entry_points=[MessageHandler(filters.Regex("^🎫 Soporte$"), lambda u, c: start_support(u, c, support_service))],
         states={
             CHATTING: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, 
+                MessageHandler(filters.TEXT & ~filters.COMMAND,
                                lambda u, c: relay_to_admin(u, c, support_service))
             ]
         },
-        fallbacks=[MessageHandler(filters.Regex("^🔴 Finalizar Soporte$"), 
-                                  lambda u, c: close_ticket(u, c, support_service))],
+        fallbacks=[
+            MessageHandler(filters.Regex("^🔴 Finalizar Soporte$"),
+                           lambda u, c: close_ticket(u, c, support_service)),
+            MessageHandler(filters.Regex("^close_ticket$"),
+                           lambda u, c: close_ticket(u, c, support_service))
+        ],
     )
+
+
+def get_support_callback_handler(support_service: SupportService):
+    """Handler para callbacks de botones inline de soporte."""
+    from telegram.ext import CallbackQueryHandler
+    
+    async def handle_support_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        await query.answer()
+        
+        if query.data == "close_ticket":
+            await close_ticket(update, context, support_service)
+    
+    return CallbackQueryHandler(handle_support_callback, pattern="^close_ticket$")
