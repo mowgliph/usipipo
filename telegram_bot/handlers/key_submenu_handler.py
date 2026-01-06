@@ -26,14 +26,22 @@ class KeySubmenuHandler:
 
     async def _safe_edit_message(self, query, context, text, reply_markup=None, parse_mode=None):
         """
-        Intenta editar el mensaje; si no es posible (p. ej. 'There is no text in the message to edit'),
-        intenta editar la caption si existe, o envía un nuevo mensaje al chat como fallback.
+        Intenta editar el mensaje; si no es posible (p. ej. 'There is no text in the message to edit' o errores de parseo),
+        maneja fallbacks y reintenta sin parse_mode cuando el error es de entidades.
         """
         try:
             await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode=parse_mode)
+            return
         except BadRequest as e:
             err = str(e)
             logger.warning(f"_safe_edit_message: edit failed: {err}")
+            # Si el error es por parseo de entidades, reintentar sin parse_mode (texto plano)
+            if "Can't parse entities" in err or ("character" in err and "reserved" in err):
+                try:
+                    await query.edit_message_text(text=text, reply_markup=reply_markup)
+                    return
+                except BadRequest as e2:
+                    logger.warning(f"_safe_edit_message: retry without parse_mode failed: {e2}")
             try:
                 # Si el mensaje tiene caption, intentar editar caption
                 if getattr(query.message, 'caption', None) is not None:
@@ -41,8 +49,15 @@ class KeySubmenuHandler:
                 else:
                     # Enviar nuevo mensaje como fallback
                     await context.bot.send_message(chat_id=query.message.chat.id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
-            except Exception as ex:
-                logger.error(f"_safe_edit_message fallback failed: {ex}")
+            except BadRequest as ex:
+                # Si el fallback falló por errores de parseo, reintentar sin parse_mode
+                if "Can't parse entities" in str(ex) or ("character" in str(ex) and "reserved" in str(ex)):
+                    try:
+                        await context.bot.send_message(chat_id=query.message.chat.id, text=text, reply_markup=reply_markup)
+                    except Exception as ex2:
+                        logger.error(f"_safe_edit_message fallback failed: {ex2}")
+                else:
+                    logger.error(f"_safe_edit_message fallback failed: {ex}")
     
     async def show_key_submenu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
@@ -140,7 +155,9 @@ class KeySubmenuHandler:
                 )
                 message += f"\n\n{KeySubmenuMessages.PAGINATION_INFO.format(current=page, total=total_pages)}"
             
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=message,
                 reply_markup=KeySubmenuKeyboards.server_keys_menu(server_type, keys_data, page, total_pages),
                 parse_mode="MarkdownV2"
@@ -148,7 +165,9 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en show_server_keys: {e}")
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=KeySubmenuMessages.SERVER_NOT_AVAILABLE.format(server_name=server_type),
                 reply_markup=KeySubmenuKeyboards.back_to_server('main')
             )
@@ -178,7 +197,9 @@ class KeySubmenuHandler:
                 server_info=KeySubmenuMessages.format_server_info(key_data.get('server_info', {}))
             )
             
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=message,
                 reply_markup=KeySubmenuKeyboards.key_detail_menu(key_id, key_data['name'], key_data['server_type']),
                 parse_mode="Markdown"
@@ -186,7 +207,9 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en show_key_detail: {e}")
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=f"Error al cargar detalles de la llave: {str(e)}",
                 reply_markup=KeySubmenuKeyboards.back_to_server('main')
             )
@@ -205,7 +228,9 @@ class KeySubmenuHandler:
             
             message = f"⚠️ **Confirmar eliminación**\n\n¿Eliminar la llave **{key_data['name']}**?\n\nEsta acción es irreversible."
             
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=message,
                 reply_markup=KeySubmenuKeyboards.confirm_delete(key_id, key_data['name']),
                 parse_mode="Markdown"
@@ -213,7 +238,9 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en handle_delete_confirmation: {e}")
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=f"Error: {str(e)}",
                 reply_markup=KeySubmenuKeyboards.back_to_server('main')
             )
@@ -392,7 +419,9 @@ class KeySubmenuHandler:
                 message += keys_list
                 message += f"\n\n{KeySubmenuMessages.PAGINATION_INFO.format(current=page, total=total_pages)}"
             
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=message,
                 reply_markup=KeySubmenuKeyboards.all_keys_overview(keys_data, page, total_pages),
                 parse_mode="Markdown"
@@ -400,7 +429,9 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en show_all_keys_overview: {e}")
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query,
+                context,
                 text=f"Error al cargar llaves: {str(e)}",
                 reply_markup=KeySubmenuKeyboards.quick_actions()
             )
