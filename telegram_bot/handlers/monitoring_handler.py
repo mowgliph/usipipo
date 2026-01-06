@@ -106,7 +106,7 @@ class MonitoringHandler:
                     formatted_logs.append(f"{emoji} <code>{safe_line}</code>")
 
             logs_content = "\n".join(formatted_logs)
-            message = f"{title}\n\n<code>{logs_content}</code>{footer}"
+            message = f"{title}\n\n<pre>{logs_content}</pre>{footer}"
 
         # Límite de caracteres de Telegram (4096)
         max_length = 4000
