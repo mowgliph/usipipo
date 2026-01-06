@@ -114,6 +114,12 @@ class VpnKey:
         if billing_reset is None:
             return False
         
+        # Asegurar que billing_reset tenga timezone UTC
+        if billing_reset.tzinfo is None:
+            billing_reset = billing_reset.replace(tzinfo=timezone.utc)
+        else:
+            billing_reset = billing_reset.astimezone(timezone.utc)
+        
         # Ambas fechas ahora tienen timezone, comparación directa
         result = now > billing_reset + timedelta(days=30)
         return result
