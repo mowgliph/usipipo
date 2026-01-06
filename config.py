@@ -21,7 +21,6 @@ from pydantic import (
     validator
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from utils.logger import logger
 
 
 class Settings(BaseSettings):
@@ -457,6 +456,7 @@ class Settings(BaseSettings):
             try:
                 return [int(x.strip()) for x in v.split(",") if x.strip()]
             except ValueError:
+                from utils.logger import logger
                 logger.warning(f"Error parseando AUTHORIZED_USERS: {v}")
                 return []
         return v if isinstance(v, list) else []
@@ -492,6 +492,7 @@ class Settings(BaseSettings):
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         v = v.upper()
         if v not in valid_levels:
+            from utils.logger import logger
             logger.warning(f"LOG_LEVEL inválido '{v}', usando 'INFO'")
             return "INFO"
         return v
@@ -499,38 +500,39 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_environment(self):
         """Validaciones cruzadas después de cargar todos los valores"""
-        
+        from utils.logger import logger
+
         # Autocompletar WG_ENDPOINT si no existe
         if not self.WG_ENDPOINT and self.SERVER_IP and self.WG_SERVER_PORT:
             self.WG_ENDPOINT = f"{self.SERVER_IP}:{self.WG_SERVER_PORT}"
             logger.info(f"WG_ENDPOINT autoconstruido: {self.WG_ENDPOINT}")
-        
+
         # Autocompletar OUTLINE_SERVER_IP si no existe
         if not self.OUTLINE_SERVER_IP and self.SERVER_IP:
             self.OUTLINE_SERVER_IP = self.SERVER_IP
             logger.info(f"OUTLINE_SERVER_IP autoconstruido: {self.OUTLINE_SERVER_IP}")
-        
+
         # Advertir si se usa CORS_ORIGINS=* en producción
         if self.is_production and "*" in self.CORS_ORIGINS:
             logger.warning(
                 "⚠️ CORS_ORIGINS='*' en producción es un riesgo de seguridad. "
                 "Define dominios específicos."
             )
-        
+
         # Validar que ADMIN_ID esté en AUTHORIZED_USERS
         if self.ADMIN_ID not in self.AUTHORIZED_USERS:
             self.AUTHORIZED_USERS.append(self.ADMIN_ID)
             logger.info(f"ADMIN_ID {self.ADMIN_ID} agregado automáticamente a AUTHORIZED_USERS")
-        
+
         # Crear directorios si no existen
         for path_attr in ["TEMP_PATH", "QR_CODE_PATH", "CLIENT_CONFIGS_PATH", "VPN_TEMPLATES_PATH"]:
             path_value = getattr(self, path_attr)
             Path(path_value).mkdir(parents=True, exist_ok=True)
-        
+
         # Crear directorio de logs
         log_dir = Path(self.LOG_FILE_PATH).parent
         log_dir.mkdir(parents=True, exist_ok=True)
-        
+
         return self
     
     # =========================================================================
@@ -615,20 +617,25 @@ def get_settings() -> Settings:
 
 try:
     settings = Settings()
-    
+
+    # Import logger after settings are created to avoid circular import
+    from utils.logger import logger
+
     # Log de inicio solo con información no sensible
     logger.info(f"✅ Configuración cargada correctamente")
     logger.info(f"📦 Proyecto: {settings.PROJECT_NAME}")
     logger.info(f"🌍 Entorno: {settings.APP_ENV}")
     logger.info(f"🔌 API: {settings.API_HOST}:{settings.API_PORT}")
     logger.info(f"🛡️ Protocolos VPN disponibles: {', '.join(settings.get_vpn_protocols())}")
-    
+
     if settings.is_production:
         logger.info("🔒 Modo PRODUCCIÓN activado")
     else:
         logger.warning("⚠️ Modo DESARROLLO - No usar en producción")
-    
+
 except Exception as e:
+    # Import logger for error logging
+    from utils.logger import logger
     logger.critical(f"❌ Error crítico de configuración:")
     logger.critical(f"   {str(e)}")
     logger.critical("   Revisa tu archivo .env y compara con example.env")
