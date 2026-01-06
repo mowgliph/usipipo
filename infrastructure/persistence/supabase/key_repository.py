@@ -18,6 +18,22 @@ from domain.interfaces.ikey_repository import IKeyRepository
 from .models import VpnKeyModel
 
 
+def _normalize_datetime(dt: Optional[datetime]) -> Optional[datetime]:
+    """
+    Normaliza un datetime a aware (con timezone UTC) para comparaciones consistentes.
+    Si es None, retorna None.
+    Si es naive (sin timezone), asume UTC.
+    Si ya tiene timezone, lo convierte a UTC.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # Si es naive, asumir UTC
+        return dt.replace(tzinfo=timezone.utc)
+    # Si ya tiene timezone, convertir a UTC
+    return dt.astimezone(timezone.utc)
+
+
 class SupabaseKeyRepository(IKeyRepository):
     """
     Implementación del repositorio de llaves VPN usando SQLAlchemy Async.
@@ -41,12 +57,12 @@ class SupabaseKeyRepository(IKeyRepository):
             name=model.name,
             key_data=model.key_data,
             external_id=model.external_id,
-            created_at=model.created_at,
+            created_at=_normalize_datetime(model.created_at) or datetime.now(timezone.utc),
             is_active=model.is_active,
             used_bytes=model.used_bytes or 0,
-            last_seen_at=model.last_seen_at,
+            last_seen_at=_normalize_datetime(model.last_seen_at),
             data_limit_bytes=model.data_limit_bytes or 10 * 1024**3,
-            billing_reset_at=model.billing_reset_at or datetime.now(timezone.utc)
+            billing_reset_at=_normalize_datetime(model.billing_reset_at) or datetime.now(timezone.utc)
         )
 
     def _entity_to_model(self, entity: VpnKey) -> VpnKeyModel:

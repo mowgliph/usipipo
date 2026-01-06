@@ -39,12 +39,19 @@ class VpnKey:
         """
         Se ejecuta automáticamente después de la inicialización.
         Convierte strings ISO a objetos datetime si la BD los devuelve como texto.
+        Normaliza todos los datetimes para que sean aware (con timezone UTC).
         """
         if isinstance(self.created_at, str):
             try:
                 self.created_at = datetime.fromisoformat(self.created_at)
             except ValueError:
-                pass
+                self.created_at = datetime.now(timezone.utc)
+        
+        # Normalizar created_at a UTC aware
+        if self.created_at and self.created_at.tzinfo is None:
+            self.created_at = self.created_at.replace(tzinfo=timezone.utc)
+        elif self.created_at:
+            self.created_at = self.created_at.astimezone(timezone.utc)
 
         if isinstance(self.last_seen_at, str):
             try:
@@ -52,11 +59,23 @@ class VpnKey:
             except ValueError:
                 self.last_seen_at = None
         
+        # Normalizar last_seen_at a UTC aware si existe
+        if self.last_seen_at and self.last_seen_at.tzinfo is None:
+            self.last_seen_at = self.last_seen_at.replace(tzinfo=timezone.utc)
+        elif self.last_seen_at:
+            self.last_seen_at = self.last_seen_at.astimezone(timezone.utc)
+        
         if isinstance(self.billing_reset_at, str):
             try:
                 self.billing_reset_at = datetime.fromisoformat(self.billing_reset_at)
             except ValueError:
-                self.billing_reset_at = datetime.now()
+                self.billing_reset_at = datetime.now(timezone.utc)
+        
+        # Normalizar billing_reset_at a UTC aware
+        if self.billing_reset_at and self.billing_reset_at.tzinfo is None:
+            self.billing_reset_at = self.billing_reset_at.replace(tzinfo=timezone.utc)
+        elif self.billing_reset_at:
+            self.billing_reset_at = self.billing_reset_at.astimezone(timezone.utc)
 
     def __repr__(self):
         return f"<VpnKey(name={self.name}, type={self.key_type}, active={self.is_active})>"
