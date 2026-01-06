@@ -558,6 +558,15 @@ class Messages:
             "• Crea un ticket y te responderemos pronto"
         )
 
+    class Cancel:
+        """Mensajes para cancelación de operaciones."""
+        
+        CANCEL_MESSAGE = (
+            "❌ **Operación cancelada**\n\n"
+            "Has cancelado el proceso actual.\n"
+            "👇 Usa el menú principal para continuar:"
+        )
+
     class Admin:
         """Mensajes administrativos."""
         

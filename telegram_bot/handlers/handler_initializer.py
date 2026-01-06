@@ -27,6 +27,7 @@ from telegram_bot.handlers.referral_handler import get_referral_handlers
 from telegram_bot.handlers.start_handler import start_handler
 from telegram_bot.handlers.status_handler import status_handler
 from telegram_bot.handlers.support_handler import get_support_handler, admin_reply_handler
+from telegram_bot.handlers.cancel_handler import cancel_handler
 from telegram_bot.handlers.support_menu_handler import get_support_menu_handler
 from telegram_bot.handlers.task_handler import get_task_handler
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
@@ -58,12 +59,18 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     if achievement_service is None:
         achievement_service = container.resolve(AchievementService)
 
+    # Resolver admin_service (se usará para handlers inline que delegan a AdminHandler)
+    admin_service = container.resolve(AdminService)
+
     # Comando /start y botón de registro
     handlers.append(CommandHandler("start", start_handler))
 
     # Comando /help
     handlers.append(CommandHandler("help", help_command_handler))
-
+    
+    # Comando /cancelar
+    handlers.append(CommandHandler("cancelar", cancel_handler))
+    
     # Comando /admin
     handlers.append(CommandHandler("admin", admin_command_handler))
 
@@ -353,7 +360,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     handlers.extend(admin_task_handler.get_handlers())
 
     # Handlers para callbacks inline del nuevo sistema
-    handlers.extend(get_inline_callback_handlers(vpn_service, achievement_service, support_service))
+    handlers.extend(get_inline_callback_handlers(vpn_service, achievement_service, support_service, admin_service))
     
 
     return handlers

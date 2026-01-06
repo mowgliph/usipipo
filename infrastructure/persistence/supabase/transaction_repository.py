@@ -7,7 +7,7 @@ Version: 2.0.0
 
 import uuid
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,16 +54,7 @@ class SupabaseTransactionRepository(ITransactionRepository):
                 reference_id=reference_id,
                 description=description,
                 telegram_payment_id=telegram_payment_id,
-                created_at=datetime.now()
-            )
-            
-            self.session.add(model)
-            await self.session.commit()
-            
-            logger.info(f"💾 Transacción registrada: {transaction_id}")
-            return transaction_id
-            
-        except Exception as e:
+                    created_at=datetime.now(timezone.utc)
             await self.session.rollback()
             logger.error(f"❌ Error al registrar transacción: {e}")
             raise

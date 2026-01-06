@@ -8,6 +8,8 @@ Version: 2.0.0 - Sistema de teclados inline
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, ContextTypes
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards, get_main_menu_for_user
+from telegram_bot.handlers.admin_handler import AdminHandler
+from application.services.admin_service import AdminService
 from telegram_bot.messages.messages import Messages
 from telegram_bot.messages.admin_messages import AdminMessages
 from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
@@ -275,25 +277,25 @@ async def close_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     """Handler para cerrar un ticket de soporte desde callback."""
     query = update.callback_query
     await query.answer()
-    
+     
     user_id = update.effective_user.id
     
     try:
         # Cerrar ticket usando el servicio
         await support_service.close_ticket(user_id)
-        
+         
         await query.edit_message_text(
             text=Messages.Support.TICKET_CLOSED,
             reply_markup=InlineKeyboards.main_menu(),
             parse_mode="Markdown"
         )
-        
+         
         # Notificar al admin
         await context.bot.send_message(
             chat_id=settings.ADMIN_ID,
             text=f"🎫 Ticket del usuario {user_id} cerrado."
         )
-        
+         
     except Exception as e:
         logger.error(f"Error al cerrar ticket desde callback: {e}")
         await query.edit_message_text(
@@ -301,9 +303,30 @@ async def close_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=InlineKeyboards.support_active()
         )
 
+async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para cancelar cualquier operación y volver al menú principal."""
+    query = update.callback_query
+    await query.answer()
+    
+    user = update.effective_user
+    
+    # Determinar si es admin
+    is_admin = user.id == int(settings.ADMIN_ID)
+    
+    await query.edit_message_text(
+        text=Messages.Cancel.CANCEL_MESSAGE,
+        reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+        parse_mode="Markdown"
+    )
+     
+    # Cancelar cualquier conversación en curso
+    if context.user_data:
+        context.user_data.clear()
+        logger.log_bot_event("INFO", f"Datos de usuario limpiados para usuario {user.id}")
+
 
 # Función para registrar todos los handlers de callbacks inline
-def get_inline_callback_handlers(vpn_service=None, achievement_service=None, support_service=None):
+def get_inline_callback_handlers(vpn_service=None, achievement_service=None, support_service=None, admin_service=None):
     """Retorna una lista de handlers para callbacks inline."""
     handlers = []
     
@@ -311,6 +334,21 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     if support_service is None:
         container = get_container()
         support_service = container.resolve(SupportService)
+
+    # Obtener admin_service si no se proporciona y crear instancia del AdminHandler
+    if admin_service is None:
+        container = get_container()
+        admin_service = container.resolve(AdminService)
+
+    admin_handler_instance = AdminHandler(admin_service)
+
+    # Registrar handlers de administración (para usar desde menús inline)
+    handlers.append(CallbackQueryHandler(admin_handler_instance.show_users, pattern="^show_users$"))
+    handlers.append(CallbackQueryHandler(admin_handler_instance.show_keys, pattern="^show_keys$"))
+    handlers.append(CallbackQueryHandler(admin_handler_instance.confirm_delete_key, pattern="^delete_key_"))
+    handlers.append(CallbackQueryHandler(admin_handler_instance.execute_delete_key, pattern="^confirm_delete_"))
+    handlers.append(CallbackQueryHandler(admin_handler_instance.show_server_status, pattern="^server_status$"))
+    handlers.append(CallbackQueryHandler(admin_handler_instance.back_to_menu, pattern="^admin$"))
     
     # Navegación principal
     handlers.append(CallbackQueryHandler(main_menu_handler, pattern="^main_menu$"))
@@ -341,4 +379,7 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     # Añadir handler para cerrar ticket
     handlers.append(CallbackQueryHandler(lambda u, c: close_ticket_handler(u, c, support_service), pattern="^close_ticket$"))
     
+    # Añadir handler para cancelar operaciones
+    handlers.append(CallbackQueryHandler(cancel_handler, pattern="^cancel$"))
+     
     return handlers

@@ -40,7 +40,7 @@ class AdminKeyboard:
                 InlineKeyboardButton("📊 Estadísticas", callback_data="stats")
             ],
             [
-                InlineKeyboardButton("🔙 Volver", callback_data="admin_menu")
+                InlineKeyboardButton("🔙 Volver", callback_data="admin")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -61,7 +61,7 @@ class AdminKeyboard:
         """Botón para volver al menú principal."""
         keyboard = [
             [
-                InlineKeyboardButton("🔙 Volver al Menú", callback_data="admin_menu")
+                InlineKeyboardButton("🔙 Volver al Menú", callback_data="admin")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)

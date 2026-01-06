@@ -33,7 +33,7 @@ class InlineKeyboards:
                 InlineKeyboardButton("💰 Operaciones", callback_data="operations")
             ]
         ]
-        
+         
         # Tercera fila: incluir botón de admin solo si es administrador
         if is_admin:
             keyboard.append([
@@ -46,13 +46,36 @@ class InlineKeyboards:
                 InlineKeyboardButton("🏆 Logros", callback_data="achievements"),
                 InlineKeyboardButton("⚙️ Ayuda", callback_data="help")
             ])
-        
+         
+        # Cuarta fila: botón de cancelar
+        keyboard.append([
+            InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
+        ])
+         
         return InlineKeyboardMarkup(keyboard)
     
     @staticmethod
     def admin_main_menu() -> InlineKeyboardMarkup:
         """Menú principal inline con acceso de administración (DEPRECATED - usar main_menu(is_admin=True))."""
-        return InlineKeyboards.main_menu(is_admin=True)
+        keyboard = [
+            [
+                InlineKeyboardButton("🛡️ Mis Llaves", callback_data="my_keys"),
+                InlineKeyboardButton("➕ Crear Nueva", callback_data="create_key")
+            ],
+            [
+                InlineKeyboardButton("📊 Estado", callback_data="status"),
+                InlineKeyboardButton("💰 Operaciones", callback_data="operations")
+            ],
+            [
+                InlineKeyboardButton("🔧 Admin", callback_data="admin"),
+                InlineKeyboardButton("🏆 Logros", callback_data="achievements"),
+                InlineKeyboardButton("⚙️ Ayuda", callback_data="help")
+            ],
+            [
+                InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
     
     # Sistema de VPN y Llaves
     @staticmethod
@@ -64,7 +87,7 @@ class InlineKeyboards:
                 InlineKeyboardButton("WireGuard", callback_data="type_wireguard")
             ],
             [
-                InlineKeyboardButton("❌ Cancelar", callback_data="cancel_create_key")
+                InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -114,6 +137,9 @@ class InlineKeyboards:
             ],
             [
                 InlineKeyboardButton("🔙 Volver al Menú", callback_data="main_menu")
+            ],
+            [
+                InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -293,6 +319,9 @@ class InlineKeyboards:
             [
                 InlineKeyboardButton("❓ FAQ", callback_data="faq"),
                 InlineKeyboardButton("🔙 Volver", callback_data="operations")
+            ],
+            [
+                InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -478,7 +507,13 @@ class InlineAdminKeyboards:
             ],
             [
                 InlineKeyboardButton("📢 Broadcast", callback_data="broadcast"),
+                InlineKeyboardButton("✅ Gestionar Tareas", callback_data="admin_task_menu")
+            ],
+            [
                 InlineKeyboardButton("🔙 Volver", callback_data="main_menu")
+            ],
+            [
+                InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)

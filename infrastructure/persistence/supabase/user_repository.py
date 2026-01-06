@@ -6,7 +6,7 @@ Version: 2.0.0
 """
 
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 
 from sqlalchemy import select, update
@@ -34,6 +34,11 @@ class SupabaseUserRepository(IUserRepository):
 
     def _model_to_entity(self, model: UserModel) -> User:
         """Convierte un modelo SQLAlchemy a entidad de dominio."""
+        # Normalizar vip_expires_at: si es naive, asumir UTC
+        vip_expires = model.vip_expires_at
+        if vip_expires is not None and vip_expires.tzinfo is None:
+            vip_expires = vip_expires.replace(tzinfo=timezone.utc)
+
         return User(
             telegram_id=model.telegram_id,
             username=model.username,
@@ -46,9 +51,8 @@ class SupabaseUserRepository(IUserRepository):
             referred_by=model.referred_by,
             total_referral_earnings=model.total_referral_earnings or 0,
             is_vip=model.is_vip or False,
-            vip_expires_at=model.vip_expires_at
+            vip_expires_at=vip_expires
         )
-
     def _entity_to_model(self, entity: User) -> UserModel:
         """Convierte una entidad de dominio a modelo SQLAlchemy."""
         return UserModel(
@@ -104,7 +108,13 @@ class SupabaseUserRepository(IUserRepository):
                 existing.referred_by = user.referred_by
                 existing.total_referral_earnings = user.total_referral_earnings
                 existing.is_vip = user.is_vip
-                existing.vip_expires_at = user.vip_expires_at
+                # Asegurar que vip_expires_at sea aware (UTC) antes de guardar
+                if user.vip_expires_at is None:
+                    existing.vip_expires_at = None
+                elif user.vip_expires_at.tzinfo is None:
+                    existing.vip_expires_at = user.vip_expires_at.replace(tzinfo=timezone.utc)
+                else:
+                    existing.vip_expires_at = user.vip_expires_at.astimezone(timezone.utc) 
             else:
                 # Crear nuevo
                 model = self._entity_to_model(user)

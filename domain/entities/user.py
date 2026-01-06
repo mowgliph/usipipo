@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
@@ -21,7 +21,7 @@ class User:
     full_name: Optional[str] = None
     status: UserStatus = UserStatus.ACTIVE
     max_keys: int = 2
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     balance_stars: int = 0
     total_deposited: int = 0
@@ -55,11 +55,18 @@ class User:
     def is_vip_active(self) -> bool:
         """
         Verifica si el usuario tiene VIP activo (pagado y no expirado).
+        Maneja datetimes naive y aware convirtiendo a UTC para comparar.
         """
         if not self.is_vip or not self.vip_expires_at:
             return False
         
-        return datetime.now() < self.vip_expires_at
+        now = datetime.now(timezone.utc)
+        vip_exp = self.vip_expires_at
+        if vip_exp.tzinfo is None:
+            vip_exp = vip_exp.replace(tzinfo=timezone.utc)
+        else:
+            vip_exp = vip_exp.astimezone(timezone.utc)
+        return now < vip_exp
 
     def __repr__(self):
         return f"<User(id={self.telegram_id}, username={self.username}, status={self.status})>"

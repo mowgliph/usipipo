@@ -6,9 +6,10 @@ Version: 1.0.0
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import uuid
+from utils.datetime_utils import now_utc
 
 
 @dataclass
@@ -21,14 +22,14 @@ class Task:
     guide_text: Optional[str] = None
     is_active: bool = True
     created_by: Optional[int] = None
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=now_utc)
     expires_at: Optional[datetime] = None
     
     def is_expired(self) -> bool:
         """Verifica si la tarea ha expirado."""
         if self.expires_at is None:
             return False
-        return datetime.now() > self.expires_at
+        return now_utc() > (self.expires_at if self.expires_at.tzinfo is not None else self.expires_at.replace(tzinfo=timezone.utc))
     
     def is_available(self) -> bool:
         """Verifica si la tarea está disponible para completar."""
