@@ -1,9 +1,9 @@
-"""
+'''
 Servicio de logros para el bot uSipipo.
 
 Author: uSipipo Team
 Version: 1.0.0
-"""
+'''
 
 import logging
 from datetime import datetime
@@ -15,7 +15,7 @@ from domain.interfaces.iachievement_repository import IAchievementRepository, IU
 logger = logging.getLogger(__name__)
 
 class AchievementService(IAchievementService):
-    """Implementación del servicio de logros."""
+    '''Implementación del servicio de logros.'''
     
     def __init__(
         self, 
@@ -26,7 +26,7 @@ class AchievementService(IAchievementService):
         self.user_stats_repository = user_stats_repository
     
     async def initialize_user_achievements(self, user_id: int) -> None:
-        """Inicializa todos los logros para un nuevo usuario."""
+        '''Inicializa todos los logros para un nuevo usuario.'''
         try:
             # Obtener todos los logros disponibles
             achievements = await self.achievement_repository.get_all_achievements()
@@ -43,6 +43,7 @@ class AchievementService(IAchievementService):
                 )
                 
                 if not existing_user_achievement:
+                    # Crear si no existe
                     user_achievement = UserAchievement(
                         user_id=user_id,
                         achievement_id=achievement.id
@@ -56,7 +57,7 @@ class AchievementService(IAchievementService):
             raise
     
     async def update_user_stats(self, user_id: int, stats_update: Dict) -> None:
-        """Actualiza las estadísticas de un usuario y verifica logros."""
+        '''Actualiza las estadísticas de un usuario y verifica logros.'''
         try:
             # Obtener estadísticas actuales
             user_stats = await self.user_stats_repository.get_user_stats(user_id)
@@ -150,7 +151,7 @@ class AchievementService(IAchievementService):
             raise
     
     async def check_and_update_achievements(self, user_id: int, achievement_type: AchievementType, new_value: int) -> List[Achievement]:
-        """Verifica y actualiza logros basados en un nuevo valor."""
+        '''Verifica y actualiza logros basados en un nuevo valor.'''
         completed_achievements = []
         
         try:
@@ -188,7 +189,7 @@ class AchievementService(IAchievementService):
         return completed_achievements
     
     async def claim_achievement_reward(self, user_id: int, achievement_id: str) -> bool:
-        """Reclama la recompensa de un logro completado."""
+        '''Reclama la recompensa de un logro completado.'''
         try:
             # Obtener logro del usuario
             user_achievement = await self.achievement_repository.get_user_achievement(
@@ -219,7 +220,7 @@ class AchievementService(IAchievementService):
             return False
     
     async def get_user_achievements_progress(self, user_id: int) -> Dict[str, UserAchievement]:
-        """Obtiene el progreso de todos los logros de un usuario."""
+        '''Obtiene el progreso de todos los logros de un usuario.'''
         try:
             user_achievements = await self.achievement_repository.get_user_achievements(user_id)
             return {ua.achievement_id: ua for ua in user_achievements}
@@ -228,7 +229,7 @@ class AchievementService(IAchievementService):
             return {}
     
     async def get_user_completed_achievements(self, user_id: int) -> List[UserAchievement]:
-        """Obtiene los logros completados de un usuario."""
+        '''Obtiene los logros completados de un usuario.'''
         try:
             return await self.achievement_repository.get_completed_achievements(user_id)
         except Exception as e:
@@ -236,7 +237,7 @@ class AchievementService(IAchievementService):
             return []
     
     async def get_user_pending_rewards(self, user_id: int) -> List[UserAchievement]:
-        """Obtiene las recompensas pendientes de un usuario."""
+        '''Obtiene las recompensas pendientes de un usuario.'''
         try:
             return await self.achievement_repository.get_pending_rewards(user_id)
         except Exception as e:
@@ -244,7 +245,7 @@ class AchievementService(IAchievementService):
             return []
     
     async def get_achievement_leaderboard(self, achievement_type: AchievementType, limit: int = 10) -> List[Dict]:
-        """Obtiene el ranking de usuarios para un tipo de logro."""
+        '''Obtiene el ranking de usuarios para un tipo de logro.'''
         try:
             return await self.user_stats_repository.get_leaderboard_by_type(achievement_type, limit)
         except Exception as e:
@@ -252,7 +253,7 @@ class AchievementService(IAchievementService):
             return []
     
     async def get_user_summary(self, user_id: int) -> Dict:
-        """Obtiene un resumen completo de logros del usuario."""
+        '''Obtiene un resumen completo de logros del usuario.'''
         try:
             # Estadísticas del usuario
             user_stats = await self.user_stats_repository.get_user_stats(user_id)
@@ -270,12 +271,23 @@ class AchievementService(IAchievementService):
             completion_percentage = (len(completed_achievements) / total_achievements) * 100 if total_achievements > 0 else 0
             
             # Total de estrellas ganadas por logros
-            total_reward_stars = sum(
-                (await self.achievement_repository.get_achievement_by_id(ua.achievement_id)).reward_stars 
-                for ua in completed_achievements 
-                if (await self.achievement_repository.get_achievement_by_id(ua.achievement_id))
-            )
-            
+            total_reward_stars = 0
+            for ua in completed_achievements:
+                achievement = await self.achievement_repository.get_achievement_by_id(ua.achievement_id)
+                if achievement:
+                    total_reward_stars += achievement.reward_stars
+
+            # Construir lista de logros recientes
+            recent_achievements = []
+            for ua in sorted(completed_achievements, key=lambda x: x.completed_at or datetime.min, reverse=True)[:5]:
+                achievement = await self.achievement_repository.get_achievement_by_id(ua.achievement_id)
+                if achievement:
+                    recent_achievements.append({
+                        'name': achievement.name,
+                        'completed_at': ua.completed_at,
+                        'reward_stars': achievement.reward_stars
+                    })
+
             return {
                 'user_stats': user_stats.to_dict() if user_stats else None,
                 'completed_achievements': len(completed_achievements),
@@ -283,15 +295,7 @@ class AchievementService(IAchievementService):
                 'completion_percentage': round(completion_percentage, 2),
                 'pending_rewards': len(pending_rewards),
                 'total_reward_stars': total_reward_stars,
-                'recent_achievements': [
-                    {
-                        'name': (await self.achievement_repository.get_achievement_by_id(ua.achievement_id)).name,
-                        'completed_at': ua.completed_at,
-                        'reward_stars': (await self.achievement_repository.get_achievement_by_id(ua.achievement_id)).reward_stars
-                    }
-                    for ua in sorted(completed_achievements, key=lambda x: x.completed_at or datetime.min, reverse=True)[:5]
-                    if (await self.achievement_repository.get_achievement_by_id(ua.achievement_id))
-                ]
+                'recent_achievements': recent_achievements
             }
             
         except Exception as e:
@@ -299,7 +303,7 @@ class AchievementService(IAchievementService):
             return {}
     
     async def get_next_achievements(self, user_id: int, limit: int = 5) -> List[Dict]:
-        """Obtiene los próximos logros que el usuario puede completar."""
+        '''Obtiene los próximos logros que el usuario puede completar.'''
         try:
             user_stats = await self.user_stats_repository.get_user_stats(user_id)
             if not user_stats:

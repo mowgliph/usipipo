@@ -62,6 +62,9 @@ class InlineKeyboards:
             [
                 InlineKeyboardButton("Outline (SS)", callback_data="type_outline"),
                 InlineKeyboardButton("WireGuard", callback_data="type_wireguard")
+            ],
+            [
+                InlineKeyboardButton("❌ Cancelar", callback_data="cancel_create_key")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)

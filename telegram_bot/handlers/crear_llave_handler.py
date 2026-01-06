@@ -1,5 +1,5 @@
 import os
-from telegram import Update
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     ContextTypes, 
     ConversationHandler, 
@@ -48,9 +48,15 @@ async def type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     key_type = "outline" if "outline" in query.data else "wireguard"
     context.user_data["tmp_key_type"] = key_type
     
+    # Crear teclado con botón de cancelar
+    cancel_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("❌ Cancelar", callback_data="cancel_create_key")]
+    ])
+    
     await query.edit_message_text(
         text=f"🛡️ Has seleccionado **{key_type.upper()}**.\n\nEscribe un nombre para identificar tu nueva llave (ej: Mi Laptop):",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=cancel_keyboard
     )
     return INPUT_NAME
 
@@ -126,9 +132,23 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
     return ConversationHandler.END
 
 async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancela la conversación."""
+    """Cancela la conversación desde comando /cancel."""
     await update.message.reply_text(
         "❌ Operación cancelada.",
+        reply_markup=get_main_menu_for_user(update.effective_user.id)
+    )
+    return ConversationHandler.END
+
+async def cancel_creation_from_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancela la conversación desde botón de cancelar."""
+    query = update.callback_query
+    await query.answer()
+    
+    # Limpiar datos temporales
+    context.user_data.pop("tmp_key_type", None)
+    
+    await query.edit_message_text(
+        text="❌ Operación cancelada.\n\nHas vuelto al menú principal.",
         reply_markup=get_main_menu_for_user(update.effective_user.id)
     )
     return ConversationHandler.END
@@ -141,9 +161,15 @@ def get_creation_handler(vpn_service: VpnService) -> ConversationHandler:
             CallbackQueryHandler(start_creation, pattern="^create_key$")
         ],
         states={
-            SELECT_TYPE: [CallbackQueryHandler(type_selected, pattern="^type_")],
-            INPUT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, 
-                         lambda u, c: name_received(u, c, vpn_service))]
+            SELECT_TYPE: [
+                CallbackQueryHandler(type_selected, pattern="^type_"),
+                CallbackQueryHandler(cancel_creation_from_callback, pattern="^cancel_create_key$")
+            ],
+            INPUT_NAME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, 
+                             lambda u, c: name_received(u, c, vpn_service)),
+                CallbackQueryHandler(cancel_creation_from_callback, pattern="^cancel_create_key$")
+            ]
         },
         fallbacks=[CommandHandler("cancel", cancel_creation)],
         # CORRECCIÓN: Usar per_message=False para handlers mixtos
