@@ -6,7 +6,6 @@ from application.services.referral_service import ReferralService
 from application.services.vpn_service import VpnService
 from application.services.payment_service import PaymentService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.keyboard import Keyboards
 from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from config import settings
 

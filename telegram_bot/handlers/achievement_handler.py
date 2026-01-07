@@ -380,7 +380,7 @@ Elige una categoría para ver el ranking de usuarios:
         
         await update.callback_query.edit_message_text(
             text=message,
-            reply_markup=Keyboards.achievements_leaderboard(),
+            reply_markup=OperationKeyboards.achievements_leaderboard(),
             parse_mode="Markdown"
         )
         

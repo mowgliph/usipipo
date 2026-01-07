@@ -12,7 +12,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import settings
-from telegram_bot.keyboard import OperationKeyboards
+from telegram_bot.keyboard import OperationKeyboards, UserKeyboards
 from telegram_bot.messages.messages import Messages
 from utils.logger import logger
 
@@ -40,7 +40,7 @@ async def mi_balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
         logger.log_error(e, context='mi_balance_handler', user_id=user_id)
         await update.message.reply_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.operations_menu()
+            reply_markup=OperationKeyboards.operations_menu()
         )
 
 
@@ -82,7 +82,7 @@ async def referidos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         logger.log_error(e, context='referidos_handler', user_id=user_id)
         await update.message.reply_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.operations_menu()
+            reply_markup=OperationKeyboards.operations_menu()
         )
 
 

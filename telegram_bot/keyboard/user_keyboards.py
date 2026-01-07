@@ -344,6 +344,55 @@ class UserKeyboards:
         ]
         return InlineKeyboardMarkup(keyboard)
     
+    @staticmethod
+    def key_rename(key_id: str) -> InlineKeyboardMarkup:
+        """
+        Menú para renombrar llave.
+        """
+        keyboard = [
+            [
+                InlineKeyboardButton("✏️ Cambiar Nombre", callback_data=f"key_rename_start_{key_id}")
+            ],
+            [
+                InlineKeyboardButton("❌ Cancelar", callback_data=f"key_detail_{key_id}")
+            ]
+        ]
+        
+        return InlineKeyboardMarkup(keyboard)
+    
+    # ============================================
+    # QUICK ACTIONS
+    # ============================================
+    
+    @staticmethod
+    def quick_actions() -> InlineKeyboardMarkup:
+        """
+        Botones de acciones rápidas.
+        """
+        keyboard = [
+            [
+                InlineKeyboardButton("➕ Crear Llave", callback_data="create_key"),
+                InlineKeyboardButton("🔄 Ver Todas", callback_data="key_submenu_all_keys")
+            ],
+            [
+                InlineKeyboardButton("📊 Estado General", callback_data="status"),
+                InlineKeyboardButton("🏠 Menú Principal", callback_data="main_menu")
+            ]
+        ]
+        
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def back_to_server(server: str = 'main') -> InlineKeyboardMarkup:
+        """
+        Botón para volver al menú de servidores.
+        """
+        keyboard = [
+            [InlineKeyboardButton("🔙 Volver", callback_data=f"key_submenu_{server}")]
+        ]
+        
+        return InlineKeyboardMarkup(keyboard)
+    
     # ============================================
     # NAVIGATION HELPERS
     # ============================================

@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.key_submenu_messages import KeySubmenuMessages
-from telegram_bot.keyboard.key_submenu_keyboards import KeySubmenuKeyboards
+from telegram_bot.keyboard import UserKeyboards
 from telegram_bot.messages.messages import Messages
 
 
@@ -91,7 +91,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=message,
-                reply_markup=KeySubmenuKeyboards.main_menu(keys_summary),
+                reply_markup=UserKeyboards.my_keys_submenu(keys_summary),
                 parse_mode="Markdown"
             )
             
@@ -101,7 +101,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=KeySubmenuKeyboards.quick_actions()
+                reply_markup=UserKeyboards.quick_actions()
             )
     
     async def show_server_keys(self, update: Update, context: ContextTypes.DEFAULT_TYPE, server_type: str, page: int = 1):
@@ -141,7 +141,7 @@ class KeySubmenuHandler:
                 })
             
             # Calcular paginación
-            total_pages = max(1, (len(keys_data) + KeySubmenuKeyboards.ITEMS_PER_PAGE - 1) // KeySubmenuKeyboards.ITEMS_PER_PAGE)
+            total_pages = max(1, (len(keys_data) + UserKeyboards.ITEMS_PER_PAGE - 1) // UserKeyboards.ITEMS_PER_PAGE)
             page = max(1, min(page, total_pages))
             
             # Construir mensaje
@@ -159,7 +159,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=message,
-                reply_markup=KeySubmenuKeyboards.server_keys_menu(server_type, keys_data, page, total_pages),
+                reply_markup=UserKeyboards.server_keys_menu(server_type, keys_data, page, total_pages),
                 parse_mode="Markdown"
             )
             
@@ -169,7 +169,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=KeySubmenuMessages.SERVER_NOT_AVAILABLE.format(server_name=server_type),
-                reply_markup=KeySubmenuKeyboards.back_to_server('main')
+                reply_markup=UserKeyboards.back_to_server('main')
             )
     
     async def show_key_detail(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
@@ -201,7 +201,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=message,
-                reply_markup=KeySubmenuKeyboards.key_detail_menu(key_id, key_data['name'], key_data['server_type']),
+                reply_markup=UserKeyboards.key_detail_menu(key_id, key_data['name'], key_data['server_type']),
                 parse_mode="Markdown"
             )
             
@@ -211,7 +211,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=f"Error al cargar detalles de la llave: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.back_to_server('main')
+                reply_markup=UserKeyboards.back_to_server('main')
             )
     
     async def handle_delete_confirmation(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
@@ -232,7 +232,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=message,
-                reply_markup=KeySubmenuKeyboards.confirm_delete(key_id, key_data['name']),
+                reply_markup=UserKeyboards.confirm_delete(key_id, key_data['name']),
                 parse_mode="Markdown"
             )
             
@@ -242,7 +242,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=f"Error: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.back_to_server('main')
+                reply_markup=UserKeyboards.back_to_server('main')
             )
     
     async def execute_delete(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
@@ -258,19 +258,19 @@ class KeySubmenuHandler:
             if success:
                 await query.edit_message_text(
                     text="🗑️ **Llave eliminada**\n\nEl acceso ha sido revocado correctamente.",
-                    reply_markup=KeySubmenuKeyboards.quick_actions()
+                    reply_markup=UserKeyboards.quick_actions()
                 )
             else:
                 await query.edit_message_text(
                     text="❌ Error: La llave no pudo ser eliminada.",
-                    reply_markup=KeySubmenuKeyboards.quick_actions()
+                    reply_markup=UserKeyboards.quick_actions()
                 )
                 
         except Exception as e:
             logger.error(f"Error en execute_delete: {e}")
             await query.edit_message_text(
                 text=f"Error al eliminar la llave: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.quick_actions()
+                reply_markup=UserKeyboards.quick_actions()
             )
     
     async def show_key_statistics(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
@@ -324,7 +324,7 @@ class KeySubmenuHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=KeySubmenuKeyboards.key_statistics(key_id),
+                reply_markup=UserKeyboards.key_statistics(key_id),
                 parse_mode="Markdown"
             )
             
@@ -332,7 +332,7 @@ class KeySubmenuHandler:
             logger.error(f"Error en show_key_statistics: {e}")
             await query.edit_message_text(
                 text=f"Error al cargar estadísticas: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
+                reply_markup=UserKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
             )
     
     async def show_key_details(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key_id: str):
@@ -370,7 +370,7 @@ class KeySubmenuHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                reply_markup=UserKeyboards.key_config(key_id, key_data['server_type']),
                 parse_mode="Markdown"
             )
             
@@ -378,7 +378,7 @@ class KeySubmenuHandler:
             logger.error(f"Error en show_key_details: {e}")
             await query.edit_message_text(
                 text=f"Error al cargar configuración: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
+                reply_markup=UserKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
             )
     
     async def show_all_keys_overview(self, update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 1):
@@ -406,7 +406,7 @@ class KeySubmenuHandler:
                 })
             
             # Calcular paginación
-            total_pages = max(1, (len(keys_data) + KeySubmenuKeyboards.ITEMS_PER_PAGE - 1) // KeySubmenuKeyboards.ITEMS_PER_PAGE)
+            total_pages = max(1, (len(keys_data) + UserKeyboards.ITEMS_PER_PAGE - 1) // UserKeyboards.ITEMS_PER_PAGE)
             page = max(1, min(page, total_pages))
             
             # Construir mensaje
@@ -423,7 +423,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=message,
-                reply_markup=KeySubmenuKeyboards.all_keys_overview(keys_data, page, total_pages),
+                reply_markup=UserKeyboards.all_keys_overview(keys_data, page, total_pages),
                 parse_mode="Markdown"
             )
             
@@ -433,7 +433,7 @@ class KeySubmenuHandler:
                 query,
                 context,
                 text=f"Error al cargar llaves: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.quick_actions()
+                reply_markup=UserKeyboards.quick_actions()
             )
     
     async def handle_back_to_servers(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -607,14 +607,14 @@ class KeySubmenuHandler:
         if len(new_name) < 3:
             await update.message.reply_text(
                 "❌ El nombre debe tener al menos 3 caracteres.\n\nPor favor, intenta nuevamente:",
-                reply_markup=KeySubmenuKeyboards.key_rename(key_id)
+                reply_markup=UserKeyboards.key_rename(key_id)
             )
             return
         
         if len(new_name) > 30:
             await update.message.reply_text(
                 "❌ El nombre no puede tener más de 30 caracteres.\n\nPor favor, intenta nuevamente:",
-                reply_markup=KeySubmenuKeyboards.key_rename(key_id)
+                reply_markup=UserKeyboards.key_rename(key_id)
             )
             return
         
@@ -626,19 +626,19 @@ class KeySubmenuHandler:
                 await update.message.reply_text(
                     f"✅ **Llave renombrada exitosamente**\n\n🔑 **Nuevo nombre:** {new_name}\n🆔 **ID:** `{key_id}`",
                     parse_mode="Markdown",
-                    reply_markup=KeySubmenuKeyboards.quick_actions()
+                    reply_markup=UserKeyboards.quick_actions()
                 )
             else:
                 await update.message.reply_text(
                     "❌ No se pudo renombrar la llave. Por favor, intenta nuevamente más tarde.",
-                    reply_markup=KeySubmenuKeyboards.quick_actions()
+                    reply_markup=UserKeyboards.quick_actions()
                 )
                 
         except Exception as e:
             logger.error(f"Error al renombrar llave {key_id}: {e}")
             await update.message.reply_text(
                 f"❌ Error al renombrar la llave: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.quick_actions()
+                reply_markup=UserKeyboards.quick_actions()
             )
         
         # Limpiar el estado de renombrado
@@ -732,7 +732,7 @@ class KeySubmenuHandler:
             if key_data['server_type'] != 'wireguard':
                 await query.edit_message_text(
                     text="⚠️ *Función no disponible*\n\nLa descarga de configuración solo está disponible para llaves WireGuard.\n\nPara llaves Outline, puedes ver la configuración en la opción '📋 Ver Detalles'.",
-                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                    reply_markup=UserKeyboards.key_config(key_id, key_data['server_type']),
                     parse_mode="Markdown"
                 )
                 return
@@ -744,7 +744,7 @@ class KeySubmenuHandler:
             if not config_text:
                 await query.edit_message_text(
                     text="❌ *Error de configuración*\n\nNo se pudo obtener la configuración de la llave.\n\nPor favor, intenta nuevamente más tarde o contacta al soporte.",
-                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                    reply_markup=UserKeyboards.key_config(key_id, key_data['server_type']),
                     parse_mode="Markdown"
                 )
                 return
@@ -770,7 +770,7 @@ class KeySubmenuHandler:
                 
                 await query.edit_message_text(
                     text="✅ <b>Configuración enviada</b>\n\n📁 Tu archivo de configuración WireGuard ha sido enviado correctamente.\n\n📋 <b>Instrucciones:</b>\n1. Descarga el archivo <code>.conf</code>\n2. Impórtalo en tu cliente WireGuard\n3. Conéctate y disfruta de tu VPN segura\n\n🔒 <i>Mantén tu archivo de configuración privado</i>",
-                    reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                    reply_markup=UserKeyboards.key_config(key_id, key_data['server_type']),
                     parse_mode="HTML"
                 )
             
@@ -782,7 +782,7 @@ class KeySubmenuHandler:
             logger.error(f"Error en descarga de configuración: {e}")
             await query.edit_message_text(
                 text=f"❌ *Error inesperado*\n\nHa ocurrido un error al procesar tu solicitud:\n`{str(e)}`\n\n🔄 Por favor, intenta nuevamente más tarde.",
-                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data.get('server_type', 'wireguard') if 'key_data' in locals() else 'wireguard'),
+                reply_markup=UserKeyboards.key_config(key_id, key_data.get('server_type', 'wireguard') if 'key_data' in locals() else 'wireguard'),
                 parse_mode="Markdown"
             )
     
@@ -836,7 +836,7 @@ class KeySubmenuHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data['server_type']),
+                reply_markup=UserKeyboards.key_config(key_id, key_data['server_type']),
                 parse_mode="Markdown"
             )
             
@@ -844,7 +844,7 @@ class KeySubmenuHandler:
             logger.error(f"Error en vista detallada: {e}")
             await query.edit_message_text(
                 text=f"❌ *Error al cargar detalles*\n\nNo se pudo cargar la información de la llave:\n`{str(e)}`\n\n🔄 Por favor, intenta nuevamente más tarde.",
-                reply_markup=KeySubmenuKeyboards.key_config(key_id, key_data.get('server_type', 'main') if 'key_data' in locals() else 'main'),
+                reply_markup=UserKeyboards.key_config(key_id, key_data.get('server_type', 'main') if 'key_data' in locals() else 'main'),
                 parse_mode="Markdown"
             )
     
@@ -899,7 +899,7 @@ class KeySubmenuHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=KeySubmenuKeyboards.key_rename(key_id),
+                reply_markup=UserKeyboards.key_rename(key_id),
                 parse_mode="Markdown"
             )
             
@@ -910,7 +910,7 @@ class KeySubmenuHandler:
             logger.error(f"Error al iniciar renombrado: {e}")
             await query.edit_message_text(
                 text=f"❌ Error al iniciar renombrado: {str(e)}",
-                reply_markup=KeySubmenuKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
+                reply_markup=UserKeyboards.back_to_server(key_data.get('server_type', 'main') if 'key_data' in locals() else 'main')
             )
 
 

@@ -7,7 +7,7 @@ Version: 2.0.0 - Sistema de teclados inline
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, ContextTypes
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards, get_main_menu_for_user
+from telegram_bot.keyboard import UserKeyboards, AdminKeyboards, OperationKeyboards, SupportKeyboards, CommonKeyboards
 from telegram_bot.handlers.admin_handler import AdminHandler
 from application.services.admin_service import AdminService
 from telegram_bot.messages.messages import Messages
@@ -31,7 +31,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         text="👇 Menú Principal",
-        reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+        reply_markup=UserKeyboards.main_menu(is_admin=is_admin),
         parse_mode="Markdown"
     )
 
@@ -81,14 +81,14 @@ async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=InlineKeyboards.operations_menu(user=user),
+            reply_markup=OperationKeyboards.operations_menu(user=user),
             parse_mode="Markdown"
         )
     except Exception as e:
         logger.error(f"Error en operations_handler: {e}")
         await query.edit_message_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.operations_menu()
+            reply_markup=OperationKeyboards.operations_menu()
         )
 
 
@@ -109,7 +109,7 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         
         await query.edit_message_text(
             text=text,
-            reply_markup=InlineKeyboards.achievements_menu(),
+            reply_markup=OperationKeyboards.achievements_menu(),
             parse_mode="Markdown"
         )
         
@@ -117,7 +117,7 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.error(f"Error en achievements_handler: {e}")
         await query.edit_message_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=get_main_menu_for_user(update.effective_user.id)
+            reply_markup=UserKeyboards.main_menu()
         )
 
 
@@ -128,7 +128,7 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         text=Messages.Help.MENU_TITLE,
-        reply_markup=InlineKeyboards.help_menu(),
+        reply_markup=CommonKeyboards.help_menu(),
         parse_mode="Markdown"
     )
 
@@ -140,7 +140,7 @@ async def usage_guide_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     await query.edit_message_text(
         text=Messages.Help.USAGE_GUIDE,
-        reply_markup=InlineKeyboards.back_button("help"),
+        reply_markup=CommonKeyboards.back_button("help"),
         parse_mode="Markdown"
     )
 
@@ -152,7 +152,7 @@ async def configuration_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     await query.edit_message_text(
         text=Messages.Help.CONFIGURATION,
-        reply_markup=InlineKeyboards.back_button("help"),
+        reply_markup=CommonKeyboards.back_button("help"),
         parse_mode="Markdown"
     )
 
@@ -164,7 +164,7 @@ async def faq_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         text=Messages.Help.FAQ,
-        reply_markup=InlineKeyboards.back_button("help"),
+        reply_markup=CommonKeyboards.back_button("help"),
         parse_mode="Markdown"
     )
 
@@ -213,7 +213,7 @@ async def create_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TY
         
         await query.edit_message_text(
             text=Messages.Support.OPEN_TICKET,
-            reply_markup=InlineKeyboards.support_active(),
+            reply_markup=SupportKeyboards.support_active(),
             parse_mode="Markdown"
         )
         
@@ -227,7 +227,7 @@ async def create_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TY
         logger.error(f"Error al crear ticket desde callback: {e}")
         await query.edit_message_text(
             text=Messages.Errors.GENERIC.format(error="No se pudo abrir el canal de soporte."),
-            reply_markup=InlineKeyboards.back_button("support_menu")
+            reply_markup=CommonKeyboards.back_button("support_menu")
         )
 
 
@@ -259,7 +259,7 @@ async def my_tickets_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
         await query.edit_message_text(
             text=text,
-            reply_markup=InlineKeyboards.back_button("support_menu"),
+            reply_markup=CommonKeyboards.back_button("support_menu"),
             parse_mode="Markdown"
         )
         
@@ -267,7 +267,7 @@ async def my_tickets_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
         logger.error(f"Error al obtener tickets: {e}")
         await query.edit_message_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.back_button("support_menu")
+            reply_markup=CommonKeyboards.back_button("support_menu")
         )
 
 
@@ -280,7 +280,7 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != int(settings.ADMIN_ID):
         await query.edit_message_text(
             text="🚫 **Acceso Denegado**\n\nNo tienes permisos de administración.",
-            reply_markup=get_main_menu_for_user(update.effective_user.id)
+            reply_markup=UserKeyboards.main_menu()
         )
         return
     
@@ -306,7 +306,7 @@ async def close_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TYP
          
         await query.edit_message_text(
             text=Messages.Support.TICKET_CLOSED,
-            reply_markup=InlineKeyboards.main_menu(),
+            reply_markup=UserKeyboards.main_menu(),
             parse_mode="Markdown"
         )
          
@@ -320,7 +320,7 @@ async def close_ticket_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.error(f"Error al cerrar ticket desde callback: {e}")
         await query.edit_message_text(
             text=Messages.Errors.GENERIC.format(error="No se pudo cerrar el ticket."),
-            reply_markup=InlineKeyboards.support_active()
+            reply_markup=SupportKeyboards.support_active()
         )
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -335,7 +335,7 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         text=Messages.Cancel.CANCEL_MESSAGE,
-        reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+        reply_markup=UserKeyboards.main_menu(is_admin=is_admin),
         parse_mode="Markdown"
     )
      
