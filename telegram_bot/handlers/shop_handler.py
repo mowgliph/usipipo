@@ -15,7 +15,7 @@ from utils.logger import logger
 from datetime import datetime, timedelta, timezone
 
 from application.services.payment_service import PaymentService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import ShopMessages, CommonMessages
 from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from utils.spinner import with_spinner
 

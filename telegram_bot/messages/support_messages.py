@@ -338,9 +338,34 @@ class TaskMessages:
             "🎁 Recompensa: {reward} ⭐\n"
         )
         
+        CREATE_TASK = (
+            "➕ **Crear Nueva Tarea**\n\n"
+            "Envía el siguiente formato:\n\n"
+            "📌 **Título:** [título]\n"
+            "📝 **Descripción:** [descripción]\n"
+            "⭐ **Recompensa:** [número de estrellas]\n"
+            "📖 **Guía (opcional):** [guía]\n\n"
+            "Ejemplo:\n"
+            "📌 Título: Compartir en redes\n"
+            "📝 Descripción: Comparte el bot en tus redes sociales\n"
+            "⭐ Recompensa: 50\n"
+            "📖 Guía: 1. Toma screenshot\n2. Publica en Instagram\n3. Envía prueba"
+        )
+        
         LIST_HEADER = (
             "📋 **Todas las Tareas**\n"
             "━━━━━━━━━━━━\n"
+        )
+        
+        TASK_LIST = (
+            "📋 **Lista de Tareas**\n"
+            "━━━━━━━━━━━━\n\n"
+            "{tasks_list}"
+        )
+        
+        TASK_ITEM = (
+            "{status} **{title}**\n"
+            "   🎁 {reward_stars} ⭐ | ID: `{task_id}`\n\n"
         )
         
         TASK_ENTRY = (

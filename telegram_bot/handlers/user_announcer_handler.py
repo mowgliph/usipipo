@@ -13,7 +13,7 @@ from utils.logger import logger
 from datetime import datetime, timezone
 import uuid
 
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import OperationMessages, CommonMessages
 from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 
 # Estados de conversación

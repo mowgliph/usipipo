@@ -88,6 +88,15 @@ class OperationMessages:
             "   → Ahorra {yearly_discount}%\n"
         )
         
+        PURCHASE_SUCCESS = (
+            "✅ **¡Plan VIP Activado!**\n\n"
+            "🎉 **Felicidades!**\n\n"
+            "📅 **Válido hasta:** {expiry_date}\n"
+            "🔑 **Llaves máximas:** {max_keys}\n"
+            "📊 **Datos:** {data_limit} GB ilimitados\n\n"
+            "👑 ¡Disfruta de tus beneficios VIP!"
+        )
+        
         ACTIVE = (
             "👑 **Eres VIP**\n"
             "━━━━━━━━━━━━\n\n"

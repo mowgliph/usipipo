@@ -13,7 +13,7 @@ import re
 from config import settings
 
 from application.services.task_service import TaskService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import TaskMessages, CommonMessages
 from telegram_bot.keyboard import TaskKeyboards, CommonKeyboards
 
 # Estados de la conversación
@@ -37,7 +37,7 @@ class AdminTaskHandler:
         # Verificar si es admin
         if user.id != int(settings.ADMIN_ID):
             await query.edit_message_text(
-                text=Messages.Admin.UNAUTHORIZED,
+                text=AdminMessages.Errors.UNAUTHORIZED,
                 parse_mode="Markdown"
             )
             return
@@ -60,13 +60,13 @@ class AdminTaskHandler:
         
         if user.id != int(settings.ADMIN_ID):
             await query.edit_message_text(
-                text=Messages.Admin.UNAUTHORIZED,
+                text=AdminMessages.Errors.UNAUTHORIZED,
                 parse_mode="Markdown"
             )
             return ConversationHandler.END
         
         await query.edit_message_text(
-            text=Messages.Tasks.ADMIN_CREATE_TASK,
+            text=TaskMessages.Admin.CREATE_TASK,
             reply_markup=CommonKeyboards.back_button("admin_task_menu"),
             parse_mode="Markdown"
         )
@@ -130,7 +130,7 @@ class AdminTaskHandler:
                 guide_text=guide_text
             )
             
-            text = Messages.Tasks.ADMIN_TASK_CREATED.format(
+            text = TaskMessages.Admin.TASK_CREATED.format(
                 title=task.title,
                 reward_stars=task.reward_stars,
                 task_id=str(task.id)
@@ -161,7 +161,7 @@ class AdminTaskHandler:
         
         if user.id != int(settings.ADMIN_ID):
             await query.edit_message_text(
-                text=Messages.Admin.UNAUTHORIZED,
+                text=AdminMessages.Errors.UNAUTHORIZED,
                 parse_mode="Markdown"
             )
             return
@@ -182,7 +182,7 @@ class AdminTaskHandler:
             
             for task in tasks[:10]:  # Máximo 10 tareas
                 status_icon = "✅" if task.is_active else "❌"
-                tasks_list_text += Messages.Tasks.ADMIN_TASK_ITEM.format(
+                tasks_list_text += TaskMessages.Admin.TASK_ITEM.format(
                     status=status_icon,
                     title=task.title,
                     reward_stars=task.reward_stars,
@@ -195,7 +195,7 @@ class AdminTaskHandler:
                     "is_active": task.is_active
                 })
             
-            text = Messages.Tasks.ADMIN_TASK_LIST.format(tasks_list=tasks_list_text)
+            text = TaskMessages.Admin.TASK_LIST.format(tasks_list=tasks_list_text)
             
             await query.edit_message_text(
                 text=text,
@@ -219,7 +219,7 @@ class AdminTaskHandler:
         
         if user.id != int(settings.ADMIN_ID):
             await query.edit_message_text(
-                text=Messages.Admin.UNAUTHORIZED,
+                text=AdminMessages.Errors.UNAUTHORIZED,
                 parse_mode="Markdown"
             )
             return
@@ -276,7 +276,7 @@ class AdminTaskHandler:
         
         if user.id != int(settings.ADMIN_ID):
             await query.edit_message_text(
-                text=Messages.Admin.UNAUTHORIZED,
+                text=AdminMessages.Errors.UNAUTHORIZED,
                 parse_mode="Markdown"
             )
             return

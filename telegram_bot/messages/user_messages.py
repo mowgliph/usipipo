@@ -182,6 +182,63 @@ class UserMessages:
             "y crea una nueva. ¡Es instantáneo!"
         )
         
+        HELP = (
+            "📖 **Guía de uSipipo VPN**\n"
+            "━━━━━━━━━━━━\n\n"
+            "🚀 **Bienvenido a uSipipo**\n\n"
+            "📱 **Outline (Recomendado para móviles):**\n"
+            "• Rápido y fácil de configurar\n"
+            "• Ideal para uso diario\n"
+            "• Compatible con iOS/Android\n\n"
+            "💻 **WireGuard (Máximo rendimiento):**\n"
+            "• Velocidad superior\n"
+            "• Perfecto para PC y gaming\n"
+            "• Estable y seguro\n\n"
+            "🎮 **Cómo empezar:**\n"
+            "1. ➕ Crea una nueva llave\n"
+            "2. 📋 Copia la configuración\n"
+            "3. 🔗 Pega en tu app VPN\n"
+            "4. 🌐 ¡Conéctate!\n\n"
+            "❓ **¿Necesitas ayuda?**\n"
+            "🎫 Contacta con soporte"
+        )
+        
+        CONFIGURATION = (
+            "🔧 **Configuración de Conexión**\n"
+            "━━━━━━━━━━━━\n\n"
+            "**Para Outline:**\n"
+            "1. Descarga la app Outline\n"
+            "2. Importa la clave QR o texto\n"
+            "3. ¡Conecta y disfruta!\n\n"
+            "**Para WireGuard:**\n"
+            "1. Descarga la app WireGuard\n"
+            "2. Descarga el archivo .conf\n"
+            "3. Importa el archivo\n"
+            "4. Activa la conexión\n\n"
+            "📱 **Apps recomendadas:**\n"
+            "• Outline: iOS/Android\n"
+            "• WireGuard: iOS/Android/Windows/Mac/Linux"
+        )
+        
+        FAQ = (
+            "❓ **Preguntas Frecuentes**\n"
+            "━━━━━━━━━━━━\n\n"
+            "**🔧 ¿No funciona la conexión?**\n"
+            "• Elimina la llave y crea una nueva\n"
+            "• Revisa tu conexión a internet\n"
+            "• Intenta con otro protocolo\n\n"
+            "**📊 ¿Cómo ver mi consumo?**\n"
+            "• Ve a \"🛡️ Mis Llaves\"\n"
+            "• Toca \"📊 Estadísticas\"\n\n"
+            "**⭐ ¿Cómo ganar estrellas?**\n"
+            "• Completa tareas en \"🎯 Tareas\"\n"
+            "• Invita amigos con tu código de referido\n\n"
+            "**👑 ¿Qué es VIP?**\n"
+            "• Acceso a todos los servidores\n"
+            "• Datos ilimitados\n"
+            "• 10 llaves simultáneas"
+        )
+        
         CONFIGURATION = (
             "🔧 **Configuración de Conexión**\n"
             "━━━━━━━━━━━━\n\n"

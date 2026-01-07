@@ -5,7 +5,7 @@ from utils.logger import logger
 from application.services.referral_service import ReferralService
 from application.services.vpn_service import VpnService
 from application.services.payment_service import PaymentService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import OperationMessages, CommonMessages
 from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from config import settings
 
@@ -24,7 +24,7 @@ class PaymentHandler:
         await query.answer()
 
         await query.edit_message_text(
-            text=Messages.Operations.MENU_TITLE,
+            text=OperationMessages.Menu.MAIN,
             reply_markup=OperationKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
@@ -40,7 +40,7 @@ class PaymentHandler:
             user_status = await self.vpn_service.get_user_status(telegram_id)
             user = user_status["user"]
 
-            text = Messages.Operations.BALANCE_INFO.format(
+            text = OperationMessages.Balance.DISPLAY.format(
                 name=user.full_name or user.username or f"Usuario {user.telegram_id}",
                 balance=user.balance_stars,
                 total_deposited=user.total_deposited,
@@ -56,7 +56,7 @@ class PaymentHandler:
         except Exception as e:
             logger.error(f"Error in balance_display_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=OperationKeyboards.operations_menu()
             )
 
@@ -127,7 +127,7 @@ class PaymentHandler:
         except Exception as e:
             logger.error(f"Error in deposit_amount_handler: {e}")
             await update.message.reply_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 parse_mode="Markdown"
             )
             return ConversationHandler.END
@@ -175,7 +175,7 @@ class PaymentHandler:
             except Exception as e:
                 logger.error(f"Error processing successful payment: {e}")
                 await update.message.reply_text(
-                    text=Messages.Errors.GENERIC.format(error=str(e)),
+                    text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                     parse_mode="Markdown"
                 )
         elif len(payload_parts) == 3 and payload_parts[0] == 'vip':
@@ -227,7 +227,7 @@ class PaymentHandler:
 
                 expiry_date = user.vip_expires_at.strftime("%d/%m/%Y") if user.vip_expires_at else "N/A"
 
-                text = Messages.Operations.VIP_PURCHASE_SUCCESS.format(
+                text = OperationMessages.VIP.PURCHASE_SUCCESS.format(
                     expiry_date=expiry_date,
                     max_keys=settings.VIP_PLAN_MAX_KEYS,
                     data_limit=settings.VIP_PLAN_DATA_LIMIT_GB
@@ -241,7 +241,7 @@ class PaymentHandler:
             except Exception as e:
                 logger.error(f"Error processing VIP payment: {e}")
                 await update.message.reply_text(
-                    text=Messages.Errors.GENERIC.format(error=str(e)),
+                    text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                     parse_mode="Markdown"
                 )
         else:
@@ -253,7 +253,7 @@ class PaymentHandler:
         query = update.callback_query
         await query.answer()
 
-        text = Messages.Operations.VIP_PLAN_INFO.format(
+        text = OperationMessages.VIP.PRICING.format(
             max_keys=settings.VIP_PLAN_MAX_KEYS,
             data_limit=settings.VIP_PLAN_DATA_LIMIT_GB,
             cost="10 estrellas por mes"
@@ -336,7 +336,7 @@ class PaymentHandler:
         except Exception as e:
             logger.error(f"Error in vip_purchase_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=OperationKeyboards.operations_menu()
             )
 
@@ -387,7 +387,7 @@ class PaymentHandler:
                             
                             expiry_date = user.vip_expires_at.strftime("%d/%m/%Y") if user.vip_expires_at else "N/A"
                             
-                            text = Messages.Operations.VIP_PURCHASE_SUCCESS.format(
+                            text = OperationMessages.VIP.PURCHASE_SUCCESS.format(
                                 expiry_date=expiry_date,
                                 max_keys=settings.VIP_PLAN_MAX_KEYS,
                                 data_limit=settings.VIP_PLAN_DATA_LIMIT_GB
@@ -436,7 +436,7 @@ class PaymentHandler:
         except Exception as e:
             logger.error(f"Error in vip_payment_method_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 parse_mode="Markdown"
             )
 

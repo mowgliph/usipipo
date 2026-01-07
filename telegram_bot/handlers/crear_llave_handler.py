@@ -11,7 +11,7 @@ from telegram.ext import (
 from utils.logger import logger
 
 from application.services.vpn_service import VpnService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import UserMessages
 from telegram_bot.keyboard import UserKeyboards
 from utils.qr_generator import QrGenerator
 from config import settings
@@ -27,14 +27,14 @@ async def start_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Es un callback
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(
-            text=Messages.Keys.SELECT_TYPE,
+            text=UserMessages.Keys.SELECT_TYPE,
             reply_markup=UserKeyboards.vpn_types(),
             parse_mode="Markdown"
         )
     else:
         # Es un mensaje directo
         await update.message.reply_text(
-            text=Messages.Keys.SELECT_TYPE,
+            text=UserMessages.Keys.SELECT_TYPE,
             reply_markup=UserKeyboards.vpn_types(),
             parse_mode="Markdown"
         )
@@ -129,7 +129,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
     except Exception as e:
         logger.error(f"❌ Error en creación de llave: {e}")
         await update.message.reply_text(
-            text=Messages.Errors.GENERIC.format(error=str(e)),
+            text=CommonMessages.Errors.GENERIC.format(error=str(e)),
             reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
         )
     

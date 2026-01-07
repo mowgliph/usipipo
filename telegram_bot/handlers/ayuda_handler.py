@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from utils.logger import logger
 
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import UserMessages
 from telegram_bot.keyboard import SupportKeyboards
 
 async def ayuda_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -12,7 +12,7 @@ async def ayuda_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     try:
         await update.message.reply_text(
-            text=Messages.Welcome.HELP,
+            text=UserMessages.Help.HELP,
             reply_markup=SupportKeyboards.help_menu(),
             parse_mode="Markdown"
         )

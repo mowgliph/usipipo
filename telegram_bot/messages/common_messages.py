@@ -32,6 +32,10 @@ class CommonMessages:
         BACK = "⬅️ Volver"
         HOME = "🏠 Inicio"
         HELP = "❓ Ayuda"
+        CANCEL = (
+            "❌ **Operación Cancelada**\n\n"
+            "Has vuelto al menú principal."
+        )
         
         INVALID_OPTION = (
             "❌ **Opción inválida**\n\n"

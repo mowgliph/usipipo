@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import uuid
 
 from application.services.task_service import TaskService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import TaskMessages, CommonMessages
 from telegram_bot.keyboard import TaskKeyboards, CommonKeyboards
 from domain.entities.user import UserRole, UserStatus
 
