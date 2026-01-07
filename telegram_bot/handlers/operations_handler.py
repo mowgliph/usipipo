@@ -12,7 +12,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import settings
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import OperationKeyboards
 from telegram_bot.messages.messages import Messages
 from utils.logger import logger
 
@@ -33,7 +33,7 @@ async def mi_balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
         await update.message.reply_text(
             text=text,
-            reply_markup=InlineKeyboards.operations_menu(),
+            reply_markup=OperationKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
     except Exception as e:
@@ -54,7 +54,7 @@ async def plan_vip_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         text=text,
-        reply_markup=InlineKeyboards.vip_plans(),
+        reply_markup=OperationKeyboards.vip_plans(),
         parse_mode="Markdown"
     )
 
@@ -75,7 +75,7 @@ async def referidos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         
         await update.message.reply_text(
             text=text,
-            reply_markup=InlineKeyboards.referral_actions(),
+            reply_markup=OperationKeyboards.referral_actions(),
             parse_mode="Markdown"
         )
     except Exception as e:

@@ -1,235 +1,413 @@
 """
-Mensajes de administración para el bot uSipipo.
+Mensajes para funcionalidades administrativas del bot uSipipo.
+
+Organiza los mensajes relacionados con:
+- Gestión de usuarios
+- Gestión de llaves administrativas
+- Estadísticas y reportes
+- Configuración del sistema
 
 Author: uSipipo Team
 Version: 1.0.0
 """
 
+
 class AdminMessages:
-    """Mensajes del sistema de administración."""
+    """Mensajes para administradores del bot."""
     
-    # Menú principal
-    MAIN_MENU = """🔧 **Panel de Administración**
-
-👑 Bienvenido al panel de control de uSipipo VPN
-
-Elige una opción para gestionar el sistema:"""
+    # ============================================
+    # ADMIN MENU
+    # ============================================
     
-    # SUBMENU USUARIOS
-    # ================
-    USERS_SUBMENU_TITLE = """👥 **Gestión de Usuarios**
-
-Selecciona una opción:"""
+    class Menu:
+        """Mensajes de menú administrativo."""
+        
+        MAIN = (
+            "⚙️ **Panel de Administración**\n"
+            "━━━━━━━━━━━━\n\n"
+            "🔹 **Gestión:**\n"
+            "• 👥 Usuarios\n"
+            "• 🔑 Llaves\n"
+            "• 📊 Estadísticas\n"
+            "• 🎯 Tareas\n\n"
+            "🔹 **Sistema:**\n"
+            "• ⚙️ Configuración\n"
+            "• 📢 Broadcast\n"
+            "• 🔄 Sincronización\n"
+            "• 📋 Logs\n\n"
+            "━━━━━━━━━━━━\n\n"
+            "Selecciona una opción:"
+        )
+        
+        USERS_SUBMENU = (
+            "👥 **Gestión de Usuarios**\n"
+            "━━━━━━━━━━━━\n\n"
+            "• 🔍 Buscar usuario\n"
+            "• 📋 Listar todos\n"
+            "• 🚫 Bloquear/Desbloquear\n"
+            "• 🗑️ Eliminar usuario\n"
+            "• ⬅️ Volver\n"
+        )
+        
+        KEYS_SUBMENU = (
+            "🔑 **Gestión de Llaves**\n"
+            "━━━━━━━━━━━━\n\n"
+            "• 🔍 Buscar llave\n"
+            "• 📋 Listar todas\n"
+            "• 🔄 Renovar\n"
+            "• 🚫 Desactivar\n"
+            "• ⬅️ Volver\n"
+        )
+        
+        STATS_SUBMENU = (
+            "📊 **Estadísticas**\n"
+            "━━━━━━━━━━━━\n\n"
+            "• 👥 Usuarios totales\n"
+            "• 🔑 Llaves en uso\n"
+            "• 📈 Consumo de datos\n"
+            "• 💰 Ingresos\n"
+            "• ⬅️ Volver\n"
+        )
     
-    # Lista de usuarios
-    USERS_LIST_HEADER = """📊 **Lista de Usuarios**
-
-Total: {total_users} | Página {page}/{total_pages}
-
-{users}"""
+    # ============================================
+    # USER MANAGEMENT
+    # ============================================
     
-    USER_ENTRY = """• **{name}** (ID: `{user_id}`)
-  Estado: {status} | Rol: {role} | VIP: {vip}
-  Claves: {keys} | Balance: ⭐{balance} | Registrado: {created_at}"""
+    class Users:
+        """Mensajes para gestión de usuarios."""
+        
+        SEARCH_PROMPT = (
+            "🔍 **Buscar Usuario**\n\n"
+            "Envía el nombre, Telegram ID o username:"
+        )
+        
+        LIST_HEADER = (
+            "👥 **Lista de Usuarios**\n"
+            "━━━━━━━━━━━━\n"
+        )
+        
+        NO_USERS = (
+            "📭 **Sin usuarios**\n\n"
+            "La base de datos está vacía."
+        )
+        
+        USER_ENTRY = (
+            "👤 {name} | ID: `{user_id}`\n"
+            "   📅 Unido: {join_date} | Estado: {status}"
+        )
+        
+        USER_DETAIL = (
+            "👤 **Detalles del Usuario**\n"
+            "━━━━━━━━━━━━\n\n"
+            "📛 **Nombre:** {name}\n"
+            "🆔 **ID:** `{user_id}`\n"
+            "📞 **Username:** @{username}\n"
+            "📅 **Unido:** {join_date}\n"
+            "🟢 **Estado:** {status}\n"
+            "🚫 **Bloqueado:** {blocked}\n"
+            "🔑 **Llaves:** {keys_count}\n"
+            "📊 **Consumo:** {total_usage} GB\n"
+            "👑 **VIP:** {is_vip}\n"
+            "💰 **Saldo:** ${balance}\n"
+            "🎫 **Tickets:** {tickets_count}\n"
+        )
+        
+        BLOCK_USER = (
+            "🚫 **Usuario bloqueado**\n\n"
+            "Usuario: **{name}**\n"
+            "ID: `{user_id}`\n\n"
+            "El usuario no podrá usar el bot."
+        )
+        
+        UNBLOCK_USER = (
+            "✅ **Usuario desbloqueado**\n\n"
+            "Usuario: **{name}**\n"
+            "ID: `{user_id}`"
+        )
+        
+        DELETE_USER = (
+            "🗑️ **Usuario eliminado**\n\n"
+            "Usuario: **{name}**\n"
+            "ID: `{user_id}`\n\n"
+            "Todos sus datos han sido eliminados."
+        )
+        
+        USER_NOT_FOUND = (
+            "❌ **Usuario no encontrado**\n\n"
+            "No hay coincidencias con: **{query}**"
+        )
     
-    NO_USERS = """📊 **Usuarios Registrados**
-
-No hay usuarios registrados en el sistema."""
+    # ============================================
+    # KEY MANAGEMENT
+    # ============================================
     
-    # Detalle de usuario
-    USER_DETAIL = """👤 **Información del Usuario**
-
-**DATOS PERSONALES**
-👤 **ID Telegram:** `{user_id}`
-🔤 **Nombre:** {full_name}
-🔍 **Usuario:** {username}
-
-**ESTADO Y ACCESO**
-📌 **Estado:** {status}
-🎖️ **Rol:** {role}
-👑 **VIP:** {vip_status}
-
-**CLAVES VPN**
-🔑 **Total:** {total_keys}
-🟢 **Activas:** {active_keys}
-
-**BALANCE Y TRANSACCIONES**
-⭐ **Estrellas:** {balance_stars}
-💰 **Total Depositado:** {total_deposited}
-
-**ROLES ESPECIALES**
-📋 **Gestor de Tareas:** {task_manager}
-📣 **Anunciante:** {announcer}
-
-**FECHAS IMPORTANTES**
-📅 **Registrado:** {created_at}
-📆 **VIP Expira:** {vip_expires}"""
+    class Keys:
+        """Mensajes para gestión de llaves."""
+        
+        LIST_HEADER = (
+            "🔑 **Lista de Llaves**\n"
+            "━━━━━━━━━━━━\n"
+        )
+        
+        KEY_ENTRY = (
+            "🔑 {name} ({protocol}) | Usuario: {owner}\n"
+            "   📊 {usage}/{limit} GB | Expira: {expiration}"
+        )
+        
+        KEY_DETAIL = (
+            "🔑 **Detalles de Llave**\n"
+            "━━━━━━━━━━━━\n\n"
+            "📛 **Nombre:** {name}\n"
+            "👤 **Propietario:** {owner}\n"
+            "🆔 **ID:** `{key_id}`\n"
+            "📡 **Protocolo:** {protocol}\n"
+            "🖥️ **Servidor:** {server}\n"
+            "📊 **Consumo:** {usage} / {limit} GB\n"
+            "⏰ **Expiración:** {expiration}\n"
+            "🟢 **Estado:** {status}\n"
+            "📅 **Creada:** {created_date}\n"
+            "🔄 **Última sincronización:** {last_sync}\n"
+        )
+        
+        RENEW_KEY = (
+            "🔄 **Llave renovada**\n\n"
+            "Nombre: **{name}**\n"
+            "Nueva expiración: **{expiration}**\n"
+            "Nuevos datos: **{limit} GB**"
+        )
+        
+        DEACTIVATE_KEY = (
+            "🚫 **Llave desactivada**\n\n"
+            "Nombre: **{name}**\n"
+            "Usuario: **{owner}**\n\n"
+            "La conexión ha sido interrumpida."
+        )
+        
+        NO_KEYS = (
+            "📭 **Sin llaves**\n\n"
+            "No hay llaves en el sistema."
+        )
+        
+        KEYS_NOT_FOUND = (
+            "❌ **Llaves no encontradas**\n\n"
+            "No hay coincidencias con: **{query}**"
+        )
     
-    # Acciones de usuario
-    USER_ACTION_SUCCESS = """✅ **Acción Completada**
-
-**Operación:** {operation}
-**Usuario:** {user_name} (ID: `{user_id}`)
-**Detalle:** {message}"""
+    # ============================================
+    # STATISTICS & REPORTING
+    # ============================================
     
-    USER_ACTION_ERROR = """❌ **Error en la Operación**
-
-**Operación:** {operation}
-**Usuario:** {user_id}
-**Error:** {message}"""
+    class Statistics:
+        """Mensajes de estadísticas."""
+        
+        GENERAL = (
+            "📊 **Estadísticas Generales**\n"
+            "━━━━━━━━━━━━\n\n"
+            "👥 **Usuarios:**\n"
+            "   • Totales: {total_users}\n"
+            "   • Activos (hoy): {active_today}\n"
+            "   • Nuevos (hoy): {new_today}\n"
+            "   • VIP: {vip_users}\n\n"
+            "🔑 **Llaves:**\n"
+            "   • Totales: {total_keys}\n"
+            "   • Activas: {active_keys}\n"
+            "   • WireGuard: {wireguard_count}\n"
+            "   • Outline: {outline_count}\n\n"
+            "📈 **Tráfico:**\n"
+            "   • Consumo total: {total_traffic} GB\n"
+            "   • Promedio por usuario: {avg_per_user} GB\n"
+            "   • Hoy: {traffic_today} GB\n\n"
+            "💰 **Ingresos:**\n"
+            "   • Total: ${total_revenue}\n"
+            "   • VIP: ${vip_revenue}\n"
+            "   • Hoy: ${revenue_today}\n"
+        )
+        
+        USER_STATS = (
+            "👥 **Estadísticas de Usuarios**\n"
+            "━━━━━━━━━━━━\n\n"
+            "🔹 **Resumen:**\n"
+            "   Totales: {total}\n"
+            "   Activos: {active}\n"
+            "   Inactivos: {inactive}\n"
+            "   Bloqueados: {blocked}\n\n"
+            "📈 **Tendencias (últimos 7 días):**\n"
+            "{growth_chart}\n\n"
+            "🏆 **Top usuarios por consumo:**\n"
+            "{top_users}"
+        )
+        
+        KEY_STATS = (
+            "🔑 **Estadísticas de Llaves**\n"
+            "━━━━━━━━━━━━\n\n"
+            "📊 **Distribución:**\n"
+            "   WireGuard: {wireguard_pct}% ({wireguard_count})\n"
+            "   Outline: {outline_pct}% ({outline_count})\n\n"
+            "⏰ **Estado:**\n"
+            "   Activas: {active_count}\n"
+            "   Próximas a expirar: {expiring_soon}\n"
+            "   Expiradas: {expired_count}\n\n"
+            "📈 **Utilización:**\n"
+            "{utilization_chart}"
+        )
+        
+        TRAFFIC_STATS = (
+            "📈 **Consumo de Datos**\n"
+            "━━━━━━━━━━━━\n\n"
+            "📊 **Total:**\n"
+            "   {total_traffic} GB consumidos\n"
+            "   {total_limit} GB limite asignado\n\n"
+            "📉 **Últimos 7 días:**\n"
+            "{traffic_chart}\n\n"
+            "🏆 **Top 5 consumidores:**\n"
+            "{top_consumers}"
+        )
     
-    # Cambio de rol
-    ASSIGN_ROLE_MENU = """🎖️ **Asignar Rol a Usuario**
-
-👤 **Usuario:** {user_name} (ID: `{user_id}`)
-
-Selecciona el nuevo rol:"""
+    # ============================================
+    # BROADCAST & ANNOUNCEMENTS
+    # ============================================
     
-    ROLE_DESCRIPTIONS = {
-        'user': '👤 **Usuario Regular** - Rol básico',
-        'admin': '🔑 **Administrador** - Control total del sistema',
-        'task_manager': '📋 **Gestor de Tareas** - Crear y gestionar tareas (Rol Premium)',
-        'announcer': '📣 **Anunciante** - Enviar anuncios a otros usuarios (Rol Premium)'
-    }
+    class Broadcast:
+        """Mensajes para broadcasts."""
+        
+        CONFIRM = (
+            "📢 **Confirmar Broadcast**\n"
+            "━━━━━━━━━━━━\n\n"
+            "Destinatarios: {recipients}\n"
+            "Tipo: {message_type}\n\n"
+            "Vista previa:\n\n"
+            "{preview}\n\n"
+            "━━━━━━━━━━━━\n\n"
+            "¿Enviar a {recipients} usuarios?"
+        )
+        
+        SENDING = (
+            "📤 **Enviando broadcast...**\n\n"
+            "Enviados: {sent}/{total}"
+        )
+        
+        COMPLETED = (
+            "✅ **Broadcast completado**\n\n"
+            "Enviados: {sent}/{total}\n"
+            "Fallidos: {failed}\n"
+            "Bloqueados: {blocked}\n"
+        )
+        
+        FAILED = (
+            "❌ **Error en broadcast**\n\n"
+            "Mensaje: {error}\n"
+            "Intentos fallidos: {failed_count}"
+        )
     
-    # Bloqueo de usuarios
-    BLOCK_USER_CONFIRM = """⚠️ **Confirmar Bloqueo**
-
-¿Deseas bloquear al usuario `{user_id}` - **{user_name}**?
-
-**Consecuencias:**
-❌ No podrá acceder al bot
-❌ Sus claves serán inactivas
-❌ Perderá acceso a sus servicios"""
+    # ============================================
+    # SYSTEM & CONFIGURATION
+    # ============================================
     
-    BLOCK_USER_SUCCESS = """✅ **Usuario Bloqueado**
-
-✅ Usuario `{user_id}` - **{user_name}** ha sido bloqueado
-📌 Estado: BLOQUEADO"""
+    class System:
+        """Mensajes de sistema."""
+        
+        CONFIG_MENU = (
+            "⚙️ **Configuración del Sistema**\n"
+            "━━━━━━━━━━━━\n\n"
+            "• 🔑 Límites de llaves\n"
+            "• 📊 Límites de datos\n"
+            "• 💰 Precios VIP\n"
+            "• 🎁 Bonificaciones\n"
+            "• ⬅️ Volver\n"
+        )
+        
+        SETTINGS = (
+            "⚙️ **Configuración Actual**\n"
+            "━━━━━━━━━━━━\n\n"
+            "🔑 **Llaves por usuario:** {keys_limit}\n"
+            "📊 **Datos por llave:** {data_limit} GB\n"
+            "💰 **Precio VIP (mes):** ${vip_price}\n"
+            "💰 **Precio VIP (año):** ${vip_yearly_price}\n"
+            "🎁 **Datos iniciales:** {initial_data} GB\n"
+            "⏰ **Ciclo de renovación:** {renewal_cycle} días\n"
+        )
+        
+        SYNC_RUNNING = (
+            "🔄 **Sincronización en progreso...**\n\n"
+            "Esto puede tomar unos minutos."
+        )
+        
+        SYNC_COMPLETED = (
+            "✅ **Sincronización completada**\n\n"
+            "Llaves actualizadas: {updated}\n"
+            "Cambios detectados: {changes}\n"
+            "Duración: {duration}s"
+        )
     
-    # Desbloqueo de usuarios
-    UNBLOCK_USER_CONFIRM = """⚠️ **Confirmar Desbloqueo**
-
-¿Deseas desbloquear al usuario `{user_id}` - **{user_name}**?"""
+    # ============================================
+    # CONFIRMATION DIALOGS
+    # ============================================
     
-    UNBLOCK_USER_SUCCESS = """✅ **Usuario Desbloqueado**
-
-✅ Usuario `{user_id}` - **{user_name}** ha sido desbloqueado
-📌 Estado: ACTIVO"""
+    class Confirmation:
+        """Mensajes de confirmación administrativos."""
+        
+        DELETE_USER = (
+            "⚠️ **¿Eliminar usuario?**\n\n"
+            "Usuario: **{name}**\n"
+            "ID: `{user_id}`\n\n"
+            "⚠️ Esta acción es irreversible.\n"
+            "Se eliminarán todas sus llaves y datos."
+        )
+        
+        BLOCK_USER = (
+            "⚠️ **¿Bloquear usuario?**\n\n"
+            "Usuario: **{name}**\n"
+            "ID: `{user_id}`\n\n"
+            "No podrá usar el bot."
+        )
+        
+        DELETE_KEY = (
+            "⚠️ **¿Eliminar llave?**\n\n"
+            "Llave: **{key_name}**\n"
+            "Usuario: **{owner}**\n\n"
+            "Se interrumpirá la conexión."
+        )
+        
+        DEACTIVATE_KEY = (
+            "⚠️ **¿Desactivar llave?**\n\n"
+            "Llave: **{key_name}**\n"
+            "Usuario: **{owner}**\n\n"
+            "Se interrumpirá la conexión del usuario."
+        )
     
-    # Eliminación de usuario
-    DELETE_USER_CONFIRM = """⚠️⚠️ **ADVERTENCIA: ELIMINAR USUARIO** ⚠️⚠️
-
-¿ESTÁS SEGURO de que deseas eliminar al usuario?
-
-👤 **Usuario:** {user_name} (ID: `{user_id}`)
-📊 **Claves:** {total_keys}
-⭐ **Balance:** {balance_stars}
-
-**⚠️ ESTA ACCIÓN ES IRREVERSIBLE:**
-❌ Se eliminarán TODAS las claves VPN del usuario
-❌ Se perderán todos los datos asociados
-❌ Se cancelarán suscripciones activas
-❌ No se puede deshacer
-
-**Escribe el ID del usuario para confirmar: `{user_id}`**"""
+    # ============================================
+    # ERRORS & WARNINGS
+    # ============================================
     
-    DELETE_USER_SUCCESS = """✅ **Usuario Eliminado**
-
-✅ Usuario `{user_id}` - **{user_name}** ha sido completamente eliminado
-📊 Claves eliminadas: {deleted_keys}"""
-    
-    # Cambio de estado
-    CHANGE_STATUS_MENU = """📌 **Cambiar Estado del Usuario**
-
-👤 **Usuario:** {user_name} (ID: `{user_id}`)
-Estado actual: {current_status}
-
-Selecciona el nuevo estado:"""
-    
-    STATUS_OPTIONS = {
-        'active': '🟢 **Activo** - Usuario con acceso completo',
-        'suspended': '🟡 **Suspendido** - Usuario sin acceso temporal',
-        'blocked': '🔴 **Bloqueado** - Usuario sin acceso (manual)',
-        'free_trial': '📋 **Prueba Gratis** - Usuario en período de prueba'
-    }
-    
-    # Usuarios
-    USERS_LIST = """📊 **Usuarios Registrados**
-
-{users}
-
-*Mostrando los 10 usuarios más recientes*"""
-    
-    # Claves
-    NO_KEYS = """🔐 **Claves VPN**
-
-No hay claves registradas en el sistema."""
-    
-    KEYS_LIST = """🔐 **Claves VPN Registradas**
-
-🔐 **WireGuard:** {wireguard_count} claves
-🔒 **Outline:** {outline_count} claves
-
-Selecciona una clave para gestionar:"""
-    
-    # Confirmación de eliminación
-    KEY_NOT_FOUND = """⚠️ **Clave No Encontrada**
-
-La clave solicitada no existe en el sistema."""
-    
-    CONFIRM_DELETE = """⚠️ **Confirmar Eliminación**
-
-¿Estás seguro de eliminar esta clave?
-
-🔑 **Nombre:** {key_name}
-👤 **Usuario:** {user_name}
-🔒 **Tipo:** {key_type}
-📊 **Datos usados:** {data_used}
-
-⚠️ **Esta acción:**
-- ❌ Eliminará la clave de los servidores VPN
-- ❌ Eliminará la clave de la base de datos
-- ❌ El usuario perderá acceso inmediatamente
-- ❌ No se puede deshacer
-
-**Confirma si deseas continuar:**"""
-    
-    # Resultados de operaciones
-    DELETE_SUCCESS = """✅ **Clave Eliminada Correctamente**
-
-🔑 **ID:** {key_id}
-🔒 **Tipo:** {key_type}
-
-📊 **Estado de eliminación:**
-🖥️ **Servidores:** {server_deleted}
-💾 **Base de datos:** {db_deleted}
-
-La clave ha sido completamente eliminada del sistema."""
-    
-    DELETE_ERROR = """❌ **Error Eliminando Clave**
-
-🔑 **ID:** {key_id}
-❌ **Error:** {error}
-
-Por favor, revisa los logs del sistema para más detalles."""
-    
-    # Estado de servidores
-    SERVER_STATUS_HEADER = """🖥️ **Estado de Servidores VPN**
-
-"""
-    
-    SERVER_STATUS = """
-{health_emoji} **{server_type}**
-📊 **Claves totales:** {total_keys}
-🟢 **Claves activas:** {active_keys}
-🔧 **Versión:** {version}
-❌ **Errores:** {error}
-"""
-    
-    # Errores generales
-    ERROR = """⚠️ **Error**
-
-❌ **Detalles:** {error}
-
-Por favor, intenta nuevamente o contacta soporte técnico."""
+    class Errors:
+        """Mensajes de error administrativos."""
+        
+        UNAUTHORIZED = (
+            "❌ **No autorizado**\n\n"
+            "No tienes permisos para esta acción."
+        )
+        
+        USER_NOT_FOUND = (
+            "❌ **Usuario no encontrado**\n\n"
+            "No hay registros de: **{query}**"
+        )
+        
+        KEY_NOT_FOUND = (
+            "❌ **Llave no encontrada**\n\n"
+            "No hay registros de: **{query}**"
+        )
+        
+        OPERATION_FAILED = (
+            "❌ **Error en operación**\n\n"
+            "No se pudo completar: {reason}"
+        )
+        
+        DATABASE_ERROR = (
+            "🔴 **Error de base de datos**\n\n"
+            "Intenta más tarde."
+        )
+        
+        API_ERROR = (
+            "🔌 **Error de servidor**\n\n"
+            "No se pudo conectar: {error}"
+        )

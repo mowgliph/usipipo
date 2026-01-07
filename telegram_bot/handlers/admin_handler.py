@@ -12,8 +12,7 @@ from utils.logger import logger
 
 from application.services.admin_service import AdminService
 from telegram_bot.messages.admin_messages import AdminMessages
-from telegram_bot.keyboard.admin_keyboard import AdminKeyboard
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
+from telegram_bot.keyboard import AdminKeyboards, UserKeyboards
 from utils.spinner import with_spinner
 
 # Estados de la conversación de administración
@@ -40,7 +39,7 @@ class AdminHandler:
         
         await update.message.reply_text(
             text=AdminMessages.MAIN_MENU,
-            reply_markup=InlineAdminKeyboards.main_menu(),
+            reply_markup=AdminKeyboards.main_menu(),
             parse_mode="Markdown"
         )
         return ADMIN_MENU
@@ -56,7 +55,7 @@ class AdminHandler:
             if not users:
                 await query.edit_message_text(
                     text=AdminMessages.NO_USERS,
-                    reply_markup=InlineAdminKeyboards.main_menu()
+                    reply_markup=AdminKeyboards.main_menu()
                 )
                 return ADMIN_MENU
             
@@ -76,7 +75,7 @@ class AdminHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineAdminKeyboards.users_actions(),
+                reply_markup=AdminKeyboards.users_actions(),
                 parse_mode="Markdown"
             )
             return VIEWING_USERS
@@ -85,7 +84,7 @@ class AdminHandler:
             logger.error(f"Error mostrando usuarios: {e}")
             await query.edit_message_text(
                 text=AdminMessages.ERROR.format(error=str(e)),
-                reply_markup=InlineAdminKeyboards.main_menu()
+                reply_markup=AdminKeyboards.main_menu()
             )
             return ADMIN_MENU
     
@@ -100,7 +99,7 @@ class AdminHandler:
             if not keys:
                 await query.edit_message_text(
                     text=AdminMessages.NO_KEYS,
-                    reply_markup=InlineAdminKeyboards.main_menu()
+                    reply_markup=AdminKeyboards.main_menu()
                 )
                 return ADMIN_MENU
             
@@ -153,7 +152,7 @@ class AdminHandler:
             logger.error(f"Error mostrando claves: {e}")
             await query.edit_message_text(
                 text=AdminMessages.ERROR.format(error=str(e)),
-                reply_markup=AdminKeyboard.back_to_menu()
+                reply_markup=AdminKeyboards.back_to_menu()
             )
             return ADMIN_MENU
     
@@ -173,7 +172,7 @@ class AdminHandler:
             if not key_info:
                 await query.edit_message_text(
                     text=AdminMessages.KEY_NOT_FOUND,
-                    reply_markup=InlineAdminKeyboards.main_menu()
+                    reply_markup=AdminKeyboards.main_menu()
                 )
                 return ADMIN_MENU
             
@@ -189,7 +188,7 @@ class AdminHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineAdminKeyboards.confirm_delete(key_id),
+                reply_markup=AdminKeyboards.confirm_delete(key_id),
                 parse_mode="Markdown"
             )
             return CONFIRMING_DELETE
@@ -198,7 +197,7 @@ class AdminHandler:
             logger.error(f"Error en confirmación de eliminación: {e}")
             await query.edit_message_text(
                 text=AdminMessages.ERROR.format(error=str(e)),
-                reply_markup=AdminKeyboard.back_to_menu()
+                reply_markup=AdminKeyboards.back_to_menu()
             )
             return ADMIN_MENU
     
@@ -232,7 +231,7 @@ class AdminHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineAdminKeyboards.main_menu(),
+                reply_markup=AdminKeyboards.main_menu(),
                 parse_mode="Markdown"
             )
             return ADMIN_MENU
@@ -241,7 +240,7 @@ class AdminHandler:
             logger.error(f"Error ejecutando eliminación de clave {key_id}: {e}")
             await query.edit_message_text(
                 text=AdminMessages.ERROR.format(error=str(e)),
-                reply_markup=InlineAdminKeyboards.main_menu()
+                reply_markup=AdminKeyboards.main_menu()
             )
             return ADMIN_MENU
     
@@ -268,7 +267,7 @@ class AdminHandler:
             
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineAdminKeyboards.main_menu(),
+                reply_markup=AdminKeyboards.main_menu(),
                 parse_mode="Markdown"
             )
             return ADMIN_MENU
@@ -277,7 +276,7 @@ class AdminHandler:
             logger.error(f"Error mostrando estado de servidores: {e}")
             await query.edit_message_text(
                 text=AdminMessages.ERROR.format(error=str(e)),
-                reply_markup=InlineAdminKeyboards.main_menu()
+                reply_markup=AdminKeyboards.main_menu()
             )
             return ADMIN_MENU
     
@@ -288,7 +287,7 @@ class AdminHandler:
         
         await query.edit_message_text(
             text=AdminMessages.MAIN_MENU,
-            reply_markup=InlineAdminKeyboards.main_menu(),
+            reply_markup=AdminKeyboards.main_menu(),
             parse_mode="Markdown"
         )
         return ADMIN_MENU
@@ -351,14 +350,14 @@ async def admin_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
         # Mostrar menú de administración
         await update.message.reply_text(
             text=AdminMessages.MAIN_MENU,
-            reply_markup=InlineAdminKeyboards.main_menu(),
+            reply_markup=AdminKeyboards.main_menu(),
             parse_mode="Markdown"
         )
     else:
         # Acceso denegado, mostrar menú principal
         await update.message.reply_text(
             "⚠️ Acceso denegado. Función solo para administradores.",
-            reply_markup=InlineKeyboards.main_menu(is_admin=False),
+            reply_markup=UserKeyboards.main_menu(is_admin=False),
             parse_mode="Markdown"
         )
 

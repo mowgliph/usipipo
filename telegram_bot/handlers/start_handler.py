@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 from application.services.vpn_service import VpnService
 from application.services.achievement_service import AchievementService
 from telegram_bot.messages import Messages
-from telegram_bot.keyboard import InlineKeyboards, Keyboards
+from telegram_bot.keyboard import UserKeyboards, Keyboards
 from config import settings
 from utils.logger import logger
 from telegram import ReplyKeyboardRemove
@@ -89,13 +89,13 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user.id == int(settings.ADMIN_ID):
                 await update.message.reply_text(
                     text="👇 Menú Principal (Admin)",
-                    reply_markup=InlineKeyboards.main_menu(is_admin=True),
+                    reply_markup=UserKeyboards.main_menu(is_admin=True),
                     parse_mode="Markdown"
                 )
             else:
                 await update.message.reply_text(
                     text="👇 Menú Principal",
-                    reply_markup=InlineKeyboards.main_menu(),
+                    reply_markup=UserKeyboards.main_menu(),
                     parse_mode="Markdown"
                 )
         except Exception as e:
