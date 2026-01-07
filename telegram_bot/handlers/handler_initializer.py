@@ -16,6 +16,7 @@ from telegram_bot.handlers.admin_handler import get_admin_handler, admin_command
 from telegram_bot.handlers.admin_task_handler import get_admin_task_handler
 from telegram_bot.handlers.ayuda_handler import ayuda_handler, help_command_handler
 from telegram_bot.handlers.broadcast_handler import get_broadcast_handler
+from telegram_bot.handlers.info_handler import info_handler
 from telegram_bot.handlers.crear_llave_handler import get_creation_handler
 from telegram_bot.handlers.game_handler import get_game_handlers
 from telegram_bot.handlers.inline_callbacks_handler import get_inline_callback_handlers
@@ -67,6 +68,9 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Comando /help
     handlers.append(CommandHandler("help", help_command_handler))
+    
+    # Comando /info
+    handlers.append(CommandHandler("info", info_handler))
     
     # Comando /cancelar
     handlers.append(CommandHandler("cancelar", cancel_handler))
