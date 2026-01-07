@@ -481,6 +481,20 @@ class InlineKeyboards:
         ]
         return InlineKeyboardMarkup(keyboard)
 
+    @staticmethod
+    def vip_payment_options(telegram_id: int, months: int, cost: int) -> InlineKeyboardMarkup:
+        """Teclado con opciones de pago para planes VIP."""
+        keyboard = [
+            [
+                InlineKeyboardButton("💰 Pagar con Balance", callback_data=f"vip_pay_balance_{telegram_id}_{months}_{cost}"),
+                InlineKeyboardButton("📋 Factura Telegram Stars", callback_data=f"vip_pay_invoice_{telegram_id}_{months}_{cost}")
+            ],
+            [
+                InlineKeyboardButton("❌ Cancelar", callback_data="cancel_vip_purchase")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
 
 class InlineAdminKeyboards:
     """Teclados inline específicos para administración."""

@@ -75,12 +75,16 @@ class PaymentHandler:
 
     async def deposit_amount_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Procesa la cantidad de estrellas a recargar y crea la factura."""
+        logger.info(f"💰 deposit_amount_handler llamado con texto: '{update.message.text}'")
+        
         try:
             # Validar que sea un número entero (sin decimales)
             amount_text = update.message.text.strip()
+            logger.info(f"🔢 Procesando cantidad: '{amount_text}'")
             
             # Verificar que no contenga puntos ni comas (decimales)
             if '.' in amount_text or ',' in amount_text:
+                logger.warning(f"❌ Decimales detectados en: '{amount_text}'")
                 await update.message.reply_text(
                     "❌ Solo se permiten números enteros (sin decimales).\n\nEnvía un número entero entre 1 y 10000:",
                     parse_mode="Markdown"
@@ -88,9 +92,11 @@ class PaymentHandler:
                 return DEPOSIT_AMOUNT
             
             amount = int(amount_text)
+            logger.info(f"✅ Cantidad válida: {amount}")
             
             # Validar rango (1 a 10000)
             if amount < 1 or amount > 10000:
+                logger.warning(f"❌ Cantidad fuera de rango: {amount}")
                 await update.message.reply_text(
                     "❌ Cantidad inválida. Debe ser un número entero entre 1 y 10000 estrellas.\n\nIntenta de nuevo:",
                     parse_mode="Markdown"
@@ -261,7 +267,7 @@ class PaymentHandler:
         )
 
     async def vip_purchase_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Procesa la compra de un plan VIP creando una factura de estrellas."""
+        """Procesa la compra de un plan VIP con validación de balance y opciones de pago."""
         query = update.callback_query
         await query.answer()
 
@@ -289,17 +295,44 @@ class PaymentHandler:
             return
 
         try:
-            # Crear la factura usando Telegram Stars
-            prices = [LabeledPrice(label=f"Plan VIP {months} meses", amount=cost)]
-            await query.message.reply_invoice(
-                title=f"Plan VIP {months} Meses",
-                description=f"Activa tu plan VIP por {months} meses con {cost} estrellas.",
-                payload=f"vip_{telegram_id}_{months}",
-                provider_token="",  # Para Telegram Stars, dejar vacío
-                currency="XTR",  # Moneda para estrellas
-                prices=prices,
-                start_parameter="vip_purchase"
-            )
+            # Verificar balance del usuario
+            user_status = await self.vpn_service.get_user_status(telegram_id)
+            user = user_status["user"]
+            current_balance = user.balance_stars
+
+            # Validar que el usuario tenga saldo suficiente para pagar con balance
+            if current_balance >= cost:
+                # Mostrar opciones de pago
+                await query.edit_message_text(
+                    text=f"👑 **Compra de Plan VIP {months} Meses**\n\n"
+                         f"💰 **Costo:** {cost} ⭐\n\n"
+                         f"📊 **Tu saldo actual:** {current_balance} ⭐\n\n"
+                         f"💡 **Elige tu método de pago:**",
+                    reply_markup=self._get_vip_payment_options(telegram_id, months, cost),
+                    parse_mode="Markdown"
+                )
+            else:
+                # Solo permitir pago con factura si no tiene saldo suficiente
+                await query.edit_message_text(
+                    text=f"👑 **Compra de Plan VIP {months} Meses**\n\n"
+                         f"💰 **Costo:** {cost} ⭐\n\n"
+                         f"📊 **Tu saldo actual:** {current_balance} ⭐\n"
+                         f"⚠️ **Saldo insuficiente** para pagar con balance.\n\n"
+                         f"💡 **Se generará una factura para pagar con Telegram Stars:**",
+                    parse_mode="Markdown"
+                )
+
+                # Crear la factura usando Telegram Stars
+                prices = [LabeledPrice(label=f"Plan VIP {months} meses", amount=cost)]
+                await query.message.reply_invoice(
+                    title=f"Plan VIP {months} Meses",
+                    description=f"Activa tu plan VIP por {months} meses con {cost} estrellas de Telegram.",
+                    payload=f"vip_{telegram_id}_{months}",
+                    provider_token="",  # Para Telegram Stars, dejar vacío
+                    currency="XTR",  # Moneda para estrellas
+                    prices=prices,
+                    start_parameter="vip_purchase"
+                )
 
         except Exception as e:
             logger.error(f"Error in vip_purchase_handler: {e}")
@@ -308,6 +341,105 @@ class PaymentHandler:
                 reply_markup=InlineKeyboards.operations_menu()
             )
 
+
+    async def vip_payment_method_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja la selección del método de pago para VIP."""
+        query = update.callback_query
+        await query.answer()
+
+        callback_data = query.data
+        
+        try:
+            if callback_data == "cancel_vip_purchase":
+                await query.edit_message_text(
+                    text="❌ **Compra cancelada**\n\nPuedes elegir otro plan VIP cuando quieras.",
+                    reply_markup=InlineKeyboards.vip_plans(),
+                    parse_mode="Markdown"
+                )
+                return
+
+            # Parsear datos del callback
+            parts = callback_data.split('_')
+            if len(parts) == 5 and parts[0] == 'vip' and parts[1] == 'pay':
+                payment_method = parts[2]  # 'balance' o 'invoice'
+                telegram_id = int(parts[3])
+                months = int(parts[4])
+                cost = int(parts[5])
+                
+                if payment_method == 'balance':
+                    # Pagar con balance existente
+                    success = await self.payment_service.update_balance(
+                        telegram_id=telegram_id,
+                        amount=-cost,
+                        transaction_type="vip_purchase",
+                        description=f"Compra de plan VIP {months} meses con balance",
+                        reference_id=f"vip_balance_{months}m_{telegram_id}"
+                    )
+                    
+                    if success:
+                        # Actualizar a VIP
+                        user_status = await self.vpn_service.get_user_status(telegram_id)
+                        user = user_status["user"]
+                        success = await self.vpn_service.upgrade_to_vip(user, months)
+                        
+                        if success:
+                            # Aplicar comisión de referido
+                            await self.payment_service.apply_referral_commission(telegram_id, cost)
+                            
+                            expiry_date = user.vip_expires_at.strftime("%d/%m/%Y") if user.vip_expires_at else "N/A"
+                            
+                            text = Messages.Operations.VIP_PURCHASE_SUCCESS.format(
+                                expiry_date=expiry_date,
+                                max_keys=settings.VIP_PLAN_MAX_KEYS,
+                                data_limit=settings.VIP_PLAN_DATA_LIMIT_GB
+                            )
+                            
+                            await query.edit_message_text(
+                                text=f"✅ **¡Plan VIP Activado!**\n\n{text}",
+                                parse_mode="Markdown"
+                            )
+                        else:
+                            # Revertir el cargo si falla el upgrade
+                            await self.payment_service.update_balance(
+                                telegram_id=telegram_id,
+                                amount=cost,
+                                transaction_type="vip_refund",
+                                description=f"Reembolso por fallo en VIP {months} meses"
+                            )
+                            await query.edit_message_text(
+                                text="❌ Error al activar el plan VIP. Se ha reembolsado tu saldo.",
+                                parse_mode="Markdown"
+                            )
+                    else:
+                        await query.edit_message_text(
+                            text="❌ Error al procesar el pago con balance. Intenta con factura.",
+                            parse_mode="Markdown"
+                        )
+                
+                elif payment_method == 'invoice':
+                    # Pagar con factura de Telegram Stars
+                    prices = [LabeledPrice(label=f"Plan VIP {months} meses", amount=cost)]
+                    await query.message.reply_invoice(
+                        title=f"Plan VIP {months} Meses",
+                        description=f"Activa tu plan VIP por {months} meses con {cost} estrellas de Telegram.",
+                        payload=f"vip_{telegram_id}_{months}",
+                        provider_token="",  # Para Telegram Stars, dejar vacío
+                        currency="XTR",  # Moneda para estrellas
+                        prices=prices,
+                        start_parameter="vip_purchase"
+                    )
+                    
+                    await query.edit_message_text(
+                        text=f"📋 **Factura generada**\n\nPor favor, completa el pago de {cost} ⭐ usando el botón arriba.",
+                        parse_mode="Markdown"
+                    )
+
+        except Exception as e:
+            logger.error(f"Error in vip_payment_method_handler: {e}")
+            await query.edit_message_text(
+                text=Messages.Errors.GENERIC.format(error=str(e)),
+                parse_mode="Markdown"
+            )
 
     def get_handlers(self):
         """Retorna la lista de handlers para el sistema de pagos."""
@@ -354,6 +486,10 @@ class PaymentHandler:
             CallbackQueryHandler(
                 lambda u, c: self.vip_purchase_handler(u, c),
                 pattern="^vip_1_month$|^vip_3_months$|^vip_6_months$|^vip_12_months$"
+            ),
+            CallbackQueryHandler(
+                lambda u, c: self.vip_payment_method_handler(u, c),
+                pattern="^vip_pay_|^cancel_vip_purchase$"
             )
         ]
 
