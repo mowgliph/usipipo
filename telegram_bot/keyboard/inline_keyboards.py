@@ -29,7 +29,7 @@ class InlineKeyboards:
                 InlineKeyboardButton("➕ Crear Nueva", callback_data="create_key")
             ],
             [
-                InlineKeyboardButton("📊 Estado", callback_data="status"),
+                InlineKeyboardButton("📊 Mi Estado", callback_data="status"),
                 InlineKeyboardButton("💰 Operaciones", callback_data="operations")
             ]
         ]

@@ -121,10 +121,10 @@ class Messages:
         INFO = (
             "━━━━━━━━━━━━\n\n"
             "👤 **{name}**\n\n"
-            "🔑 Llaves: **{count}** / {max}\n"
-            "📈 Consumo: **{usage}**\n"
-            "⭐ Estrellas: **{stars}**\n"
-            "📋 Estado: {status}\n\n"
+            "🔑 **Llaves Activas:** **{count}** / {max}\n"
+            "📈 **Consumo Total:** **{usage}** MB\n"
+            "⭐ **Estrellas Disponibles:** **{stars}**\n"
+            "📋 **Estado de la Cuenta:** {status}\n\n"
             "━━━━━━━━━━━━"
         )
         
