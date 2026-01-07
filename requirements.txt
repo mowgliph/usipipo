@@ -32,3 +32,6 @@ pytest-asyncio==1.3.0
 
 # Validación y serialización
 python-dateutil==2.8.2
+
+# Zona horaria
+pytz==2024.1
