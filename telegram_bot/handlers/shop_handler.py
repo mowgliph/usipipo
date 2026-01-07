@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from application.services.payment_service import PaymentService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from utils.spinner import with_spinner
 
 # Estados de conversación

@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import uuid
 
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 
 # Estados de conversación
 ANNOUNCER_MENU = 0

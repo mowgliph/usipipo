@@ -7,7 +7,7 @@ from application.services.vpn_service import VpnService
 from application.services.payment_service import PaymentService
 from telegram_bot.messages.messages import Messages
 from telegram_bot.keyboard.keyboard import Keyboards
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from config import settings
 
 # Estados de conversación para pagos con estrellas
@@ -26,7 +26,7 @@ class PaymentHandler:
 
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=InlineKeyboards.operations_menu(),
+            reply_markup=OperationKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
 
@@ -50,7 +50,7 @@ class PaymentHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.operations_menu(),
+                reply_markup=OperationKeyboards.operations_menu(),
                 parse_mode="Markdown"
             )
 
@@ -58,7 +58,7 @@ class PaymentHandler:
             logger.error(f"Error in balance_display_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.operations_menu()
+                reply_markup=OperationKeyboards.operations_menu()
             )
 
     async def deposit_instructions_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -262,7 +262,7 @@ class PaymentHandler:
 
         await query.edit_message_text(
             text=text,
-            reply_markup=InlineKeyboards.vip_plans(),
+            reply_markup=OperationKeyboards.vip_plans(),
             parse_mode="Markdown"
         )
 
@@ -290,7 +290,7 @@ class PaymentHandler:
         else:
             await query.edit_message_text(
                 text="❌ Opción inválida.",
-                reply_markup=InlineKeyboards.operations_menu()
+                reply_markup=OperationKeyboards.operations_menu()
             )
             return
 
@@ -308,7 +308,7 @@ class PaymentHandler:
                          f"💰 **Costo:** {cost} ⭐\n\n"
                          f"📊 **Tu saldo actual:** {current_balance} ⭐\n\n"
                          f"💡 **Elige tu método de pago:**",
-                    reply_markup=self._get_vip_payment_options(telegram_id, months, cost),
+                    reply_markup=OperationKeyboards.vip_payment_options(telegram_id, months, cost),
                     parse_mode="Markdown"
                 )
             else:
@@ -338,7 +338,7 @@ class PaymentHandler:
             logger.error(f"Error in vip_purchase_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.operations_menu()
+                reply_markup=OperationKeyboards.operations_menu()
             )
 
 
@@ -353,7 +353,7 @@ class PaymentHandler:
             if callback_data == "cancel_vip_purchase":
                 await query.edit_message_text(
                     text="❌ **Compra cancelada**\n\nPuedes elegir otro plan VIP cuando quieras.",
-                    reply_markup=InlineKeyboards.vip_plans(),
+                    reply_markup=OperationKeyboards.vip_plans(),
                     parse_mode="Markdown"
                 )
                 return

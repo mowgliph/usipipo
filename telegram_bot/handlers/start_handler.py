@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from application.services.vpn_service import VpnService
 from application.services.achievement_service import AchievementService
-from telegram_bot.messages import Messages
+from telegram_bot.messages import UserMessages, CommonMessages
 from telegram_bot.keyboard import UserKeyboards, Keyboards
 from config import settings
 from utils.logger import logger
@@ -44,7 +44,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 username=user.username,
                 full_name=full_name  # CORREGIDO: era first_name y last_name
             )
-            welcome_message = Messages.Welcome.NEW_USER.format(name=user.first_name)
+            welcome_message = UserMessages.Welcome.NEW_USER.format(name=user.first_name)
             
             # Inicializar logros para nuevo usuario
             try:
@@ -73,7 +73,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Error actualizando actividad diaria para usuario {user.id}: {e}")
                 # No fallar si hay error en logros
             
-            welcome_message = Messages.Welcome.EXISTING_USER.format(name=user.first_name)
+            welcome_message = UserMessages.Welcome.EXISTING_USER.format(name=user.first_name)
         
         # Enviar mensaje de bienvenida y mostrar menú inline directamente
         await update.message.reply_text(
@@ -110,5 +110,5 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error en start_handler: {e}")
         await update.message.reply_text(
-            text=Messages.Errors.GENERIC.format(error="No se pudo procesar el registro. Intenta nuevamente.")
+            text=CommonMessages.Errors.GENERIC.format(error="No se pudo procesar el registro. Intenta nuevamente.")
         )

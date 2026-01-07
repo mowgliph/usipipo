@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from utils.logger import logger
 
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import CommonMessages
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -19,7 +19,7 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_admin = user.id == int(settings.ADMIN_ID)
         
         await update.message.reply_text(
-            text=Messages.Cancel.CANCEL_MESSAGE,
+            text=CommonMessages.Confirmation.CANCELLED,
             reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
         )
@@ -32,6 +32,6 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.log_error(e, context='cancel_handler', user_id=user.id)
         await update.message.reply_text(
-            text=Messages.Errors.GENERIC.format(error="No se pudo procesar la cancelación"),
+            text=CommonMessages.Errors.GENERIC.format(error="No se pudo procesar la cancelación"),
             reply_markup=InlineKeyboards.main_menu(is_admin=False)
         )

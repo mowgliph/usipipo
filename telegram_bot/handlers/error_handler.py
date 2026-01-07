@@ -23,7 +23,7 @@ import sys
 
 from config import settings
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import CommonMessages
 from utils.logger import logger
 
 
@@ -135,7 +135,7 @@ class ErrorHandler:
                 else:
                     # BadRequest genérico
                     await update.effective_message.reply_text(
-                        Messages.Errors.GENERIC.format(
+                        CommonMessages.Errors.GENERIC.format(
                             error="Solicitud inválida. Verifica los datos e intenta nuevamente."
                         ),
                         reply_markup=InlineKeyboards.main_menu()
@@ -162,7 +162,7 @@ class ErrorHandler:
                 error_message = str(error) if str(error) else "Error inesperado"
                 
                 await update.effective_message.reply_text(
-                    Messages.Errors.GENERIC.format(error=error_message),
+                    CommonMessages.Errors.GENERIC.format(error=error_message),
                     reply_markup=InlineKeyboards.main_menu()
                 )
         
