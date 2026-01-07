@@ -31,6 +31,8 @@ from telegram_bot.handlers.support_handler import get_support_handler, admin_rep
 from telegram_bot.handlers.cancel_handler import cancel_handler
 from telegram_bot.handlers.support_menu_handler import get_support_menu_handler
 from telegram_bot.handlers.task_handler import get_task_handler
+from telegram_bot.handlers.user_task_manager_handler import get_user_task_manager_handlers
+from telegram_bot.handlers.user_announcer_handler import get_user_announcer_handlers
 from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, InlineAdminKeyboards
 from telegram_bot.keyboard.keyboard import Keyboards
 from telegram_bot.messages.game_messages import GameMessages

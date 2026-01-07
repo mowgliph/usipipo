@@ -115,8 +115,8 @@ class InlineKeyboards:
     
     # Sistema de Operaciones
     @staticmethod
-    def operations_menu() -> InlineKeyboardMarkup:
-        """Menú principal de operaciones."""
+    def operations_menu(user=None) -> InlineKeyboardMarkup:
+        """Menú principal de operaciones con botones condicionales según roles."""
         keyboard = [
             [
                 InlineKeyboardButton("💰 Mi Balance", callback_data="my_balance"),
@@ -129,11 +129,27 @@ class InlineKeyboards:
             [
                 InlineKeyboardButton("👥 Referidos", callback_data="referrals_menu"),
                 InlineKeyboardButton("✅ Centro de Tareas", callback_data="task_center")
-            ],
-            [
-                InlineKeyboardButton("🔙 Volver al Menú", callback_data="main_menu")
             ]
         ]
+        
+        # Agregar botones de roles especiales si el usuario los posee
+        if user:
+            role_buttons = []
+            
+            # Verificar rol de Gestor de Tareas
+            if hasattr(user, 'is_task_manager_active') and user.is_task_manager_active():
+                role_buttons.append(InlineKeyboardButton("📋 Gestor de Tareas", callback_data="user_task_manager"))
+            
+            # Verificar rol de Anunciante
+            if hasattr(user, 'is_announcer_active') and user.is_announcer_active():
+                role_buttons.append(InlineKeyboardButton("📣 Anunciante", callback_data="user_announcer"))
+            
+            # Agregar fila de roles si hay botones
+            if role_buttons:
+                keyboard.append(role_buttons)
+        
+        keyboard.append([InlineKeyboardButton("🔙 Volver al Menú", callback_data="main_menu")])
+        
         return InlineKeyboardMarkup(keyboard)
     
     # Sistema VIP

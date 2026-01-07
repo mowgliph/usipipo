@@ -13,6 +13,8 @@ from application.services.admin_service import AdminService
 from telegram_bot.messages.messages import Messages
 from telegram_bot.messages.admin_messages import AdminMessages
 from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
+from telegram_bot.handlers.user_task_manager_handler import get_user_task_manager_handlers
+from telegram_bot.handlers.user_announcer_handler import get_user_announcer_handlers
 from config import settings
 from utils.logger import logger
 from application.services.support_service import SupportService
@@ -61,15 +63,34 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
             reply_markup=get_main_menu_for_user(user_id)
         )
 
-async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler para mostrar el menú de operaciones."""
+async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service=None):
+    """Handler para mostrar el menú de operaciones con botones de roles condicionales."""
     query = update.callback_query
-    await query.answer() 
-    await query.edit_message_text(
-        text=Messages.Operations.MENU_TITLE,
-        reply_markup=InlineKeyboards.operations_menu(),
-        parse_mode="Markdown"
-    )
+    await query.answer()
+    
+    try:
+        user_id = update.effective_user.id
+        user = None
+        
+        # Obtener información del usuario si vpn_service está disponible
+        if vpn_service:
+            try:
+                user_status = await vpn_service.get_user_status(user_id)
+                user = user_status.get("user")
+            except Exception as e:
+                logger.warning(f"No se pudo obtener información del usuario {user_id}: {e}")
+        
+        await query.edit_message_text(
+            text=Messages.Operations.MENU_TITLE,
+            reply_markup=InlineKeyboards.operations_menu(user=user),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Error en operations_handler: {e}")
+        await query.edit_message_text(
+            text=Messages.Errors.GENERIC.format(error=str(e)),
+            reply_markup=InlineKeyboards.operations_menu()
+        )
 
 
 async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, achievement_service):
@@ -360,7 +381,7 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     ))
 
     handlers.append(CallbackQueryHandler(lambda u, c: status_handler(u, c, vpn_service), pattern="^status$"))
-    handlers.append(CallbackQueryHandler(operations_handler, pattern="^operations$"))
+    handlers.append(CallbackQueryHandler(lambda u, c: operations_handler(u, c, vpn_service), pattern="^operations$"))
     handlers.append(CallbackQueryHandler(lambda u, c: achievements_handler(u, c, achievement_service), pattern="^achievements$"))
     handlers.append(CallbackQueryHandler(help_handler, pattern="^help$"))
        
@@ -378,6 +399,24 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     
     # Añadir handler para cerrar ticket
     handlers.append(CallbackQueryHandler(lambda u, c: close_ticket_handler(u, c, support_service), pattern="^close_ticket$"))
+    
+    # Registrar handlers de roles de usuario (Gestor de Tareas y Anunciante)
+    try:
+        from application.services.common.container import get_container
+        from domain.interfaces.iuser_repository import IUserRepository
+        
+        container = get_container()
+        user_repository = container.resolve(IUserRepository)
+        
+        # Handlers para Gestor de Tareas
+        user_task_handlers = get_user_task_manager_handlers(task_service=None, user_repository=user_repository)
+        handlers.extend(user_task_handlers)
+        
+        # Handlers para Anunciante
+        user_announcer_handlers = get_user_announcer_handlers(user_repository=user_repository)
+        handlers.extend(user_announcer_handlers)
+    except Exception as e:
+        logger.warning(f"No se pudieron registrar handlers de roles de usuario: {e}")
     
     # Añadir handler para cancelar operaciones
     handlers.append(CallbackQueryHandler(cancel_handler, pattern="^cancel$"))
