@@ -67,7 +67,7 @@ class PaymentHandler:
         await query.answer()
 
         await query.edit_message_text(
-            text="⭐ **Recargar Saldo**\n\n¿Cuántas estrellas deseas recargar?\n\nEnvía un número entre 1 y 1000.",
+            text="⭐ **Recargar Saldo**\n\n¿Cuántas estrellas deseas recargar?\n\nEnvía un número entero entre 1 y 10000 (sin decimales ni texto).",
             reply_markup=None,
             parse_mode="Markdown"
         )
@@ -76,10 +76,23 @@ class PaymentHandler:
     async def deposit_amount_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Procesa la cantidad de estrellas a recargar y crea la factura."""
         try:
-            amount = int(update.message.text.strip())
-            if amount < 1 or amount > 1000:
+            # Validar que sea un número entero (sin decimales)
+            amount_text = update.message.text.strip()
+            
+            # Verificar que no contenga puntos ni comas (decimales)
+            if '.' in amount_text or ',' in amount_text:
                 await update.message.reply_text(
-                    "❌ Cantidad inválida. Debe ser entre 1 y 1000 estrellas.\n\nIntenta de nuevo:",
+                    "❌ Solo se permiten números enteros (sin decimales).\n\nEnvía un número entero entre 1 y 10000:",
+                    parse_mode="Markdown"
+                )
+                return DEPOSIT_AMOUNT
+            
+            amount = int(amount_text)
+            
+            # Validar rango (1 a 10000)
+            if amount < 1 or amount > 10000:
+                await update.message.reply_text(
+                    "❌ Cantidad inválida. Debe ser un número entero entre 1 y 10000 estrellas.\n\nIntenta de nuevo:",
                     parse_mode="Markdown"
                 )
                 return DEPOSIT_AMOUNT
