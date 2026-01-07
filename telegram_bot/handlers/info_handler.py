@@ -27,7 +27,7 @@ async def info_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data = user_status["user"]
         
         # Obtener estadísticas de llaves
-        active_keys = await vpn_service.get_user_active_keys(user.id)
+        active_keys = await vpn_service.get_user_keys(user.id)
         key_count = len(active_keys)
         
         # Mensaje profesional del menú principal
