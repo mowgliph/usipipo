@@ -123,7 +123,7 @@ class InlineKeyboards:
                 InlineKeyboardButton("⭐ Recargar Estrellas", callback_data="deposit_stars")
             ],
             [
-                InlineKeyboardButton("� Shop", callback_data="shop_menu"),
+                InlineKeyboardButton("🛒 Shop", callback_data="shop_menu"),
                 InlineKeyboardButton("🎮 Juega y Gana", callback_data="games_menu")
             ],
             [
