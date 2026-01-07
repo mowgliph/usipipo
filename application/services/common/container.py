@@ -47,6 +47,25 @@ from application.services.achievement_service import AchievementService
 from application.services.admin_service import AdminService
 from application.services.task_service import TaskService
 
+# Handlers
+from telegram_bot.handlers.user_task_manager_handler import get_user_task_manager_handlers
+from telegram_bot.handlers.user_announcer_handler import get_user_announcer_handlers
+from telegram_bot.handlers.crear_llave_handler import get_creation_handler
+from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
+from telegram_bot.handlers.support_handler import get_support_handler
+from telegram_bot.handlers.referral_handler import get_referral_handlers
+from telegram_bot.handlers.payment_handler import get_payment_handlers
+from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
+from telegram_bot.handlers.broadcast_handler import get_broadcast_handler
+from telegram_bot.handlers.game_handler import get_game_handlers
+from telegram_bot.handlers.support_menu_handler import get_support_menu_handler
+from telegram_bot.handlers.admin_handler import get_admin_handler
+from telegram_bot.handlers.task_handler import get_task_handler
+from telegram_bot.handlers.admin_task_handler import get_admin_task_handler
+from telegram_bot.handlers.shop_handler import get_shop_handler
+from telegram_bot.handlers.inline_callbacks_handler import get_inline_callback_handlers
+from application.services.game_service import GameService
+
 
 class SessionManager:
     """
@@ -196,6 +215,109 @@ def get_container() -> punq.Container:
     container.register(AchievementService, factory=create_achievement_service)
     container.register(AdminService, factory=create_admin_service)
     container.register(TaskService, factory=create_task_service)
+
+    # =========================================================================
+    # 5. HANDLERS (Factories que retornan listas de handlers)
+    # =========================================================================
+    
+    def create_user_task_manager_handlers() -> list:
+        """Factory para los handlers de Gestor de Tareas (Premium)."""
+        return get_user_task_manager_handlers(
+            task_service=create_task_service(),
+            user_repository=create_user_repo()
+        )
+    
+    def create_user_announcer_handlers() -> list:
+        """Factory para los handlers de Anunciante (Premium)."""
+        return get_user_announcer_handlers(
+            user_repository=create_user_repo()
+        )
+    
+    def create_creation_handlers() -> object:
+        """Factory para los handlers de creación de llaves."""
+        return get_creation_handler(create_vpn_service())
+    
+    def create_key_submenu_handlers() -> object:
+        """Factory para los handlers de submenú de llaves."""
+        return get_key_submenu_handler(create_vpn_service())
+    
+    def create_support_handlers() -> object:
+        """Factory para los handlers de soporte."""
+        return get_support_handler(create_support_service())
+    
+    def create_referral_handlers_list() -> list:
+        """Factory para los handlers de referidos."""
+        return get_referral_handlers(
+            referral_service=create_referral_service(),
+            vpn_service=create_vpn_service()
+        )
+    
+    def create_payment_handlers_list() -> list:
+        """Factory para los handlers de pagos."""
+        return get_payment_handlers(
+            referral_service=create_referral_service(),
+            vpn_service=create_vpn_service(),
+            payment_service=create_payment_service()
+        )
+    
+    def create_monitoring_handlers_list() -> tuple:
+        """Factory para los handlers de monitorización."""
+        return get_monitoring_handlers(settings.ADMIN_ID)
+    
+    def create_broadcast_handlers() -> object:
+        """Factory para los handlers de broadcast."""
+        return get_broadcast_handler()
+    
+    def create_game_handlers_list() -> list:
+        """Factory para los handlers de juegos."""
+        game_service = GameService()
+        return get_game_handlers(game_service)
+    
+    def create_support_menu_handlers_list() -> list:
+        """Factory para los handlers del menú de soporte."""
+        return get_support_menu_handler(create_support_service())
+    
+    def create_admin_handlers() -> object:
+        """Factory para los handlers de administración."""
+        return get_admin_handler(create_admin_service())
+    
+    def create_task_handlers() -> object:
+        """Factory para los handlers de tareas."""
+        return get_task_handler(create_task_service())
+    
+    def create_admin_task_handlers() -> object:
+        """Factory para los handlers de administración de tareas."""
+        return get_admin_task_handler(create_task_service())
+    
+    def create_shop_handlers_list() -> list:
+        """Factory para los handlers de tienda."""
+        return get_shop_handler(create_payment_service())
+    
+    def create_inline_callback_handlers_list() -> list:
+        """Factory para los handlers de callbacks inline."""
+        return get_inline_callback_handlers(
+            vpn_service=create_vpn_service(),
+            achievement_service=create_achievement_service(),
+            support_service=create_support_service(),
+            admin_service=create_admin_service()
+        )
+    
+    container.register("user_task_manager_handlers", factory=create_user_task_manager_handlers)
+    container.register("user_announcer_handlers", factory=create_user_announcer_handlers)
+    container.register("creation_handlers", factory=create_creation_handlers)
+    container.register("key_submenu_handlers", factory=create_key_submenu_handlers)
+    container.register("support_handlers", factory=create_support_handlers)
+    container.register("referral_handlers", factory=create_referral_handlers_list)
+    container.register("payment_handlers", factory=create_payment_handlers_list)
+    container.register("monitoring_handlers", factory=create_monitoring_handlers_list)
+    container.register("broadcast_handlers", factory=create_broadcast_handlers)
+    container.register("game_handlers", factory=create_game_handlers_list)
+    container.register("support_menu_handlers", factory=create_support_menu_handlers_list)
+    container.register("admin_handlers", factory=create_admin_handlers)
+    container.register("task_handlers", factory=create_task_handlers)
+    container.register("admin_task_handlers", factory=create_admin_task_handlers)
+    container.register("shop_handlers", factory=create_shop_handlers_list)
+    container.register("inline_callback_handlers", factory=create_inline_callback_handlers_list)
 
     logger.debug("✅ Contenedor de dependencias configurado")
     
