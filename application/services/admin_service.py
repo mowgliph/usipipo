@@ -6,13 +6,14 @@ Version: 1.0.0
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from utils.logger import logger
 
 from domain.interfaces.iadmin_service import IAdminService
 from domain.entities.admin import AdminUserInfo, AdminKeyInfo, ServerStatus, AdminOperationResult
 from domain.entities.vpn_key import VpnKey as Key
+from domain.entities.user import UserRole, UserStatus
 from infrastructure.api_clients.client_wireguard import WireGuardClient
 from infrastructure.api_clients.client_outline import OutlineClient
 
@@ -296,3 +297,237 @@ class AdminService(IAdminService):
         except Exception as e:
             logger.error(f"Error obteniendo estadísticas de uso para {key_id}: {e}")
             return {'data_used': 0, 'server_status': 'error'}
+
+    # ============================================
+    # MÉTODOS DE GESTIÓN DE USUARIOS
+    # ============================================
+    
+    async def get_user_by_id(self, user_id: int) -> Optional[Dict]:
+        """Obtener información detallada de un usuario."""
+        try:
+            user = await self.user_repository.get_user(user_id)
+            if not user:
+                return None
+            
+            user_keys = await self.key_repository.get_user_keys(user_id)
+            active_keys = [k for k in user_keys if k.is_active]
+            balance = await self.payment_repository.get_balance(user_id)
+            
+            return {
+                'user_id': user.telegram_id,
+                'username': user.username,
+                'full_name': user.full_name,
+                'status': user.status.value,
+                'role': user.role.value,
+                'is_vip': user.is_vip,
+                'vip_expires_at': user.vip_expires_at,
+                'task_manager_expires_at': user.task_manager_expires_at,
+                'announcer_expires_at': user.announcer_expires_at,
+                'total_keys': len(user_keys),
+                'active_keys': len(active_keys),
+                'balance_stars': balance.stars if balance else 0,
+                'total_deposited': user.total_deposited,
+                'created_at': user.created_at
+            }
+        except Exception as e:
+            logger.error(f"Error obteniendo usuario {user_id}: {e}")
+            return None
+    
+    async def update_user_status(self, user_id: int, status: str) -> AdminOperationResult:
+        """Actualizar estado del usuario (ACTIVE, SUSPENDED, BLOCKED)."""
+        try:
+            user = await self.user_repository.get_user(user_id)
+            if not user:
+                return AdminOperationResult(
+                    success=False,
+                    operation='update_user_status',
+                    target_id=str(user_id),
+                    message='Usuario no encontrado'
+                )
+            
+            # Validar estado
+            valid_statuses = [s.value for s in UserStatus]
+            if status not in valid_statuses:
+                return AdminOperationResult(
+                    success=False,
+                    operation='update_user_status',
+                    target_id=str(user_id),
+                    message=f'Estado inválido. Válidos: {valid_statuses}'
+                )
+            
+            user.status = UserStatus(status)
+            await self.user_repository.update_user(user)
+            
+            logger.info(f"Usuario {user_id} actualizado a estado: {status}")
+            return AdminOperationResult(
+                success=True,
+                operation='update_user_status',
+                target_id=str(user_id),
+                message=f'Usuario actualizado a estado: {status}',
+                details={'new_status': status}
+            )
+        except Exception as e:
+            logger.error(f"Error actualizando estado de usuario {user_id}: {e}")
+            return AdminOperationResult(
+                success=False,
+                operation='update_user_status',
+                target_id=str(user_id),
+                message=f'Error: {str(e)}'
+            )
+    
+    async def assign_role_to_user(self, user_id: int, role: str, duration_days: Optional[int] = None) -> AdminOperationResult:
+        """Asignar rol a un usuario."""
+        try:
+            user = await self.user_repository.get_user(user_id)
+            if not user:
+                return AdminOperationResult(
+                    success=False,
+                    operation='assign_role',
+                    target_id=str(user_id),
+                    message='Usuario no encontrado'
+                )
+            
+            # Validar rol
+            valid_roles = [r.value for r in UserRole]
+            if role not in valid_roles:
+                return AdminOperationResult(
+                    success=False,
+                    operation='assign_role',
+                    target_id=str(user_id),
+                    message=f'Rol inválido. Válidos: {valid_roles}'
+                )
+            
+            user.role = UserRole(role)
+            
+            # Si es un rol especial con duración, configurar fecha de expiración
+            if duration_days and role in ['task_manager', 'announcer']:
+                expires_at = datetime.now(timezone.utc) + timedelta(days=duration_days)
+                if role == 'task_manager':
+                    user.task_manager_expires_at = expires_at
+                elif role == 'announcer':
+                    user.announcer_expires_at = expires_at
+            
+            await self.user_repository.update_user(user)
+            
+            message = f'Rol "{role}" asignado a usuario {user_id}'
+            if duration_days:
+                message += f' por {duration_days} días'
+            
+            logger.info(message)
+            return AdminOperationResult(
+                success=True,
+                operation='assign_role',
+                target_id=str(user_id),
+                message=message,
+                details={'role': role, 'duration_days': duration_days}
+            )
+        except Exception as e:
+            logger.error(f"Error asignando rol a usuario {user_id}: {e}")
+            return AdminOperationResult(
+                success=False,
+                operation='assign_role',
+                target_id=str(user_id),
+                message=f'Error: {str(e)}'
+            )
+    
+    async def block_user(self, user_id: int) -> AdminOperationResult:
+        """Bloquear un usuario."""
+        return await self.update_user_status(user_id, UserStatus.BLOCKED.value)
+    
+    async def unblock_user(self, user_id: int) -> AdminOperationResult:
+        """Desbloquear un usuario."""
+        return await self.update_user_status(user_id, UserStatus.ACTIVE.value)
+    
+    async def delete_user(self, user_id: int) -> AdminOperationResult:
+        """Eliminar un usuario y sus claves asociadas."""
+        try:
+            user = await self.user_repository.get_user(user_id)
+            if not user:
+                return AdminOperationResult(
+                    success=False,
+                    operation='delete_user',
+                    target_id=str(user_id),
+                    message='Usuario no encontrado'
+                )
+            
+            # Obtener todas las claves del usuario
+            user_keys = await self.key_repository.get_user_keys(user_id)
+            
+            # Eliminar todas las claves
+            deleted_keys_count = 0
+            for key in user_keys:
+                try:
+                    result = await self.delete_user_key_complete(key.key_id)
+                    if result['success']:
+                        deleted_keys_count += 1
+                except Exception as e:
+                    logger.error(f"Error eliminando clave {key.key_id}: {e}")
+            
+            # Eliminar el usuario
+            await self.user_repository.delete_user(user_id)
+            
+            message = f'Usuario {user_id} eliminado junto con {deleted_keys_count} claves'
+            logger.info(message)
+            return AdminOperationResult(
+                success=True,
+                operation='delete_user',
+                target_id=str(user_id),
+                message=message,
+                details={'deleted_keys': deleted_keys_count}
+            )
+        except Exception as e:
+            logger.error(f"Error eliminando usuario {user_id}: {e}")
+            return AdminOperationResult(
+                success=False,
+                operation='delete_user',
+                target_id=str(user_id),
+                message=f'Error: {str(e)}'
+            )
+    
+    async def get_users_paginated(self, page: int = 1, per_page: int = 10) -> Dict:
+        """Obtener usuarios paginados."""
+        try:
+            all_users = await self.user_repository.get_all_users()
+            total_users = len(all_users)
+            
+            # Calcular offset
+            offset = (page - 1) * per_page
+            paginated_users = all_users[offset:offset + per_page]
+            
+            user_list = []
+            for user in paginated_users:
+                user_keys = await self.key_repository.get_user_keys(user.telegram_id)
+                active_keys = [k for k in user_keys if k.is_active]
+                balance = await self.payment_repository.get_balance(user.telegram_id)
+                
+                user_list.append({
+                    'user_id': user.telegram_id,
+                    'username': user.username,
+                    'full_name': user.full_name,
+                    'status': user.status.value,
+                    'role': user.role.value,
+                    'is_vip': user.is_vip,
+                    'total_keys': len(user_keys),
+                    'active_keys': len(active_keys),
+                    'balance_stars': balance.stars if balance else 0,
+                    'created_at': user.created_at.isoformat()
+                })
+            
+            total_pages = (total_users + per_page - 1) // per_page
+            
+            return {
+                'users': user_list,
+                'total_users': total_users,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages
+            }
+        except Exception as e:
+            logger.error(f"Error obteniendo usuarios paginados: {e}")
+            return {
+                'users': [],
+                'total_users': 0,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': 0
+            }

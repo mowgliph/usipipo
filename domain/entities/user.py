@@ -7,7 +7,15 @@ class UserStatus(str, Enum):
     """Estados posibles de un usuario en el sistema."""
     ACTIVE = "active"
     SUSPENDED = "suspended"
+    BLOCKED = "blocked"
     FREE_TRIAL = "free_trial"
+
+class UserRole(str, Enum):
+    """Roles disponibles en el sistema."""
+    USER = "user"  # Usuario regular
+    ADMIN = "admin"  # Administrador del sistema
+    TASK_MANAGER = "task_manager"  # Gestor de tareas - Rol especial de pago
+    ANNOUNCER = "announcer"  # Anunciante - Rol especial de pago
 
 @dataclass
 class User:
@@ -20,6 +28,7 @@ class User:
     username: Optional[str] = None
     full_name: Optional[str] = None
     status: UserStatus = UserStatus.ACTIVE
+    role: UserRole = UserRole.USER
     max_keys: int = 2
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
@@ -31,12 +40,47 @@ class User:
     is_vip: bool = False
     vip_expires_at: Optional[datetime] = None
     
+    # Atributos para roles especiales
+    task_manager_expires_at: Optional[datetime] = None
+    announcer_expires_at: Optional[datetime] = None
+    
     keys: List = field(default_factory=list)
 
     @property
     def is_active(self) -> bool:
         """Verifica si el usuario está activo."""
         return self.status == UserStatus.ACTIVE
+    
+    @property
+    def is_blocked(self) -> bool:
+        """Verifica si el usuario está bloqueado."""
+        return self.status == UserStatus.BLOCKED
+    
+    def is_task_manager_active(self) -> bool:
+        """Verifica si el usuario tiene rol de Gestor de Tareas activo."""
+        if self.role != UserRole.TASK_MANAGER or not self.task_manager_expires_at:
+            return False
+        
+        now = datetime.now(timezone.utc)
+        exp = self.task_manager_expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        else:
+            exp = exp.astimezone(timezone.utc)
+        return now < exp
+    
+    def is_announcer_active(self) -> bool:
+        """Verifica si el usuario tiene rol de Anunciante activo."""
+        if self.role != UserRole.ANNOUNCER or not self.announcer_expires_at:
+            return False
+        
+        now = datetime.now(timezone.utc)
+        exp = self.announcer_expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        else:
+            exp = exp.astimezone(timezone.utc)
+        return now < exp
     
     def can_create_more_keys(self) -> bool:
         """
