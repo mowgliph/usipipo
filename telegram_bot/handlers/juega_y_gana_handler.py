@@ -12,7 +12,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from application.services.game_service import GameService
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import OperationKeyboards
 from telegram_bot.messages.game_messages import GameMessages
 from telegram_bot.messages.messages import Messages
 from utils.logger import logger
@@ -50,12 +50,12 @@ async def juega_y_gana_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         
         await update.message.reply_text(
             f"{GameMessages.MENU}\n\n{status_text}",
-            reply_markup=InlineKeyboards.games_menu(),
+            reply_markup=OperationKeyboards.games_menu(),
             parse_mode="Markdown"
         )
     except Exception as e:
         logger.log_error(e, context='juega_y_gana_handler', user_id=user_id)
         await update.message.reply_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=InlineKeyboards.operations_menu()
+            reply_markup=OperationKeyboards.operations_menu()
         )

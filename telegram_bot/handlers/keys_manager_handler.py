@@ -4,7 +4,7 @@ from utils.logger import logger
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import UserKeyboards
 from utils.spinner import with_spinner, vpn_spinner
 
 async def list_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
@@ -32,7 +32,7 @@ async def delete_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     if data.startswith("delete_confirm_"):
         key_id = data.replace("delete_confirm_", "")
         await query.edit_message_reply_markup(
-            reply_markup=InlineKeyboards.confirm_delete(key_id)
+            reply_markup=UserKeyboards.confirm_delete(key_id)
         )
 
     # 2. Ejecutar la eliminación real

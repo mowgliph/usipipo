@@ -12,6 +12,7 @@ from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, 
 
 from domain.entities.game import GameType, GameResult
 from telegram_bot.messages.game_messages import GameMessages
+from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from utils.logger import get_logger
 
 # Estados de conversación
@@ -109,11 +110,11 @@ class GameHandler:
             status_message=status_message
         )
         
-        from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+        from telegram_bot.keyboard import OperationKeyboards
         
         await query.edit_message_text(
             f"{GameMessages.MENU}\n\n{status_text}",
-            reply_markup=InlineKeyboards.games_menu(),
+            reply_markup=OperationKeyboards.games_menu(),
             parse_mode="Markdown"
         )
     
@@ -220,15 +221,12 @@ class GameHandler:
                 )
             
             # Teclado para volver al menú
-            from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
-            keyboard = [
-                [
-                    InlineKeyboardButton("🎮 Volver a Juegos", callback_data="games_menu"),
-                    InlineKeyboardButton("💰 Ver Balance", callback_data="game_balance")
-                ]
-            ]
+            keyboard = CommonKeyboards.action_buttons([
+                ("🎮 Volver a Juegos", "games_menu"),
+                ("💰 Ver Balance", "game_balance")
+            ])
             
-            reply_markup = InlineKeyboardMarkup(keyboard)
+            reply_markup = keyboard
             
             await query.edit_message_text(
                 message,

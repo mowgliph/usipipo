@@ -9,7 +9,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, MessageHandler, filters
 
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import SupportKeyboards
 
 class SupportMenuHandler:
     """Handler para el menú de soporte desde operaciones."""
@@ -21,7 +21,7 @@ class SupportMenuHandler:
         """Muestra el menú de soporte desde operaciones."""
         await update.message.reply_text(
             text=Messages.Support.MENU_TITLE,
-            reply_markup=InlineKeyboards.support_active(),
+            reply_markup=SupportKeyboards.support_active(),
             parse_mode="Markdown"
         )
     

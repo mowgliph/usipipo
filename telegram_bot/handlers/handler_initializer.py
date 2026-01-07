@@ -24,7 +24,7 @@ from telegram_bot.handlers.operations_handler import (
 )
 from telegram_bot.handlers.juega_y_gana_handler import juega_y_gana_handler
 from telegram_bot.handlers.menu_handler import show_menu_handler
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import UserKeyboards
 from telegram_bot.messages.messages import Messages
 from utils.logger import logger, get_logger
 

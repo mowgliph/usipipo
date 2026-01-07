@@ -14,7 +14,7 @@ from config import settings
 
 from application.services.task_service import TaskService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import TaskKeyboards, CommonKeyboards
 
 # Estados de la conversación
 WAITING_TASK_DATA = 1
@@ -47,7 +47,7 @@ class AdminTaskHandler:
         
         await query.edit_message_text(
             text=text,
-            reply_markup=InlineKeyboards.admin_task_menu(),
+            reply_markup=TaskKeyboards.admin_task_menu(),
             parse_mode="Markdown"
         )
     
@@ -67,7 +67,7 @@ class AdminTaskHandler:
         
         await query.edit_message_text(
             text=Messages.Tasks.ADMIN_CREATE_TASK,
-            reply_markup=InlineKeyboards.back_button("admin_task_menu"),
+            reply_markup=CommonKeyboards.back_button("admin_task_menu"),
             parse_mode="Markdown"
         )
         
@@ -138,7 +138,7 @@ class AdminTaskHandler:
             
             await update.message.reply_text(
                 text=text,
-                reply_markup=InlineKeyboards.back_button("admin_task_menu"),
+                reply_markup=CommonKeyboards.back_button("admin_task_menu"),
                 parse_mode="Markdown"
             )
             
@@ -172,7 +172,7 @@ class AdminTaskHandler:
             if not tasks:
                 await query.edit_message_text(
                     text="📭 **No hay tareas creadas**\n\nCrea una nueva tarea para comenzar.",
-                    reply_markup=InlineKeyboards.back_button("admin_task_menu"),
+                    reply_markup=CommonKeyboards.back_button("admin_task_menu"),
                     parse_mode="Markdown"
                 )
                 return
@@ -199,7 +199,7 @@ class AdminTaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.admin_task_list_keyboard(tasks_for_keyboard),
+                reply_markup=TaskKeyboards.admin_task_list_keyboard(tasks_for_keyboard),
                 parse_mode="Markdown"
             )
             
@@ -207,7 +207,7 @@ class AdminTaskHandler:
             logger.error(f"Error listando tareas: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("admin_task_menu")
+                reply_markup=CommonKeyboards.back_button("admin_task_menu")
             )
     
     async def show_task_detail_admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -234,7 +234,7 @@ class AdminTaskHandler:
             if not task:
                 await query.edit_message_text(
                     text="❌ Tarea no encontrada",
-                    reply_markup=InlineKeyboards.back_button("admin_task_list")
+                    reply_markup=CommonKeyboards.back_button("admin_task_list")
                 )
                 return
             
@@ -256,7 +256,7 @@ class AdminTaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.admin_task_detail_keyboard(task_id_str),
+                reply_markup=TaskKeyboards.admin_task_detail_keyboard(task_id_str),
                 parse_mode="Markdown"
             )
             
@@ -264,7 +264,7 @@ class AdminTaskHandler:
             logger.error(f"Error mostrando detalle de tarea: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("admin_task_list")
+                reply_markup=CommonKeyboards.back_button("admin_task_list")
             )
     
     async def delete_task(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -291,13 +291,13 @@ class AdminTaskHandler:
             if success:
                 await query.edit_message_text(
                     text="✅ **Tarea eliminada correctamente**",
-                    reply_markup=InlineKeyboards.back_button("admin_task_list"),
+                    reply_markup=CommonKeyboards.back_button("admin_task_list"),
                     parse_mode="Markdown"
                 )
             else:
                 await query.edit_message_text(
                     text="❌ Error al eliminar la tarea",
-                    reply_markup=InlineKeyboards.back_button("admin_task_list"),
+                    reply_markup=CommonKeyboards.back_button("admin_task_list"),
                     parse_mode="Markdown"
                 )
             
@@ -305,7 +305,7 @@ class AdminTaskHandler:
             logger.error(f"Error eliminando tarea: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("admin_task_list")
+                reply_markup=CommonKeyboards.back_button("admin_task_list")
             )
     
     def get_handlers(self):

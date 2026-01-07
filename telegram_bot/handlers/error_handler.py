@@ -22,7 +22,7 @@ import traceback
 import sys
 
 from config import settings
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import CommonKeyboards
 from telegram_bot.messages import CommonMessages
 from utils.logger import logger
 
