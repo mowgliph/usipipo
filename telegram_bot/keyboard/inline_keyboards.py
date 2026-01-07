@@ -132,9 +132,6 @@ class InlineKeyboards:
             ],
             [
                 InlineKeyboardButton("🔙 Volver al Menú", callback_data="main_menu")
-            ],
-            [
-                InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -506,9 +503,6 @@ class InlineAdminKeyboards:
             ],
             [
                 InlineKeyboardButton("🔙 Volver", callback_data="main_menu")
-            ],
-            [
-                InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
