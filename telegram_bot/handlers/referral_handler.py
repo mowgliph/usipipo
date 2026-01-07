@@ -5,7 +5,7 @@ from utils.logger import logger
 from application.services.referral_service import ReferralService
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 
 # Estados de conversación para aplicar código de referido
 APPLY_REFERRAL = range(1)
@@ -22,7 +22,7 @@ class ReferralHandler:
 
         await query.edit_message_text(
             text=Messages.Operations.MENU_TITLE,
-            reply_markup=InlineKeyboards.operations_menu(),
+            reply_markup=OperationKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
 
@@ -48,7 +48,7 @@ class ReferralHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.referral_actions(),
+                reply_markup=OperationKeyboards.referral_actions(),
                 parse_mode="Markdown"
             )
 
@@ -56,7 +56,7 @@ class ReferralHandler:
             logger.error(f"Error in referrals_menu_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.operations_menu()
+                reply_markup=OperationKeyboards.operations_menu()
             )
 
     async def referral_program_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -81,7 +81,7 @@ class ReferralHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.referral_actions(),
+                reply_markup=OperationKeyboards.referral_actions(),
                 parse_mode="Markdown"
             )
 
@@ -89,7 +89,7 @@ class ReferralHandler:
             logger.error(f"Error in referral_program_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.operations_menu()
+                reply_markup=OperationKeyboards.operations_menu()
             )
 
     async def my_referral_code_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -106,7 +106,7 @@ class ReferralHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.referral_actions(),
+                reply_markup=OperationKeyboards.referral_actions(),
                 parse_mode="Markdown"
             )
 
@@ -114,7 +114,7 @@ class ReferralHandler:
             logger.error(f"Error in my_referral_code_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.referral_actions()
+                reply_markup=OperationKeyboards.referral_actions()
             )
 
     async def my_referrals_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -138,7 +138,7 @@ class ReferralHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.referral_actions(),
+                reply_markup=OperationKeyboards.operations_menu(),
                 parse_mode="Markdown"
             )
 
@@ -146,7 +146,7 @@ class ReferralHandler:
             logger.error(f"Error in my_referrals_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.referral_actions()
+                reply_markup=OperationKeyboards.referral_actions()
             )
 
     async def referral_earnings_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -167,7 +167,7 @@ class ReferralHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.referral_actions(),
+                reply_markup=OperationKeyboards.referral_actions(),
                 parse_mode="Markdown"
             )
 
@@ -175,7 +175,7 @@ class ReferralHandler:
             logger.error(f"Error in referral_earnings_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.referral_actions()
+                reply_markup=OperationKeyboards.referral_actions()
             )
 
     async def share_referral_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -198,7 +198,7 @@ class ReferralHandler:
 
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.referral_actions(),
+                reply_markup=OperationKeyboards.referral_actions(),
                 parse_mode="HTML"
             )
 
@@ -206,7 +206,7 @@ class ReferralHandler:
             logger.error(f"Error in share_referral_handler: {e}")
             await query.edit_message_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.referral_actions(),
+                reply_markup=OperationKeyboards.referral_actions(),
                 parse_mode="HTML"
             )
 
@@ -232,19 +232,19 @@ class ReferralHandler:
             if success:
                 await update.message.reply_text(
                     text="✅ ¡Código de referido aplicado exitosamente!\n\nAhora ganarás estrellas cuando hagas depósitos.",
-                    reply_markup=InlineKeyboards.main_menu()
+                    reply_markup=CommonKeyboards.back_button()
                 )
             else:
                 await update.message.reply_text(
                     text=Messages.Errors.REFERRAL_CODE_INVALID.format(code=referral_code),
-                    reply_markup=InlineKeyboards.main_menu()
+                    reply_markup=CommonKeyboards.back_button()
                 )
 
         except Exception as e:
             logger.error(f"Error applying referral code: {e}")
             await update.message.reply_text(
                 text=Messages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=InlineKeyboards.main_menu()
+                reply_markup=CommonKeyboards.back_button()
             )
 
         return ConversationHandler.END
@@ -253,7 +253,7 @@ class ReferralHandler:
         """Cancela la aplicación de código de referido."""
         await update.message.reply_text(
             "❌ Operación cancelada.",
-            reply_markup=InlineKeyboards.main_menu()
+            reply_markup=CommonKeyboards.back_button()
         )
         return ConversationHandler.END
 

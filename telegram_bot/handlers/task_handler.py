@@ -12,7 +12,7 @@ import uuid
 
 from application.services.task_service import TaskService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import TaskKeyboards, CommonKeyboards
 
 
 class TaskHandler:
@@ -38,7 +38,7 @@ class TaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.task_center_menu(),
+                reply_markup=TaskKeyboards.task_center_menu(),
                 parse_mode="Markdown"
             )
             
@@ -46,7 +46,7 @@ class TaskHandler:
             logger.error(f"Error en show_task_center: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("operations")
+                reply_markup=CommonKeyboards.back_button("operations")
             )
     
     async def show_available_tasks(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -60,7 +60,7 @@ class TaskHandler:
             if not tasks:
                 await query.edit_message_text(
                     text=Messages.Tasks.NO_TASKS,
-                    reply_markup=InlineKeyboards.back_button("task_center"),
+                    reply_markup=CommonKeyboards.back_button("task_center"),
                     parse_mode="Markdown"
                 )
                 return
@@ -73,7 +73,7 @@ class TaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.task_list_keyboard(tasks_list, "task"),
+                reply_markup=TaskKeyboards.task_list_keyboard(tasks_list, "task"),
                 parse_mode="Markdown"
             )
             
@@ -81,7 +81,7 @@ class TaskHandler:
             logger.error(f"Error en show_available_tasks: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("task_center")
+                reply_markup=CommonKeyboards.back_button("task_center")
             )
     
     async def show_task_detail(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -99,7 +99,7 @@ class TaskHandler:
             if not task:
                 await query.edit_message_text(
                     text="❌ Tarea no encontrada",
-                    reply_markup=InlineKeyboards.back_button("task_center")
+                    reply_markup=CommonKeyboards.back_button("task_center")
                 )
                 return
             
@@ -129,7 +129,7 @@ class TaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.task_detail_keyboard(
+                reply_markup=TaskKeyboards.task_detail_keyboard(
                     task_id_str, is_completed, reward_claimed
                 ),
                 parse_mode="Markdown"
@@ -139,7 +139,7 @@ class TaskHandler:
             logger.error(f"Error en show_task_detail: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("task_center")
+                reply_markup=CommonKeyboards.back_button("task_center")
             )
     
     async def complete_task(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,7 +164,7 @@ class TaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.task_detail_keyboard(
+                reply_markup=TaskKeyboards.task_detail_keyboard(
                     task_id_str, True, False
                 ),
                 parse_mode="Markdown"
@@ -206,7 +206,7 @@ class TaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.back_button("task_center"),
+                reply_markup=CommonKeyboards.back_button("task_center"),
                 parse_mode="Markdown"
             )
             
@@ -230,7 +230,7 @@ class TaskHandler:
             if not completed:
                 await query.edit_message_text(
                     text="📭 **No hay tareas completadas**\n\nCompleta tareas para verlas aquí.",
-                    reply_markup=InlineKeyboards.back_button("task_center"),
+                    reply_markup=CommonKeyboards.back_button("task_center"),
                     parse_mode="Markdown"
                 )
                 return
@@ -248,7 +248,7 @@ class TaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.task_list_keyboard(tasks_list, "task"),
+                reply_markup=TaskKeyboards.task_list_keyboard(tasks_list, "task"),
                 parse_mode="Markdown"
             )
             
@@ -256,7 +256,7 @@ class TaskHandler:
             logger.error(f"Error en show_completed_tasks: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("task_center")
+                reply_markup=CommonKeyboards.back_button("task_center")
             )
     
     async def show_in_progress_tasks(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -273,7 +273,7 @@ class TaskHandler:
             if not in_progress:
                 await query.edit_message_text(
                     text="📭 **No hay tareas en progreso**\n\nInicia una tarea para verla aquí.",
-                    reply_markup=InlineKeyboards.back_button("task_center"),
+                    reply_markup=CommonKeyboards.back_button("task_center"),
                     parse_mode="Markdown"
                 )
                 return
@@ -291,7 +291,7 @@ class TaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.task_list_keyboard(tasks_list, "task"),
+                reply_markup=TaskKeyboards.task_list_keyboard(tasks_list, "task"),
                 parse_mode="Markdown"
             )
             
@@ -299,7 +299,7 @@ class TaskHandler:
             logger.error(f"Error en show_in_progress_tasks: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("task_center")
+                reply_markup=CommonKeyboards.back_button("task_center")
             )
     
     async def show_summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -319,7 +319,7 @@ class TaskHandler:
             
             await query.edit_message_text(
                 text=text,
-                reply_markup=InlineKeyboards.task_center_menu(),
+                reply_markup=TaskKeyboards.task_center_menu(),
                 parse_mode="Markdown"
             )
             
@@ -327,7 +327,7 @@ class TaskHandler:
             logger.error(f"Error en show_summary: {e}")
             await query.edit_message_text(
                 text=f"❌ Error: {str(e)}",
-                reply_markup=InlineKeyboards.back_button("operations")
+                reply_markup=CommonKeyboards.back_button("operations")
             )
     
     def get_handlers(self):

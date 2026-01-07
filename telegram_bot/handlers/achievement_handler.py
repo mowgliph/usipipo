@@ -10,7 +10,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from application.services.achievement_service import AchievementService
 from telegram_bot.messages.achievement_messages import AchievementMessages
-from telegram_bot.keyboard import Keyboards
+from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from domain.entities.achievement import AchievementType
 from utils.spinner import with_spinner, database_spinner
 
@@ -40,7 +40,7 @@ async def achievements_menu_handler(update: Update, context: ContextTypes.DEFAUL
         
         await update.message.reply_text(
             text=message,
-            reply_markup=Keyboards.achievements_menu(),
+            reply_markup=OperationKeyboards.achievements_menu(),
             parse_mode="Markdown"
         )
         
@@ -82,7 +82,7 @@ async def achievements_progress_handler(update: Update, context: ContextTypes.DE
         
         await update.callback_query.edit_message_text(
             text=message,
-            reply_markup=Keyboards.achievements_menu(),
+            reply_markup=OperationKeyboards.achievements_menu(),
             parse_mode="Markdown"
         )
         
@@ -104,7 +104,7 @@ async def achievements_list_handler(update: Update, context: ContextTypes.DEFAUL
         
         await update.callback_query.edit_message_text(
             text=message,
-            reply_markup=Keyboards.achievements_categories(),
+            reply_markup=OperationKeyboards.achievements_categories(),
             parse_mode="Markdown"
         )
         
@@ -173,7 +173,7 @@ async def achievements_category_handler(update: Update, context: ContextTypes.DE
         
         await query.edit_message_text(
             text=message,
-            reply_markup=Keyboards.achievements_categories(),
+            reply_markup=OperationKeyboards.achievements_categories(),
             parse_mode="Markdown"
         )
         
@@ -204,7 +204,7 @@ async def achievements_next_handler(update: Update, context: ContextTypes.DEFAUL
 """
             await update.callback_query.edit_message_text(
                 text=message,
-                reply_markup=Keyboards.achievements_menu(),
+                reply_markup=OperationKeyboards.achievements_menu(),
                 parse_mode="Markdown"
             )
             return
@@ -231,7 +231,7 @@ async def achievements_next_handler(update: Update, context: ContextTypes.DEFAUL
         
         await update.callback_query.edit_message_text(
             text=message,
-            reply_markup=Keyboards.achievements_menu(),
+            reply_markup=OperationKeyboards.achievements_menu(),
             parse_mode="Markdown"
         )
         
@@ -264,7 +264,7 @@ No tienes recompensas pendientes.
 """
             await update.callback_query.edit_message_text(
                 text=message,
-                reply_markup=Keyboards.achievements_menu(),
+                reply_markup=OperationKeyboards.achievements_menu(),
                 parse_mode="Markdown"
             )
             return
@@ -296,7 +296,7 @@ No tienes recompensas pendientes.
         
         await update.callback_query.edit_message_text(
             text=message,
-            reply_markup=Keyboards.pending_rewards(rewards_details),
+            reply_markup=OperationKeyboards.pending_rewards(rewards_details),
             parse_mode="Markdown"
         )
         
@@ -351,7 +351,7 @@ async def claim_reward_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         
         await query.edit_message_text(
             text=message,
-            reply_markup=Keyboards.achievements_menu(),
+            reply_markup=OperationKeyboards.achievements_menu(),
             parse_mode="Markdown"
         )
         
@@ -466,7 +466,7 @@ async def leaderboard_category_handler(update: Update, context: ContextTypes.DEF
         
         await query.edit_message_text(
             text=message,
-            reply_markup=Keyboards.achievements_leaderboard(),
+            reply_markup=OperationKeyboards.achievements_leaderboard(),
             parse_mode="Markdown"
         )
         
