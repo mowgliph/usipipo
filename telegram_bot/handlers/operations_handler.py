@@ -93,7 +93,7 @@ async def atras_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         text="👇 Menú Principal",
-        reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+        reply_markup=UserKeyboards.main_menu(is_admin=is_admin),
         parse_mode="Markdown"
     )
 
@@ -105,7 +105,7 @@ async def operations_menu_callback(update: Update, context: ContextTypes.DEFAULT
     
     await query.edit_message_text(
         text=Messages.Operations.MENU_TITLE,
-        reply_markup=InlineKeyboards.operations_menu(),
+        reply_markup=OperationKeyboards.operations_menu(),
         parse_mode="Markdown"
     )
 
@@ -114,6 +114,6 @@ async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Handler para el botón '💰 Operaciones'."""
     await update.message.reply_text(
         text=Messages.Operations.MENU_TITLE,
-        reply_markup=InlineKeyboards.operations_menu(),
+        reply_markup=OperationKeyboards.operations_menu(),
         parse_mode="Markdown"
     )

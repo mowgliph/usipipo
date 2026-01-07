@@ -116,7 +116,7 @@ async def _handle_user_detail(update: Update, context: ContextTypes.DEFAULT_TYPE
             context.user_data['selected_user_id'] = user_id
             # Mostrar menu de cambio de estado
             await query.answer()
-            from telegram_bot.keyboard.inline_keyboards import InlineAdminKeyboards
+            from telegram_bot.keyboard import AdminKeyboards
             from telegram_bot.messages.admin_messages import AdminMessages
             
             user_info = await handler.admin_service.get_user_by_id(user_id)
@@ -128,7 +128,7 @@ async def _handle_user_detail(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
                 await query.edit_message_text(
                     text=message,
-                    reply_markup=InlineAdminKeyboards.status_selection(),
+                    reply_markup=AdminKeyboards.status_selection(),
                     parse_mode="Markdown"
                 )
         
@@ -153,12 +153,12 @@ async def _handle_user_detail(update: Update, context: ContextTypes.DEFAULT_TYPE
             await query.answer()
             user_keys = await handler.admin_service.get_user_keys(user_id)
             
-            from telegram_bot.keyboard.inline_keyboards import InlineAdminKeyboards
+            from telegram_bot.keyboard import AdminKeyboards
             
             if not user_keys:
                 await query.edit_message_text(
                     text="🔑 **Claves del Usuario**\n\nNo tiene claves registradas.",
-                    reply_markup=InlineAdminKeyboards.users_submenu()
+                    reply_markup=AdminKeyboards.users_submenu()
                 )
             else:
                 key_list = []
@@ -167,14 +167,14 @@ async def _handle_user_detail(update: Update, context: ContextTypes.DEFAULT_TYPE
                     key_list.append(f"{status} **{key.key_name}** ({key.key_type})")
                 
                 message = f"""🔑 **Claves del Usuario** (ID: `{user_id}`)
-
+ 
 Total: {len(user_keys)} claves
-
+ 
 {chr(10).join(key_list)}"""
                 
                 await query.edit_message_text(
                     text=message,
-                    reply_markup=InlineAdminKeyboards.users_submenu(),
+                    reply_markup=AdminKeyboards.users_submenu(),
                     parse_mode="Markdown"
                 )
         
@@ -203,7 +203,7 @@ async def _handle_change_status(update: Update, context: ContextTypes.DEFAULT_TY
             await query.answer("❌ Usuario no encontrado", show_alert=True)
             return
         
-        from telegram_bot.keyboard.inline_keyboards import InlineAdminKeyboards
+        from telegram_bot.keyboard import AdminKeyboards
         from telegram_bot.messages.admin_messages import AdminMessages
         
         message = AdminMessages.CHANGE_STATUS_MENU.format(
@@ -214,7 +214,7 @@ async def _handle_change_status(update: Update, context: ContextTypes.DEFAULT_TY
         
         await query.edit_message_text(
             text=message,
-            reply_markup=InlineAdminKeyboards.status_selection(),
+            reply_markup=AdminKeyboards.status_selection(),
             parse_mode="Markdown"
         )
         

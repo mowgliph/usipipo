@@ -12,8 +12,9 @@ from utils.logger import logger
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards, get_main_menu_for_user
+from telegram_bot.keyboard import UserKeyboards
 from utils.qr_generator import QrGenerator
+from config import settings
 from utils.spinner import with_spinner, vpn_spinner
 
 # Estados de la conversación
@@ -27,14 +28,14 @@ async def start_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(
             text=Messages.Keys.SELECT_TYPE,
-            reply_markup=InlineKeyboards.vpn_types(),
+            reply_markup=UserKeyboards.vpn_types(),
             parse_mode="Markdown"
         )
     else:
         # Es un mensaje directo
         await update.message.reply_text(
             text=Messages.Keys.SELECT_TYPE,
-            reply_markup=InlineKeyboards.vpn_types(),
+            reply_markup=UserKeyboards.vpn_types(),
             parse_mode="Markdown"
         )
     return SELECT_TYPE
@@ -89,12 +90,15 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
                 f"```\n{escaped_data}\n```"
             )
             
+            # Check if user is admin
+            is_admin = telegram_id == int(settings.ADMIN_ID)
+            
             with open(qr_path, "rb") as photo:
                 await update.message.reply_photo(
-                    photo=photo, 
-                    caption=caption, 
+                    photo=photo,
+                    caption=caption,
                     parse_mode="MarkdownV2",
-                    reply_markup=get_main_menu_for_user(telegram_id)
+                    reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
                 )
 
         elif key_type == "wireguard":
@@ -114,10 +118,10 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
             
             with open(conf_path, "rb") as document:
                 await update.message.reply_document(
-                    document=document, 
+                    document=document,
                     filename=f"{key_name}.conf",
                     caption="📁 *Configuración WireGuard*\n\n🔑 Tu nueva llave VPN está lista para usar\n\n⚠️ *Guarda este archivo en un lugar seguro*",
-                    reply_markup=get_main_menu_for_user(telegram_id)
+                    reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
                 )
 
         logger.info(f"✅ Llave {key_type} creada para usuario {telegram_id}")
@@ -126,16 +130,18 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
         logger.error(f"❌ Error en creación de llave: {e}")
         await update.message.reply_text(
             text=Messages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=get_main_menu_for_user(telegram_id)
+            reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
         )
     
     return ConversationHandler.END
 
 async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancela la conversación desde comando /cancel."""
+    telegram_id = update.effective_user.id
+    is_admin = telegram_id == int(settings.ADMIN_ID)
     await update.message.reply_text(
         "❌ Operación cancelada.",
-        reply_markup=get_main_menu_for_user(update.effective_user.id)
+        reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
     )
     return ConversationHandler.END
 
@@ -147,9 +153,12 @@ async def cancel_creation_from_callback(update: Update, context: ContextTypes.DE
     # Limpiar datos temporales
     context.user_data.pop("tmp_key_type", None)
     
+    telegram_id = update.effective_user.id
+    is_admin = telegram_id == int(settings.ADMIN_ID)
+    
     await query.edit_message_text(
         text="❌ Operación cancelada.\n\nHas vuelto al menú principal.",
-        reply_markup=get_main_menu_for_user(update.effective_user.id)
+        reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
     )
     return ConversationHandler.END
 
