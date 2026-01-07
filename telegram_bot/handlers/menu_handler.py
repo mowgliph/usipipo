@@ -11,8 +11,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import settings
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
-from telegram_bot.keyboard.keyboard import Keyboards
+from telegram_bot.keyboard import UserKeyboards, CommonKeyboards
 from utils.logger import logger
 
 
@@ -26,12 +25,12 @@ async def show_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(
             text="👇 Menú Principal",
-            reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+            reply_markup=UserKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
         )
     except Exception as e:
         logger.log_error(e, context="show_menu_handler", user_id=user.id)
         await update.message.reply_text(
             text="❌ Error al mostrar el menú. Por favor, intenta nuevamente.",
-            reply_markup=Keyboards.show_menu_button()
+            reply_markup=CommonKeyboards.show_menu_button()
         )

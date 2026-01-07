@@ -288,7 +288,7 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         text=text,
-        reply_markup=InlineAdminKeyboards.main_menu(),
+        reply_markup=AdminKeyboards.main_menu(),
         parse_mode="Markdown"
     )
 
