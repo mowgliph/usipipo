@@ -3,21 +3,11 @@ from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, fil
 from utils.logger import logger
 
 from application.services.vpn_service import VpnService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import UserMessages, CommonMessages
 from telegram_bot.keyboard import UserKeyboards
 from utils.spinner import with_spinner, vpn_spinner
 
-async def list_keys_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
-    """
-    DEPRECATED: Lista todas las llaves del usuario.
-    REDIRIGIDO AL SISTEMA DE SUBMENÚS para mejor organización por servidor.
-    """
-    # Redirigir al nuevo sistema de submenús
-    from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
-    key_submenu_handler = get_key_submenu_handler(vpn_service)
-    
-    # Usar el handler directamente
-    await key_submenu_handler.show_key_submenu(update, context)
+
 
 async def delete_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
     """
@@ -47,14 +37,14 @@ async def delete_callback_handler(update: Update, context: ContextTypes.DEFAULT_
                 
                 if success:
                     await query.edit_message_text(
-                        text=f"{Messages.Keys.DELETED}\n\nLa configuración ha sido revocada del servidor.",
+                        text=f"{UserMessages.Keys.DELETED}\n\nLa configuración ha sido revocada del servidor.",
                         reply_markup=None # Quitamos los botones
                     )
                 else:
                     await query.edit_message_text(text="❌ Error: La llave no pudo ser eliminada o ya no existe.")
             except Exception as e:
                 logger.error(f"Error al ejecutar borrado: {e}")
-                await query.edit_message_text(text=Messages.Errors.GENERIC.format(error="No se pudo contactar con el servidor VPN"))
+                await query.edit_message_text(text=CommonMessages.Errors.GENERIC.format(error="No se pudo contactar con el servidor VPN"))
         
         await execute_delete()
 

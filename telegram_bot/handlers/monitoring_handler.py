@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 from utils.logger import logger
 
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import AdminMessages
 
 
 

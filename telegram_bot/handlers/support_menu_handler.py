@@ -8,7 +8,7 @@ Version: 1.0.0
 from telegram import Update
 from telegram.ext import ContextTypes, MessageHandler, filters
 
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import SupportMessages
 from telegram_bot.keyboard import SupportKeyboards
 
 class SupportMenuHandler:
@@ -20,7 +20,7 @@ class SupportMenuHandler:
     async def show_support_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra el menú de soporte desde operaciones."""
         await update.message.reply_text(
-            text=Messages.Support.MENU_TITLE,
+            text=SupportMessages.Tickets.MENU,
             reply_markup=SupportKeyboards.support_active(),
             parse_mode="Markdown"
         )

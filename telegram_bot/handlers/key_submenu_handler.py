@@ -15,7 +15,7 @@ from typing import Dict, Any, List, Optional
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.key_submenu_messages import KeySubmenuMessages
 from telegram_bot.keyboard import UserKeyboards
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import UserMessages, CommonMessages
 
 
 class KeySubmenuHandler:
@@ -100,7 +100,7 @@ class KeySubmenuHandler:
             await self._safe_edit_message(
                 query,
                 context,
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=UserKeyboards.quick_actions()
             )
     

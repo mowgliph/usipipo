@@ -14,7 +14,7 @@ from telegram.ext import ContextTypes
 from application.services.game_service import GameService
 from telegram_bot.keyboard import OperationKeyboards
 from telegram_bot.messages.game_messages import GameMessages
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import CommonMessages
 from utils.logger import logger
 
 
@@ -56,6 +56,6 @@ async def juega_y_gana_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.log_error(e, context='juega_y_gana_handler', user_id=user_id)
         await update.message.reply_text(
-            text=Messages.Errors.GENERIC.format(error=str(e)),
+            text=CommonMessages.Errors.GENERIC.format(error=str(e)),
             reply_markup=OperationKeyboards.operations_menu()
         )

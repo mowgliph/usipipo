@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 from utils.logger import logger
 
 from application.services.vpn_service import VpnService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import UserMessages, CommonMessages
 from telegram_bot.keyboard import UserKeyboards
 
 async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service: VpnService):
@@ -27,8 +27,8 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         total_mb = total_bytes / (1024 * 1024) # Conversión de Bytes a Megabytes
         
         
-        # Formateamos el mensaje usando Messages.Status.INFO 
-        text = Messages.Status.HEADER + "\n\n" + Messages.Status.INFO.format(
+        # Formateamos el mensaje usando UserMessages.Status.USER_INFO 
+        text = UserMessages.Status.HEADER + "\n\n" + UserMessages.Status.USER_INFO.format(
             name=user_name,
             count=len(keys),
             max=user_entity.max_keys if user_entity else 5,
@@ -46,6 +46,6 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
     except Exception as e:
         logger.error(f"Error en status_handler: {e}")
         await update.message.reply_text(
-            text=Messages.Errors.GENERIC.format(error="No se pudo recuperar la información de consumo."),
+            text=CommonMessages.Errors.GENERIC.format(error="No se pudo recuperar la información de consumo."),
             reply_markup=UserKeyboards.main_menu()
         )
