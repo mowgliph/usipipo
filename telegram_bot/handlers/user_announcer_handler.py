@@ -554,30 +554,19 @@ def get_user_announcer_handlers(user_repository) -> list:
         CallbackQueryHandler(handler.announcer_menu, pattern="^uan_menu$|^user_announcer$")
     )
     
-    # Crear anuncio
-    handlers.append(
-        CallbackQueryHandler(handler.start_create_announcement, pattern="^uan_create_announcement$")
+    # Conversation handler para crear anuncios
+    announcement_creation_conversation = ConversationHandler(
+        entry_points=[CallbackQueryHandler(handler.start_create_announcement, pattern="^uan_create_announcement$")],
+        states={
+            ANNOUNCEMENT_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_announcement_title)],
+            ANNOUNCEMENT_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_announcement_text)],
+            ANNOUNCEMENT_DURATION: [CallbackQueryHandler(handler.get_announcement_duration, pattern="^uan_duration_")],
+            ANNOUNCEMENT_TARGET: [CallbackQueryHandler(handler.get_announcement_target, pattern="^uan_target_")],
+            CONFIRMING_ANNOUNCEMENT: [CallbackQueryHandler(handler.confirm_create_announcement, pattern="^uan_confirm_announcement$")],
+        },
+        fallbacks=[CallbackQueryHandler(handler.announcer_menu, pattern="^uan_menu$")]
     )
-    
-    handlers.append(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_announcement_title, context=ANNOUNCEMENT_TITLE)
-    )
-    
-    handlers.append(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_announcement_text, context=ANNOUNCEMENT_TEXT)
-    )
-    
-    handlers.append(
-        CallbackQueryHandler(handler.get_announcement_duration, pattern="^uan_duration_")
-    )
-    
-    handlers.append(
-        CallbackQueryHandler(handler.get_announcement_target, pattern="^uan_target_")
-    )
-    
-    handlers.append(
-        CallbackQueryHandler(handler.confirm_create_announcement, pattern="^uan_confirm_announcement$")
-    )
+    handlers.append(announcement_creation_conversation)
     
     # Ver anuncios
     handlers.append(

@@ -439,26 +439,18 @@ def get_user_task_manager_handlers(task_service: TaskService, user_repository) -
         CallbackQueryHandler(handler.task_manager_menu, pattern="^utm_menu$|^user_task_manager$")
     )
     
-    # Crear tarea
-    handlers.append(
-        CallbackQueryHandler(handler.start_create_task, pattern="^utm_create_task$")
+    # Conversation handler para crear tareas
+    task_creation_conversation = ConversationHandler(
+        entry_points=[CallbackQueryHandler(handler.start_create_task, pattern="^utm_create_task$")],
+        states={
+            TASK_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_task_title)],
+            TASK_DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_task_description)],
+            TASK_REWARD: [MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_task_reward)],
+            CONFIRMING_TASK: [CallbackQueryHandler(handler.confirm_create_task, pattern="^utm_confirm_task$")],
+        },
+        fallbacks=[CallbackQueryHandler(handler.task_manager_menu, pattern="^utm_menu$")]
     )
-    
-    handlers.append(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_task_title, context=TASK_TITLE)
-    )
-    
-    handlers.append(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_task_description, context=TASK_DESCRIPTION)
-    )
-    
-    handlers.append(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handler.get_task_reward, context=TASK_REWARD)
-    )
-    
-    handlers.append(
-        CallbackQueryHandler(handler.confirm_create_task, pattern="^utm_confirm_task$")
-    )
+    handlers.append(task_creation_conversation)
     
     # Ver tareas
     handlers.append(

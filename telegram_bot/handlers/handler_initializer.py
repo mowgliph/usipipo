@@ -25,6 +25,7 @@ from telegram_bot.handlers.keys_manager_handler import list_keys_handler, delete
 from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
 from telegram_bot.handlers.payment_handler import get_payment_handlers
 from telegram_bot.handlers.referral_handler import get_referral_handlers
+from telegram_bot.handlers.shop_handler import get_shop_handler
 from telegram_bot.handlers.start_handler import start_handler
 from telegram_bot.handlers.status_handler import status_handler
 from telegram_bot.handlers.support_handler import get_support_handler, admin_reply_handler
@@ -360,10 +361,16 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     task_service = container.resolve(TaskService)
     task_handler = get_task_handler(task_service)
     handlers.extend(task_handler.get_handlers())
-    
+     
     # Sistema de Administración de Tareas (solo para admin)
     admin_task_handler = get_admin_task_handler(task_service)
     handlers.extend(admin_task_handler.get_handlers())
+
+    # Sistema de Tienda (Shop) - Añadido para solucionar el problema del botón no funcional
+    logger.log_bot_event("INFO", "Registrando handlers de tienda (shop)")
+    shop_handlers = get_shop_handler(payment_service)
+    handlers.extend(shop_handlers)
+    logger.log_bot_event("INFO", f"Se registraron {len(shop_handlers)} handlers de tienda")
 
     # Handlers para callbacks inline del nuevo sistema
     handlers.extend(get_inline_callback_handlers(vpn_service, achievement_service, support_service, admin_service))
