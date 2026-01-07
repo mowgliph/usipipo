@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 from utils.logger import logger
 
 from telegram_bot.messages.messages import Messages
-from telegram_bot.keyboard.inline_keyboards import InlineKeyboards
+from telegram_bot.keyboard import SupportKeyboards
 
 async def ayuda_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -13,7 +13,7 @@ async def ayuda_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await update.message.reply_text(
             text=Messages.Welcome.HELP,
-            reply_markup=InlineKeyboards.main_menu(),
+            reply_markup=SupportKeyboards.help_menu(),
             parse_mode="Markdown"
         )
     except Exception as e:
@@ -31,7 +31,7 @@ async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         await update.message.reply_text(
             text=Messages.Help.MENU_TITLE,
-            reply_markup=InlineKeyboards.help_menu(),
+            reply_markup=SupportKeyboards.help_menu(),
             parse_mode="Markdown"
         )
     except Exception as e:

@@ -105,7 +105,7 @@ class ErrorHandler:
                     "⏱️ **Timeout de red**\n\n"
                     "Hubo un problema de conexión. Por favor, intenta nuevamente en unos segundos.",
                     parse_mode="Markdown",
-                    reply_markup=InlineKeyboards.main_menu()
+                    reply_markup=CommonKeyboards.back_button("main_menu")
                 )
             
             # === ERRORES DE SOLICITUD INVÁLIDA ===
@@ -123,13 +123,13 @@ class ErrorHandler:
                 elif "query is too old" in error_str:
                     await update.effective_message.reply_text(
                         "⏰ Esta operación expiró. Por favor, inicia el proceso nuevamente.",
-                        reply_markup=InlineKeyboards.main_menu()
+                        reply_markup=CommonKeyboards.back_button("main_menu")
                     )
                 
                 elif "message can't be edited" in error_str:
                     await update.effective_message.reply_text(
                         "⚠️ No se pudo editar el mensaje. Intenta la operación nuevamente.",
-                        reply_markup=InlineKeyboards.main_menu()
+                        reply_markup=CommonKeyboards.back_button("main_menu")
                     )
                 
                 else:
@@ -138,7 +138,7 @@ class ErrorHandler:
                         CommonMessages.Errors.GENERIC.format(
                             error="Solicitud inválida. Verifica los datos e intenta nuevamente."
                         ),
-                        reply_markup=InlineKeyboards.main_menu()
+                        reply_markup=CommonKeyboards.back_button("main_menu")
                     )
             
             # === MIGRACIÓN DE CHAT ===
@@ -153,7 +153,7 @@ class ErrorHandler:
                     "Ocurrió un problema con la API de Telegram. "
                     "Intenta nuevamente en unos momentos.",
                     parse_mode="Markdown",
-                    reply_markup=InlineKeyboards.main_menu()
+                    reply_markup=CommonKeyboards.back_button("main_menu")
                 )
             
             # === ERRORES DE APLICACIÓN ===
@@ -163,7 +163,7 @@ class ErrorHandler:
                 
                 await update.effective_message.reply_text(
                     CommonMessages.Errors.GENERIC.format(error=error_message),
-                    reply_markup=InlineKeyboards.main_menu()
+                    reply_markup=CommonKeyboards.back_button("main_menu")
                 )
         
         except Exception as e:

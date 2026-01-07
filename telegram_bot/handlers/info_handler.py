@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram_bot.messages import Messages
-from telegram_bot.keyboard import InlineKeyboards
+from telegram_bot.keyboard import UserKeyboards
 from config import settings
 from utils.logger import logger
 from application.services.vpn_service import VpnService
@@ -89,7 +89,7 @@ async def info_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 stars=user_data.balance_stars,
                 usage=f"{user_status['total_used_gb']:.1f} GB"
             ),
-            reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
+            reply_markup=UserKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
         )
         

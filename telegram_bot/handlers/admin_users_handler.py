@@ -13,7 +13,7 @@ from datetime import datetime
 
 from application.services.admin_service import AdminService
 from telegram_bot.messages.admin_messages import AdminMessages
-from telegram_bot.keyboard.inline_keyboards import InlineAdminKeyboards
+from telegram_bot.keyboard import AdminKeyboards
 from utils.spinner import with_spinner
 
 # Estados de conversación
@@ -43,7 +43,7 @@ class AdminUsersHandler:
         try:
             await query.edit_message_text(
                 text=AdminMessages.USERS_SUBMENU_TITLE,
-                reply_markup=InlineAdminKeyboards.users_submenu(),
+                reply_markup=AdminKeyboards.users_submenu(),
                 parse_mode="Markdown"
             )
             return ADMIN_USERS_MENU
@@ -51,7 +51,7 @@ class AdminUsersHandler:
             logger.error(f"Error en submenu de usuarios: {e}")
             await query.edit_message_text(
                 text=AdminMessages.ERROR.format(error=str(e)),
-                reply_markup=InlineAdminKeyboards.main_menu()
+                reply_markup=AdminKeyboards.main_menu()
             )
             return ConversationHandler.END
 
@@ -70,7 +70,7 @@ class AdminUsersHandler:
             if not users:
                 await query.edit_message_text(
                     text=AdminMessages.NO_USERS,
-                    reply_markup=InlineAdminKeyboards.users_submenu()
+                    reply_markup=AdminKeyboards.users_submenu()
                 )
                 return ADMIN_USERS_MENU
 
@@ -108,7 +108,7 @@ class AdminUsersHandler:
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineAdminKeyboards.users_list_pagination(page, total_pages),
+                reply_markup=AdminKeyboards.users_list_pagination(page, total_pages),
                 parse_mode="Markdown"
             )
             return ADMIN_USERS_LIST
@@ -117,7 +117,7 @@ class AdminUsersHandler:
             logger.error(f"Error mostrando lista de usuarios: {e}")
             await query.edit_message_text(
                 text=AdminMessages.ERROR.format(error=str(e)),
-                reply_markup=InlineAdminKeyboards.users_submenu()
+                reply_markup=AdminKeyboards.users_submenu()
             )
             return ADMIN_USERS_MENU
 
@@ -148,7 +148,7 @@ class AdminUsersHandler:
             if not user_info:
                 await query.edit_message_text(
                     text="❌ Usuario no encontrado",
-                    reply_markup=InlineAdminKeyboards.users_submenu()
+                    reply_markup=AdminKeyboards.users_submenu()
                 )
                 return ADMIN_USERS_MENU
 
@@ -183,7 +183,7 @@ class AdminUsersHandler:
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineAdminKeyboards.user_detail_actions(user_id),
+                reply_markup=AdminKeyboards.user_detail_actions(user_id),
                 parse_mode="Markdown"
             )
             return ADMIN_USER_DETAIL
@@ -192,7 +192,7 @@ class AdminUsersHandler:
             logger.error(f"Error mostrando detalles de usuario: {e}")
             await query.edit_message_text(
                 text=AdminMessages.ERROR.format(error=str(e)),
-                reply_markup=InlineAdminKeyboards.users_submenu()
+                reply_markup=AdminKeyboards.users_submenu()
             )
             return ADMIN_USERS_MENU
 
@@ -250,7 +250,7 @@ class AdminUsersHandler:
                 )
                 await query.edit_message_text(
                     text=message,
-                    reply_markup=InlineAdminKeyboards.users_submenu(),
+                    reply_markup=AdminKeyboards.users_submenu(),
                     parse_mode="Markdown"
                 )
             else:
@@ -261,7 +261,7 @@ class AdminUsersHandler:
                 )
                 await query.edit_message_text(
                     text=message,
-                    reply_markup=InlineAdminKeyboards.users_submenu(),
+                    reply_markup=AdminKeyboards.users_submenu(),
                     parse_mode="Markdown"
                 )
 
@@ -326,7 +326,7 @@ class AdminUsersHandler:
                 )
                 await query.edit_message_text(
                     text=message,
-                    reply_markup=InlineAdminKeyboards.users_submenu(),
+                    reply_markup=AdminKeyboards.users_submenu(),
                     parse_mode="Markdown"
                 )
             else:
@@ -337,7 +337,7 @@ class AdminUsersHandler:
                 )
                 await query.edit_message_text(
                     text=message,
-                    reply_markup=InlineAdminKeyboards.users_submenu(),
+                    reply_markup=AdminKeyboards.users_submenu(),
                     parse_mode="Markdown"
                 )
 
@@ -407,7 +407,7 @@ class AdminUsersHandler:
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineAdminKeyboards.role_selection(),
+                reply_markup=AdminKeyboards.role_selection(),
                 parse_mode="Markdown"
             )
             return ADMIN_SELECT_ROLE
@@ -438,7 +438,7 @@ class AdminUsersHandler:
                 # Mostrar selección de duración
                 await query.edit_message_text(
                     text="⏱️ **Selecciona la duración para el rol Gestor de Tareas:**",
-                    reply_markup=InlineAdminKeyboards.premium_role_duration(),
+                    reply_markup=AdminKeyboards.premium_role_duration(),
                     parse_mode="Markdown"
                 )
                 return ADMIN_ROLE_DURATION
@@ -448,7 +448,7 @@ class AdminUsersHandler:
                 # Mostrar selección de duración
                 await query.edit_message_text(
                     text="⏱️ **Selecciona la duración para el rol Anunciante:**",
-                    reply_markup=InlineAdminKeyboards.premium_role_duration(),
+                    reply_markup=AdminKeyboards.premium_role_duration(),
                     parse_mode="Markdown"
                 )
                 return ADMIN_ROLE_DURATION
@@ -474,7 +474,7 @@ class AdminUsersHandler:
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineAdminKeyboards.users_submenu(),
+                reply_markup=AdminKeyboards.users_submenu(),
                 parse_mode="Markdown"
             )
             return ADMIN_USERS_MENU
@@ -525,7 +525,7 @@ class AdminUsersHandler:
 
                 await query.edit_message_text(
                     text=message,
-                    reply_markup=InlineAdminKeyboards.users_submenu(),
+                    reply_markup=AdminKeyboards.users_submenu(),
                     parse_mode="Markdown"
                 )
 
