@@ -172,8 +172,8 @@ def get_creation_handler(vpn_service: VpnService) -> ConversationHandler:
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel_creation)],
-        # CORRECCIÓN: Usar per_message=False para handlers mixtos
-        per_message=False,
+        # CORRECCIÓN: Usar per_message=True para handlers mixtos
+        per_message=True,
         per_chat=True,
         per_user=True,
         allow_reentry=True

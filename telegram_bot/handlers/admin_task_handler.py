@@ -335,7 +335,10 @@ class AdminTaskHandler:
                         lambda u, c: ConversationHandler.END,
                         pattern="^admin_task_menu$"
                     )
-                ]
+                ],
+                per_message=True,
+                per_chat=True,
+                per_user=True,
             )
         ]
 

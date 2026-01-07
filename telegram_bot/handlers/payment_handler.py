@@ -469,7 +469,10 @@ class PaymentHandler:
                         MessageHandler(filters.TEXT & ~filters.COMMAND, self.deposit_amount_handler)
                     ]
                 },
-                fallbacks=[]
+                fallbacks=[],
+                per_message=True,
+                per_chat=True,
+                per_user=True,
             ),
 
             # Handler para pre-checkout
