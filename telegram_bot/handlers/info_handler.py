@@ -33,12 +33,12 @@ async def info_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Mensaje profesional del menú principal
         professional_menu_message = (
             "🌐 **uSipipo VPN - Menú Principal Profesional**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             
             "👋 ¡Bienvenido a tu **Panel de Control VPN**!\n\n"
             
             "📊 **Servicios Disponibles:**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "━━━━━━━━━━━━\n\n"
             
             "🔐 **Seguridad y Privacidad:**\n"
             "• 🛡️ **Mis Llaves** - Gestiona tus conexiones VPN activas\n"
@@ -57,7 +57,7 @@ async def info_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• 🎫 **Soporte** - Contacta a nuestro equipo\n\n"
             
             "📈 **Tus Estadísticas Rápidas:**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             
             "👤 **Perfil:** {name}\n"
             "🆔 **ID de Usuario:** `{user_id}`\n"

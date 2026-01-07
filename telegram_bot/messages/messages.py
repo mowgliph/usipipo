@@ -593,7 +593,7 @@ class Messages:
         
         WELCOME = (
             "📢 **Sistema de Broadcast**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "Envía mensajes masivos a todos los usuarios.\n\n"
             "**Opciones disponibles:**\n"
             "• 📝 Escribir mensaje personalizado\n"
@@ -605,14 +605,14 @@ class Messages:
         
         SELECT_TEMPLATE = (
             "📋 **Seleccionar Template**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "Elige un template o escribe tu mensaje personalizado:\n\n"
             "👇 Selecciona un template:"
         )
         
         INPUT_MESSAGE = (
             "✍️ **Crear Mensaje Personalizado**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "Envía el contenido del mensaje:\n\n"
             "**Formato soportado:**\n"
             "• Texto con formato *Markdown*\n"
@@ -623,18 +623,18 @@ class Messages:
         
         INPUT_PHOTO = (
             "📸 **Agregar Foto**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "Envía una foto para acompañar el mensaje.\n\n"
             "O escribe 'continuar' para enviar solo texto."
         )
         
         PREVIEW_HEADER = (
             "👁️ **Vista Previa del Broadcast**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
         )
         
         PREVIEW_FOOTER = (
-            "\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "👥 **Destinatarios:** {count} usuarios\n"
             "📊 **Tipo:** {type}\n\n"
             "¿Confirmar el envío?"
@@ -642,14 +642,14 @@ class Messages:
         
         SENDING = (
             "🚀 **Enviando Broadcast...**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "⏳ Por favor espera, esto puede tomar unos momentos...\n\n"
             "📊 Progreso: {current}/{total}"
         )
         
         SUCCESS_SUMMARY = (
             "✅ **Broadcast Completado**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "📤 **Enviados exitosamente:** {success}\n"
             "❌ **Errores:** {errors}\n"
             "👥 **Total usuarios:** {total}\n"
@@ -660,14 +660,14 @@ class Messages:
         
         CANCELLED = (
             "❌ **Broadcast Cancelado**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "El proceso de broadcast ha sido cancelado.\n"
             "No se envió ningún mensaje."
         )
         
         NO_USERS = (
             "⚠️ **Sin Usuarios**\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "━━━━━━━━━━━━\n\n"
             "No hay usuarios registrados para enviar el broadcast."
         )
         
@@ -680,7 +680,7 @@ class Messages:
         TEMPLATES = {
             "maintenance": (
                 "🔧 **Mantenimiento Programado**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "━━━━━━━━━━━━\n\n"
                 "Estimado usuario,\n\n"
                 "Te informamos que realizaremos un mantenimiento programado.\n\n"
                 "**Fecha:** {date}\n"
@@ -692,7 +692,7 @@ class Messages:
             ),
             "update": (
                 "🎉 **Nueva Actualización Disponible**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "━━━━━━━━━━━━\n\n"
                 "¡Hola!\n\n"
                 "Tenemos excelentes noticias: hemos lanzado una nueva actualización con mejoras importantes.\n\n"
                 "**Nuevas características:**\n"
@@ -704,7 +704,7 @@ class Messages:
             ),
             "promotion": (
                 "🎁 **Oferta Especial**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "━━━━━━━━━━━━\n\n"
                 "¡Aprovecha esta oportunidad única!\n\n"
                 "**{promo_title}**\n\n"
                 "{promo_description}\n\n"
@@ -714,7 +714,7 @@ class Messages:
             ),
             "welcome": (
                 "👋 **¡Bienvenido a uSipipo VPN!**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "━━━━━━━━━━━━\n\n"
                 "Gracias por unirte a nuestra comunidad.\n\n"
                 "**Para comenzar:**\n"
                 "1. Crea tu primera llave VPN\n"
