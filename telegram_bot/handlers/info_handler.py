@@ -87,7 +87,7 @@ async def info_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_id=user.id,
                 key_count=key_count,
                 stars=user_data.balance_stars,
-                usage=f"{user_data.total_data_used} GB"
+                usage=f"{user_status['total_used_gb']:.1f} GB"
             ),
             reply_markup=InlineKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
