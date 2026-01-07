@@ -3,6 +3,7 @@ import uuid
 from typing import List  # <--- FALTABA ESTA LÍNEA
 from domain.entities.ticket import Ticket
 from infrastructure.persistence.supabase.ticket_repository import TicketRepository
+from utils.datetime_utils import now_utc
 
 class SupportService:
     def __init__(self, ticket_repo: TicketRepository):
@@ -20,7 +21,7 @@ class SupportService:
     async def update_activity(self, user_id: int):
         ticket = await self.ticket_repo.get_open_by_user(user_id)
         if ticket:
-            ticket.last_message_at = datetime.now()
+            ticket.last_message_at = now_utc()
             await self.ticket_repo.save(ticket)
 
     async def close_ticket(self, user_id: int):
