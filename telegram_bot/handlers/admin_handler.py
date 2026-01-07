@@ -11,7 +11,7 @@ from config import settings
 from utils.logger import logger
 
 from application.services.admin_service import AdminService
-from telegram_bot.messages.admin_messages import AdminMessages
+from telegram_bot.messages import AdminMessages
 from telegram_bot.keyboard import AdminKeyboards, UserKeyboards
 from utils.spinner import with_spinner
 
@@ -38,7 +38,7 @@ class AdminHandler:
             return ConversationHandler.END
         
         await update.message.reply_text(
-            text=AdminMessages.MAIN_MENU,
+            text=AdminMessages.Menu.MAIN,
             reply_markup=AdminKeyboards.main_menu(),
             parse_mode="Markdown"
         )
@@ -54,7 +54,7 @@ class AdminHandler:
             
             if not users:
                 await query.edit_message_text(
-                    text=AdminMessages.NO_USERS,
+                    text=AdminMessages.Users.NO_USERS,
                     reply_markup=AdminKeyboards.main_menu()
                 )
                 return ADMIN_MENU
@@ -71,7 +71,7 @@ class AdminHandler:
                     f"{vip_status} | 📅 Última actividad: {activity}\n"
                 )
             
-            message = AdminMessages.USERS_LIST.format(users="\n\n".join(user_list))
+            message = AdminMessages.Users.LIST.format(users="\n\n".join(user_list))
             
             await query.edit_message_text(
                 text=message,
@@ -83,7 +83,7 @@ class AdminHandler:
         except Exception as e:
             logger.error(f"Error mostrando usuarios: {e}")
             await query.edit_message_text(
-                text=AdminMessages.ERROR.format(error=str(e)),
+                text=AdminMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=AdminKeyboards.main_menu()
             )
             return ADMIN_MENU
@@ -98,7 +98,7 @@ class AdminHandler:
             
             if not keys:
                 await query.edit_message_text(
-                    text=AdminMessages.NO_KEYS,
+                    text=AdminMessages.Keys.NO_KEYS,
                     reply_markup=AdminKeyboards.main_menu()
                 )
                 return ADMIN_MENU
@@ -107,7 +107,7 @@ class AdminHandler:
             wg_keys = [k for k in keys if k['key_type'] == 'wireguard']
             ss_keys = [k for k in keys if k['key_type'] == 'outline']
             
-            message = AdminMessages.KEYS_LIST.format(
+            message = AdminMessages.Keys.LIST.format(
                 wireguard_count=len(wg_keys),
                 outline_count=len(ss_keys)
             )
@@ -151,7 +151,7 @@ class AdminHandler:
         except Exception as e:
             logger.error(f"Error mostrando claves: {e}")
             await query.edit_message_text(
-                text=AdminMessages.ERROR.format(error=str(e)),
+                text=AdminMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=AdminKeyboards.back_to_menu()
             )
             return ADMIN_MENU
@@ -171,7 +171,7 @@ class AdminHandler:
             
             if not key_info:
                 await query.edit_message_text(
-                    text=AdminMessages.KEY_NOT_FOUND,
+                    text=AdminMessages.Keys.NOT_FOUND,
                     reply_markup=AdminKeyboards.main_menu()
                 )
                 return ADMIN_MENU
@@ -179,7 +179,7 @@ class AdminHandler:
             # Guardar key_id en context para usar en confirmación
             context.user_data['pending_delete_key'] = key_id
             
-            message = AdminMessages.CONFIRM_DELETE.format(
+            message = AdminMessages.Confirmation.DELETE_KEY.format(
                 key_name=key_info['key_name'],
                 user_name=key_info['user_name'],
                 key_type=key_info['key_type'].upper(),
@@ -196,7 +196,7 @@ class AdminHandler:
         except Exception as e:
             logger.error(f"Error en confirmación de eliminación: {e}")
             await query.edit_message_text(
-                text=AdminMessages.ERROR.format(error=str(e)),
+                text=AdminMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=AdminKeyboards.back_to_menu()
             )
             return ADMIN_MENU
@@ -213,7 +213,7 @@ class AdminHandler:
             result = await self.admin_service.delete_user_key_complete(key_id)
             
             if result['success']:
-                message = AdminMessages.DELETE_SUCCESS.format(
+                message = AdminMessages.Confirmation.DELETE_SUCCESS.format(
                     key_id=key_id,
                     key_type=result.get('key_type', 'Unknown'),
                     server_deleted="✅" if result['server_deleted'] else "❌",
@@ -224,7 +224,7 @@ class AdminHandler:
                 await self._notify_user_key_deleted(result.get('user_id'), key_id)
                 
             else:
-                message = AdminMessages.DELETE_ERROR.format(
+                message = AdminMessages.Errors.DELETE_ERROR.format(
                     key_id=key_id,
                     error=result.get('error', 'Error desconocido')
                 )
@@ -239,7 +239,7 @@ class AdminHandler:
         except Exception as e:
             logger.error(f"Error ejecutando eliminación de clave {key_id}: {e}")
             await query.edit_message_text(
-                text=AdminMessages.ERROR.format(error=str(e)),
+                text=AdminMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=AdminKeyboards.main_menu()
             )
             return ADMIN_MENU
@@ -252,11 +252,11 @@ class AdminHandler:
         try:
             status = await self.admin_service.get_server_status()
             
-            message = AdminMessages.SERVER_STATUS_HEADER
+            message = AdminMessages.System.SERVER_STATUS_HEADER
             
             for server_type, server_info in status.items():
                 health_emoji = "🟢" if server_info['is_healthy'] else "🔴"
-                message += AdminMessages.SERVER_STATUS.format(
+                message += AdminMessages.System.SERVER_STATUS.format(
                     server_type=server_type.upper(),
                     health_emoji=health_emoji,
                     total_keys=server_info['total_keys'],
@@ -275,7 +275,7 @@ class AdminHandler:
         except Exception as e:
             logger.error(f"Error mostrando estado de servidores: {e}")
             await query.edit_message_text(
-                text=AdminMessages.ERROR.format(error=str(e)),
+                text=AdminMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=AdminKeyboards.main_menu()
             )
             return ADMIN_MENU
@@ -286,7 +286,7 @@ class AdminHandler:
         await query.answer()
         
         await query.edit_message_text(
-            text=AdminMessages.MAIN_MENU,
+            text=AdminMessages.Menu.MAIN,
             reply_markup=AdminKeyboards.main_menu(),
             parse_mode="Markdown"
         )
@@ -349,7 +349,7 @@ async def admin_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
     if user.id == int(settings.ADMIN_ID):
         # Mostrar menú de administración
         await update.message.reply_text(
-            text=AdminMessages.MAIN_MENU,
+            text=AdminMessages.Menu.MAIN,
             reply_markup=AdminKeyboards.main_menu(),
             parse_mode="Markdown"
         )

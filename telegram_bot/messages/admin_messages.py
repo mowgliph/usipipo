@@ -49,6 +49,12 @@ class AdminMessages:
             "• ⬅️ Volver\n"
         )
         
+        USERS_SUBMENU_TITLE = (
+            "👥 **Gestión de Usuarios**\n"
+            "━━━━━━━━━━━━\n\n"
+            "Selecciona una opción:"
+        )
+        
         KEYS_SUBMENU = (
             "🔑 **Gestión de Llaves**\n"
             "━━━━━━━━━━━━\n\n"
@@ -84,6 +90,13 @@ class AdminMessages:
         LIST_HEADER = (
             "👥 **Lista de Usuarios**\n"
             "━━━━━━━━━━━━\n"
+        )
+        
+        USERS_LIST_HEADER = (
+            "👥 **Lista de Usuarios**\n"
+            "━━━━━━━━━━━━\n\n"
+            "Total: {total_users} | Página {page}/{total_pages}\n\n"
+            "{users}"
         )
         
         NO_USERS = (
@@ -147,6 +160,19 @@ class AdminMessages:
         LIST_HEADER = (
             "🔑 **Lista de Llaves**\n"
             "━━━━━━━━━━━━\n"
+        )
+        
+        NO_KEYS = (
+            "📭 **Sin llaves**\n\n"
+            "No hay llaves registradas."
+        )
+        
+        LIST = (
+            "🔑 **Lista de Llaves**\n"
+            "━━━━━━━━━━━━\n\n"
+            "🔐 **WireGuard:** {wireguard_count}\n"
+            "🌐 **Outline:** {outline_count}\n\n"
+            "Total: {total_keys} llaves"
         )
         
         KEY_ENTRY = (
@@ -300,6 +326,97 @@ class AdminMessages:
         )
     
     # ============================================
+    # CONFIRMATIONS
+    # ============================================
+    
+    class Confirmation:
+        """Mensajes de confirmación."""
+        
+        DELETE_KEY = (
+            "⚠️ **¿Eliminar Llave?**\n\n"
+            "🔑 **Llave:** {key_name}\n"
+            "👤 **Usuario:** {user_name}\n"
+            "📡 **Tipo:** {key_type}\n"
+            "📊 **Datos usados:** {data_used}\n\n"
+            "Esta acción es **irreversible**."
+        )
+        
+        DELETE_SUCCESS = (
+            "✅ **Llave Eliminada**\n\n"
+            "🔑 **ID:** {key_id}\n"
+            "📡 **Tipo:** {key_type}\n"
+            "🗄️ **BD:** {db_deleted}\n"
+            "🖥️ **Servidor:** {server_deleted}\n\n"
+            "Llave eliminada exitosamente."
+        )
+        
+        DELETE_ERROR = (
+            "❌ **Error al Eliminar**\n\n"
+            "🔑 **ID:** {key_id}\n"
+            "❌ **Error:** {message}\n\n"
+            "No se pudo eliminar la llave."
+        )
+        
+        BLOCK_USER_CONFIRM = (
+            "⚠️ **¿Bloquear Usuario?**\n\n"
+            "👤 **Usuario:** {user_name} (ID: {user_id})\n"
+            "📊 **Estado actual:** {current_status}\n\n"
+            "El usuario no podrá acceder al bot."
+        )
+        
+        UNBLOCK_USER_CONFIRM = (
+            "⚠️ **¿Desbloquear Usuario?**\n\n"
+            "👤 **Usuario:** {user_name} (ID: {user_id})\n"
+            "📊 **Estado actual:** {current_status}\n\n"
+            "El usuario podrá acceder nuevamente."
+        )
+        
+        BLOCK_USER_SUCCESS = (
+            "✅ **Usuario Bloqueado**\n\n"
+            "👤 **Usuario:** {user_name}\n"
+            "🆔 **ID:** {user_id}\n\n"
+            "El usuario ha sido bloqueado."
+        )
+        
+        UNBLOCK_USER_SUCCESS = (
+            "✅ **Usuario Desbloqueado**\n\n"
+            "👤 **Usuario:** {user_name}\n"
+            "🆔 **ID:** {user_id}\n\n"
+            "El usuario ha sido desbloqueado."
+        )
+        
+        DELETE_USER_CONFIRM = (
+            "⚠️ **¿Eliminar Usuario?**\n\n"
+            "👤 **Usuario:** {user_name} (ID: {user_id})\n"
+            "📊 **Estado actual:** {current_status}\n\n"
+            "⚠️ **Esta acción es irreversible**\n"
+            "Se eliminarán todos los datos del usuario."
+        )
+        
+        ASSIGN_ROLE_MENU = (
+            "👑 **Asignar Rol**\n\n"
+            "👤 **Usuario:** {user_name}\n"
+            "🆔 **ID:** {user_id}\n\n"
+            "Selecciona el rol a asignar:"
+        )
+        
+        USER_ACTION_SUCCESS = (
+            "✅ **Acción Completada**\n\n"
+            "👤 **Usuario:** {user_name}\n"
+            "🆔 **ID:** {user_id}\n"
+            "✅ **Operación:** {operation}\n\n"
+            "Acción realizada exitosamente."
+        )
+        
+        USER_ACTION_ERROR = (
+            "❌ **Error en Acción**\n\n"
+            "👤 **Usuario:** {user_id}\n"
+            "❌ **Operación:** {operation}\n"
+            "📝 **Error:** {message}\n\n"
+            "No se pudo completar la acción."
+        )
+    
+    # ============================================
     # SYSTEM & CONFIGURATION
     # ============================================
     
@@ -338,41 +455,39 @@ class AdminMessages:
             "Cambios detectados: {changes}\n"
             "Duración: {duration}s"
         )
+        
+        SERVER_STATUS_HEADER = (
+            "🖥️ **Estado de Servidores**\n"
+            "━━━━━━━━━━━━\n\n"
+        )
+        
+        SERVER_STATUS = (
+            "📊 **{server_type}**\n"
+            "━━━━━━━━━━━━\n"
+            "🟢 **Estado:** {health_emoji}\n"
+            "🔑 **Total llaves:** {total_keys}\n"
+            "✅ **Activas:** {active_keys}\n"
+            "📊 **Uso:** {usage}%\n"
+            "📦 **Versión:** {version}\n"
+            "❌ **Errores:** {error}\n\n"
+        )
     
+   
     # ============================================
-    # CONFIRMATION DIALOGS
+    # ROLE MANAGEMENT
     # ============================================
     
-    class Confirmation:
-        """Mensajes de confirmación administrativos."""
+    class Roles:
+        """Mensajes para gestión de roles."""
         
-        DELETE_USER = (
-            "⚠️ **¿Eliminar usuario?**\n\n"
-            "Usuario: **{name}**\n"
-            "ID: `{user_id}`\n\n"
-            "⚠️ Esta acción es irreversible.\n"
-            "Se eliminarán todas sus llaves y datos."
+        ROLE_SELECTION = (
+            "👑 **Seleccionar Rol**\n\n"
+            "Elige el rol a asignar:"
         )
         
-        BLOCK_USER = (
-            "⚠️ **¿Bloquear usuario?**\n\n"
-            "Usuario: **{name}**\n"
-            "ID: `{user_id}`\n\n"
-            "No podrá usar el bot."
-        )
-        
-        DELETE_KEY = (
-            "⚠️ **¿Eliminar llave?**\n\n"
-            "Llave: **{key_name}**\n"
-            "Usuario: **{owner}**\n\n"
-            "Se interrumpirá la conexión."
-        )
-        
-        DEACTIVATE_KEY = (
-            "⚠️ **¿Desactivar llave?**\n\n"
-            "Llave: **{key_name}**\n"
-            "Usuario: **{owner}**\n\n"
-            "Se interrumpirá la conexión del usuario."
+        PREMIUM_ROLE_DURATION = (
+            "⏱️ **Duración del Rol Premium**\n\n"
+            "Selecciona la duración:"
         )
     
     # ============================================
@@ -385,6 +500,11 @@ class AdminMessages:
         UNAUTHORIZED = (
             "❌ **No autorizado**\n\n"
             "No tienes permisos para esta acción."
+        )
+        
+        GENERIC = (
+            "❌ **Error**\n\n"
+            "No se pudo completar la operación: {error}"
         )
         
         USER_NOT_FOUND = (

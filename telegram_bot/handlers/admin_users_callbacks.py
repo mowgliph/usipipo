@@ -117,11 +117,11 @@ async def _handle_user_detail(update: Update, context: ContextTypes.DEFAULT_TYPE
             # Mostrar menu de cambio de estado
             await query.answer()
             from telegram_bot.keyboard import AdminKeyboards
-            from telegram_bot.messages.admin_messages import AdminMessages
+            from telegram_bot.messages import AdminMessages
             
             user_info = await handler.admin_service.get_user_by_id(user_id)
             if user_info:
-                message = AdminMessages.CHANGE_STATUS_MENU.format(
+                message = AdminMessages.Users.CHANGE_STATUS_MENU.format(
                     user_name=user_info['full_name'] or user_info['username'],
                     user_id=user_id,
                     current_status=handler._format_status(user_info['status'])
@@ -204,9 +204,9 @@ async def _handle_change_status(update: Update, context: ContextTypes.DEFAULT_TY
             return
         
         from telegram_bot.keyboard import AdminKeyboards
-        from telegram_bot.messages.admin_messages import AdminMessages
+        from telegram_bot.messages import AdminMessages
         
-        message = AdminMessages.CHANGE_STATUS_MENU.format(
+        message = AdminMessages.Users.CHANGE_STATUS_MENU.format(
             user_name=user_info['full_name'] or user_info['username'],
             user_id=user_id,
             current_status=handler._format_status(user_info['status'])

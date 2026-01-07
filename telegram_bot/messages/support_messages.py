@@ -98,6 +98,32 @@ class SupportMessages:
             "crea un nuevo ticket."
         )
         
+        NEW_TICKET_ADMIN = (
+            "🎫 **Nuevo Ticket de Soporte**\n\n"
+            "👤 Usuario: {name}\n"
+            "🆔 ID: {user_id}\n\n"
+            "El usuario ha abierto un ticket de soporte."
+        )
+        
+        OPEN_TICKET = (
+            "🎫 **Soporte Abierto**\n\n"
+            "✅ Tu ticket ha sido creado.\n\n"
+            "Describe tu problema y te ayudaremos:\n\n"
+            "🔴 Finalizar Soporte - para cerrar el ticket"
+        )
+        
+        USER_MESSAGE_TO_ADMIN = (
+            "💬 **Mensaje de Usuario**\n\n"
+            "👤 De: {name}\n\n"
+            "{text}"
+        )
+        
+        ADMIN_MESSAGE_TO_USER = (
+            "💬 **Respuesta del Soporte**\n\n"
+            "{text}\n\n"
+            "🔴 Finalizar Soporte - para cerrar"
+        )
+        
         REOPEN_CONFIRM = (
             "⚠️ **Reabrirs el Ticket?**\n\n"
             "🆔 ID: `{ticket_id}`\n\n"
@@ -216,6 +242,14 @@ class TaskMessages:
             "⭐ **Puntos totales:** {total_points}\n"
         )
         
+        SUMMARY = (
+            "📊 **Resumen de Tareas**\n"
+            "━━━━━━━━━━━━\n\n"
+            "✅ **Disponibles:** {available}\n"
+            "⏳ **En progreso:** {in_progress}\n"
+            "🎯 **Completadas:** {completed}\n"
+        )
+        
         AVAILABLE = (
             "📋 **Tareas Disponibles**\n"
             "━━━━━━━━━━━━\n"
@@ -241,6 +275,25 @@ class TaskMessages:
             "📊 **Dificultad:** {difficulty}\n"
             "👥 **Completadas por:** {completed_count} usuarios\n\n"
             "{requirements}"
+        )
+        
+        TASK_GUIDE = (
+            "📖 **Guía de la Tarea**\n\n"
+            "{guide_text}\n"
+        )
+        
+        TASK_COMPLETED = (
+            "✅ **Tarea Completada**\n\n"
+            "🎉 **{title}**\n"
+            "⭐ **Recompensa:** {reward_stars} estrellas\n\n"
+            "¡Excelente trabajo!"
+        )
+        
+        REWARD_CLAIMED = (
+            "🎁 **Recompensa Reclamada**\n\n"
+            "⭐ **{reward_stars} estrellas** recibidas\n"
+            "💰 **Balance actual:** {balance} estrellas\n\n"
+            "¡Sigue así!"
         )
         
         COMPLETED = (

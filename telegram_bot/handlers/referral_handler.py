@@ -4,7 +4,7 @@ from utils.logger import logger
 
 from application.services.referral_service import ReferralService
 from application.services.vpn_service import VpnService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import OperationMessages, CommonMessages
 from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 
 # Estados de conversación para aplicar código de referido
@@ -21,7 +21,7 @@ class ReferralHandler:
         await query.answer()
 
         await query.edit_message_text(
-            text=Messages.Operations.MENU_TITLE,
+            text=OperationMessages.Menu.MAIN,
             reply_markup=OperationKeyboards.operations_menu(),
             parse_mode="Markdown"
         )
@@ -38,7 +38,7 @@ class ReferralHandler:
             referrals = await self.referral_service.get_referrals(telegram_id)
             earnings = await self.referral_service.get_referral_earnings(telegram_id)
 
-            text = Messages.Operations.REFERRAL_PROGRAM.format(
+            text = OperationMessages.Referral.MENU.format(
                 bot_username="usipipo_bot",  # TODO: Get from config
                 referral_code=referral_code,
                 direct_referrals=len(referrals),
@@ -55,7 +55,7 @@ class ReferralHandler:
         except Exception as e:
             logger.error(f"Error in referrals_menu_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=OperationKeyboards.operations_menu()
             )
 
@@ -71,7 +71,7 @@ class ReferralHandler:
             referrals = await self.referral_service.get_referrals(telegram_id)
             earnings = await self.referral_service.get_referral_earnings(telegram_id)
 
-            text = Messages.Operations.REFERRAL_PROGRAM.format(
+            text = OperationMessages.Referral.MENU.format(
                 bot_username="usipipo_bot",  # TODO: Get from config
                 referral_code=referral_code,
                 direct_referrals=len(referrals),
@@ -88,7 +88,7 @@ class ReferralHandler:
         except Exception as e:
             logger.error(f"Error in referral_program_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=OperationKeyboards.operations_menu()
             )
 
@@ -102,7 +102,7 @@ class ReferralHandler:
         try:
             referral_code = await self.referral_service.get_referral_code(telegram_id)
 
-            text = Messages.Operations.REFERRAL_CODE.format(referral_code=referral_code)
+            text = OperationMessages.Referral.CODE.format(referral_code=referral_code)
 
             await query.edit_message_text(
                 text=text,
@@ -113,7 +113,7 @@ class ReferralHandler:
         except Exception as e:
             logger.error(f"Error in my_referral_code_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=OperationKeyboards.referral_actions()
             )
 
@@ -145,7 +145,7 @@ class ReferralHandler:
         except Exception as e:
             logger.error(f"Error in my_referrals_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=OperationKeyboards.referral_actions()
             )
 
@@ -174,7 +174,7 @@ class ReferralHandler:
         except Exception as e:
             logger.error(f"Error in referral_earnings_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=OperationKeyboards.referral_actions()
             )
 
@@ -191,7 +191,7 @@ class ReferralHandler:
             # Escape HTML special characters in referral_code
             escaped_referral_code = self._escape_html(referral_code)
 
-            text = Messages.Operations.SHARE_REFERRAL.format(
+            text = OperationMessages.Referral.SHARE.format(
                 referral_code=escaped_referral_code,
                 bot_username="usipipo_bot"  # TODO: Get from config
             )
@@ -205,7 +205,7 @@ class ReferralHandler:
         except Exception as e:
             logger.error(f"Error in share_referral_handler: {e}")
             await query.edit_message_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=OperationKeyboards.referral_actions(),
                 parse_mode="HTML"
             )
@@ -236,14 +236,14 @@ class ReferralHandler:
                 )
             else:
                 await update.message.reply_text(
-                    text=Messages.Errors.REFERRAL_CODE_INVALID.format(code=referral_code),
+                    text=CommonMessages.Errors.REFERRAL_CODE_INVALID.format(code=referral_code),
                     reply_markup=CommonKeyboards.back_button()
                 )
 
         except Exception as e:
             logger.error(f"Error applying referral code: {e}")
             await update.message.reply_text(
-                text=Messages.Errors.GENERIC.format(error=str(e)),
+                text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 reply_markup=CommonKeyboards.back_button()
             )
 

@@ -135,6 +135,12 @@ class CommonMessages:
             "Has excedido el límite de intentos.\n"
             "Intenta en {time} segundos."
         )
+        
+        REFERRAL_CODE_INVALID = (
+            "❌ **Código de Referido Inválido**\n\n"
+            "El código `{code}` no es válido\n"
+            "o ya ha sido utilizado."
+        )
     
     # ============================================
     # STATUS MESSAGES

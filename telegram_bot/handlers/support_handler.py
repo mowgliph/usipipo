@@ -4,7 +4,7 @@ from config import settings
 from utils.logger import logger
 
 from application.services.support_service import SupportService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import SupportMessages, CommonMessages
 from telegram_bot.keyboard import SupportKeyboards, CommonKeyboards
 
 # Estado de la conversación
@@ -21,12 +21,12 @@ async def start_support(update: Update, context: ContextTypes.DEFAULT_TYPE, supp
         # Notificar al Admin con un mensaje que incluya el ID del usuario para facilitar el reply
         await context.bot.send_message(
             chat_id=settings.ADMIN_ID,
-            text=Messages.Support.NEW_TICKET_ADMIN.format(name=user.first_name, user_id=user.id),
+            text=SupportMessages.Tickets.NEW_TICKET_ADMIN.format(name=user.first_name, user_id=user.id),
             parse_mode="HTML"
         )
         
         await update.message.reply_text(
-            text=Messages.Support.OPEN_TICKET,
+            text=SupportMessages.Tickets.OPEN_TICKET,
             reply_markup=SupportKeyboards.support_active(),
             parse_mode="Markdown"
         )
@@ -34,7 +34,7 @@ async def start_support(update: Update, context: ContextTypes.DEFAULT_TYPE, supp
         
     except Exception as e:
         logger.error(f"Error al abrir ticket: {e}")
-        await update.message.reply_text(Messages.Errors.GENERIC.format(error="No se pudo abrir el canal de soporte."))
+        await update.message.reply_text(CommonMessages.Errors.GENERIC.format(error="No se pudo abrir el canal de soporte."))
         return ConversationHandler.END
 
 async def relay_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, support_service: SupportService):
@@ -52,7 +52,7 @@ async def relay_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, sup
         # Enviar al admin
         await context.bot.send_message(
             chat_id=settings.ADMIN_ID,
-            text=Messages.Support.USER_MESSAGE_TO_ADMIN.format(name=user.first_name, text=text)
+            text=SupportMessages.Tickets.USER_MESSAGE_TO_ADMIN.format(name=user.first_name, text=text)
         )
     except Exception as e:
         logger.error(f"Error reenviando al admin: {e}")
@@ -67,7 +67,7 @@ async def close_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE, suppo
         await support_service.close_ticket(user_id)
         
         await update.message.reply_text(
-            text=Messages.Support.TICKET_CLOSED,
+            text=SupportMessages.Tickets.TICKET_CLOSED,
             reply_markup=CommonKeyboards.back_button()
         )
         
@@ -104,7 +104,7 @@ async def admin_reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Enviar al usuario
         await context.bot.send_message(
             chat_id=target_user_id,
-            text=Messages.Support.ADMIN_MESSAGE_TO_USER.format(text=response_text)
+            text=SupportMessages.Tickets.ADMIN_MESSAGE_TO_USER.format(text=response_text)
         )
         # Actualizar actividad del ticket
         await support_service.update_activity(target_user_id)

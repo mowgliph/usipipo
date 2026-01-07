@@ -193,6 +193,19 @@ class OperationMessages:
         )
     
     # ============================================
+    # MENU SYSTEM
+    # ============================================
+    
+    class Menu:
+        """Mensajes de menú de operaciones."""
+        
+        MAIN = (
+            "💰 **Operaciones**\n"
+            "━━━━━━━━━━━━\n\n"
+            "Selecciona una operación:"
+        )
+    
+    # ============================================
     # REFERRAL SYSTEM
     # ============================================
     
@@ -207,6 +220,21 @@ class OperationMessages:
             "`{referral_link}`\n\n"
             "💰 **Ganancias Totales:** ${total_earned}\n"
             "👥 **Referidos:** {referral_count}\n"
+        )
+        
+        CODE = (
+            "🔗 **Tu Código de Referido**\n"
+            "━━━━━━━━━━━━\n\n"
+            "📋 **Código:** `{referral_code}`\n\n"
+            "¡Compártelo y gana recompensas!"
+        )
+        
+        SHARE = (
+            "📤 **Compartir Referido**\n\n"
+            "🔗 **Enlace de referido:**\n"
+            "https://t.me/{bot_username}?start={referral_code}\n\n"
+            "📋 **Código:** `{referral_code}`\n\n"
+            "¡Invita amigos y gana estrellas!"
         )
         
         TERMS = (

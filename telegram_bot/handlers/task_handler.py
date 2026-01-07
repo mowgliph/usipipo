@@ -11,7 +11,7 @@ from utils.logger import logger
 import uuid
 
 from application.services.task_service import TaskService
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import TaskMessages, CommonMessages
 from telegram_bot.keyboard import TaskKeyboards, CommonKeyboards
 
 
@@ -30,7 +30,7 @@ class TaskHandler:
             user_id = update.effective_user.id
             summary = await self.task_service.get_user_tasks_summary(user_id)
             
-            text = Messages.Tasks.SUMMARY.format(
+            text = TaskMessages.UserTasks.SUMMARY.format(
                 available=summary["total_available"],
                 in_progress=summary["total_in_progress"],
                 completed=summary["total_completed"]
@@ -59,7 +59,7 @@ class TaskHandler:
             
             if not tasks:
                 await query.edit_message_text(
-                    text=Messages.Tasks.NO_TASKS,
+                    text=TaskMessages.UserTasks.NO_TASKS,
                     reply_markup=CommonKeyboards.back_button("task_center"),
                     parse_mode="Markdown"
                 )
@@ -114,9 +114,9 @@ class TaskHandler:
             # Construir mensaje
             guide_section = ""
             if task.guide_text:
-                guide_section = Messages.Tasks.TASK_GUIDE.format(guide_text=task.guide_text)
+                guide_section = TaskMessages.UserTasks.TASK_GUIDE.format(guide_text=task.guide_text)
             
-            text = Messages.Tasks.TASK_DETAIL.format(
+            text = TaskMessages.UserTasks.TASK_DETAIL.format(
                 title=task.title,
                 description=task.description,
                 reward_stars=task.reward_stars,
@@ -157,7 +157,7 @@ class TaskHandler:
             user_task = await self.task_service.complete_task(user_id, task_id)
             task = await self.task_service.get_task_by_id(task_id)
             
-            text = Messages.Tasks.TASK_COMPLETED.format(
+            text = TaskMessages.UserTasks.TASK_COMPLETED.format(
                 title=task.title,
                 reward_stars=task.reward_stars
             )
@@ -199,7 +199,7 @@ class TaskHandler:
             
             task = await self.task_service.get_task_by_id(task_id)
             
-            text = Messages.Tasks.REWARD_CLAIMED.format(
+            text = TaskMessages.UserTasks.REWARD_CLAIMED.format(
                 reward_stars=task.reward_stars,
                 balance=user.balance_stars if user else 0
             )
@@ -311,7 +311,7 @@ class TaskHandler:
             user_id = update.effective_user.id
             summary = await self.task_service.get_user_tasks_summary(user_id)
             
-            text = Messages.Tasks.SUMMARY.format(
+            text = TaskMessages.UserTasks.SUMMARY.format(
                 available=summary["total_available"],
                 in_progress=summary["total_in_progress"],
                 completed=summary["total_completed"]

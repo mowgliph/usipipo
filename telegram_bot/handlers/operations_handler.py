@@ -13,7 +13,7 @@ from telegram.ext import ContextTypes
 
 from config import settings
 from telegram_bot.keyboard import OperationKeyboards, UserKeyboards
-from telegram_bot.messages.messages import Messages
+from telegram_bot.messages import OperationMessages, UserMessages, CommonMessages
 from utils.logger import logger
 
 
@@ -24,7 +24,7 @@ async def mi_balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
         user_status = await vpn_service.get_user_status(user_id)
         user = user_status["user"]
         
-        text = Messages.Operations.BALANCE_INFO.format(
+        text = OperationMessages.Balance.DISPLAY.format(
             name=user.full_name or user.username or f"Usuario {user.telegram_id}",
             balance=user.balance_stars,
             total_deposited=user.total_deposited,
@@ -39,14 +39,14 @@ async def mi_balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
     except Exception as e:
         logger.log_error(e, context='mi_balance_handler', user_id=user_id)
         await update.message.reply_text(
-            text=Messages.Errors.GENERIC.format(error=str(e)),
+            text=CommonMessages.Errors.GENERIC.format(error=str(e)),
             reply_markup=OperationKeyboards.operations_menu()
         )
 
 
 async def plan_vip_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para el botón 'Plan VIP'."""
-    text = Messages.Operations.VIP_PLAN_INFO.format(
+    text = OperationMessages.VIP.PRICING.format(
         max_keys=settings.VIP_PLAN_MAX_KEYS,
         data_limit=settings.VIP_PLAN_DATA_LIMIT_GB,
         cost="10 estrellas por mes"
@@ -65,7 +65,7 @@ async def referidos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     try:
         referral_data = await referral_service.get_user_referral_data(user_id)
         
-        text = Messages.Operations.REFERRAL_PROGRAM.format(
+        text = OperationMessages.Referral.MENU.format(
             bot_username="usipipo_vpn_bot",
             referral_code=referral_data.get("code", "N/A"),
             direct_referrals=referral_data.get("direct_referrals", 0),
@@ -81,7 +81,7 @@ async def referidos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     except Exception as e:
         logger.log_error(e, context='referidos_handler', user_id=user_id)
         await update.message.reply_text(
-            text=Messages.Errors.GENERIC.format(error=str(e)),
+            text=CommonMessages.Errors.GENERIC.format(error=str(e)),
             reply_markup=OperationKeyboards.operations_menu()
         )
 
@@ -104,7 +104,7 @@ async def operations_menu_callback(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
     
     await query.edit_message_text(
-        text=Messages.Operations.MENU_TITLE,
+        text=OperationMessages.Menu.MAIN,
         reply_markup=OperationKeyboards.operations_menu(),
         parse_mode="Markdown"
     )
@@ -113,7 +113,7 @@ async def operations_menu_callback(update: Update, context: ContextTypes.DEFAULT
 async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para el botón '💰 Operaciones'."""
     await update.message.reply_text(
-        text=Messages.Operations.MENU_TITLE,
+        text=OperationMessages.Menu.MAIN,
         reply_markup=OperationKeyboards.operations_menu(),
         parse_mode="Markdown"
     )
