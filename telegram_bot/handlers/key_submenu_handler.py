@@ -10,6 +10,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters
 from telegram.error import BadRequest
 from utils.logger import logger
+from utils.telegram_utils import TelegramHandlerUtils
 from typing import Dict, Any, List, Optional
 from config import settings
 
@@ -25,67 +26,56 @@ class KeySubmenuHandler:
     def __init__(self, vpn_service: VpnService):
         self.vpn_service = vpn_service
 
-    async def _validate_query(self, query, context, update):
-        """
-        Valida que el objeto query no sea None. Si es None, envía un mensaje de error y retorna False.
-        Si es válido, retorna True.
-        """
-        if query is None:
-            logger.error(f"Error: query es None")
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=CommonMessages.Errors.GENERIC.format(error="Operación no válida"),
-                reply_markup=UserKeyboards.quick_actions()
-            )
-            return False
-        return True
-
-    async def _safe_edit_message(self, query, context, text, reply_markup=None, parse_mode=None):
-        """
-        Intenta editar el mensaje; si no es posible (p. ej. 'There is no text in the message to edit' o errores de parseo),
-        maneja fallbacks y reintenta sin parse_mode cuando el error es de entidades.
-        """
-        try:
-            await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode=parse_mode)
-            return
-        except BadRequest as e:
-            err = str(e)
-            logger.warning(f"_safe_edit_message: edit failed: {err}")
-            # Si el error es por parseo de entidades, reintentar sin parse_mode (texto plano)
-            if "Can't parse entities" in err or ("character" in err and "reserved" in err):
-                try:
-                    await query.edit_message_text(text=text, reply_markup=reply_markup)
-                    return
-                except BadRequest as e2:
-                    logger.warning(f"_safe_edit_message: retry without parse_mode failed: {e2}")
-            try:
-                # Si el mensaje tiene caption, intentar editar caption
-                if getattr(query.message, 'caption', None) is not None:
-                    await query.edit_message_caption(caption=text, reply_markup=reply_markup, parse_mode=parse_mode)
-                else:
-                    # Enviar nuevo mensaje como fallback
-                    await context.bot.send_message(chat_id=query.message.chat.id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
-            except BadRequest as ex:
-                # Si el fallback falló por errores de parseo, reintentar sin parse_mode
-                if "Can't parse entities" in str(ex) or ("character" in str(ex) and "reserved" in str(ex)):
-                    try:
-                        await context.bot.send_message(chat_id=query.message.chat.id, text=text, reply_markup=reply_markup)
-                    except Exception as ex2:
-                        logger.error(f"_safe_edit_message fallback failed: {ex2}")
-                else:
-                    logger.error(f"_safe_edit_message fallback failed: {ex}")
-    
     async def show_key_submenu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Muestra el menú principal del submenú de llaves.
         """
         query = update.callback_query
         
+        # Handle both command and callback scenarios
+        if query is None:
+            # This is a direct command, send a new message
+            user_id = update.effective_user.id
+            try:
+                user_status = await self.vpn_service.get_user_status(user_id)
+                keys = user_status.get("keys", [])
+                
+                # Contar llaves por servidor dinámicamente
+                keys_summary = {'total_count': len(keys)}
+                message = KeySubmenuMessages.MAIN_MENU
+                
+                for protocol in settings.get_vpn_protocols():
+                    count = len([k for k in keys if k.key_type.lower() == protocol.lower()])
+                    keys_summary[f'{protocol}_count'] = count
+                    
+                    # Obtener badge y formatear
+                    badge = KeySubmenuMessages.get_server_badge(protocol)
+                    message += f"\n**{badge}:** {count} llaves"
+                
+                message += f"\n\n📊 **Total:** {len(keys)} llaves activas"
+                
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=message,
+                    reply_markup=UserKeyboards.my_keys_submenu(keys_summary),
+                    parse_mode="Markdown"
+                )
+                return
+                
+            except Exception as e:
+                logger.error(f"Error en show_key_submenu (command): {e}")
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=CommonMessages.Errors.GENERIC.format(error=str(e)),
+                    reply_markup=UserKeyboards.quick_actions()
+                )
+                return
+        
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
          
         try:
             user_id = update.effective_user.id
@@ -106,7 +96,7 @@ class KeySubmenuHandler:
 
             message += f"\n\n📊 **Total:** {len(keys)} llaves activas"
              
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=message,
@@ -116,7 +106,7 @@ class KeySubmenuHandler:
              
         except Exception as e:
             logger.error(f"Error en show_key_submenu: {e}")
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=CommonMessages.Errors.GENERIC.format(error=str(e)),
@@ -130,10 +120,10 @@ class KeySubmenuHandler:
         query = update.callback_query
         
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             user_id = update.effective_user.id
@@ -191,7 +181,7 @@ class KeySubmenuHandler:
                 )
                 message += f"\n\n{KeySubmenuMessages.PAGINATION_INFO.format(current=page, total=total_pages)}"
             
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=message,
@@ -201,7 +191,7 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en show_server_keys: {e}")
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=KeySubmenuMessages.SERVER_NOT_AVAILABLE.format(server_name=server_type),
@@ -215,10 +205,10 @@ class KeySubmenuHandler:
         query = update.callback_query
         
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             # Obtener datos de la llave
@@ -238,7 +228,7 @@ class KeySubmenuHandler:
                 server_info=KeySubmenuMessages.format_server_info(key_data.get('server_info', {}))
             )
             
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=message,
@@ -248,7 +238,7 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en show_key_detail: {e}")
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=f"Error al cargar detalles de la llave: {str(e)}",
@@ -262,10 +252,10 @@ class KeySubmenuHandler:
         query = update.callback_query
         
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             key_data = await self._get_key_data(key_id)
@@ -274,7 +264,7 @@ class KeySubmenuHandler:
             
             message = f"⚠️ **Confirmar eliminación**\n\n¿Eliminar la llave **{key_data['name']}**?\n\nEsta acción es irreversible."
             
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=message,
@@ -284,7 +274,7 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en handle_delete_confirmation: {e}")
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=f"Error: {str(e)}",
@@ -298,10 +288,10 @@ class KeySubmenuHandler:
         query = update.callback_query
         
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             success = await self.vpn_service.revoke_key(key_id)
@@ -331,10 +321,10 @@ class KeySubmenuHandler:
         query = update.callback_query
         
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             key_data = await self._get_key_data(key_id)
@@ -398,10 +388,10 @@ class KeySubmenuHandler:
         query = update.callback_query
         
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             key_data = await self._get_key_data(key_id)
@@ -449,10 +439,10 @@ class KeySubmenuHandler:
         query = update.callback_query
         
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             user_id = update.effective_user.id
@@ -485,7 +475,7 @@ class KeySubmenuHandler:
                 message += keys_list
                 message += f"\n\n{KeySubmenuMessages.PAGINATION_INFO.format(current=page, total=total_pages)}"
             
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=message,
@@ -495,7 +485,7 @@ class KeySubmenuHandler:
             
         except Exception as e:
             logger.error(f"Error en show_all_keys_overview: {e}")
-            await self._safe_edit_message(
+            await TelegramHandlerUtils.safe_edit_message(
                 query,
                 context,
                 text=f"Error al cargar llaves: {str(e)}",
@@ -509,10 +499,10 @@ class KeySubmenuHandler:
         query = update.callback_query
         
         # Validar que query no sea None
-        if not await self._validate_query(query, context, update):
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
             return
         
-        await query.answer()
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         await self.show_key_submenu(update, context)
     
@@ -558,9 +548,15 @@ class KeySubmenuHandler:
         """
         handlers = []
         
-        # Menú principal
+        # Menú principal - compatibilidad con callback my_keys
         handlers.append(CallbackQueryHandler(
-            self.show_key_submenu, 
+            self.show_key_submenu,
+            pattern="^my_keys$"
+        ))
+        
+        # Menú principal - nuevo sistema de submenús
+        handlers.append(CallbackQueryHandler(
+            self.show_key_submenu,
             pattern="^key_submenu_main$"
         ))
         

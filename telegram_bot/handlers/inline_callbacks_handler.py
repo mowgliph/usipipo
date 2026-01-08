@@ -17,19 +17,27 @@ from telegram_bot.handlers.user_task_manager_handler import get_user_task_manage
 from telegram_bot.handlers.user_announcer_handler import get_user_announcer_handlers
 from config import settings
 from utils.logger import logger
+from utils.telegram_utils import TelegramHandlerUtils
 from application.services.support_service import SupportService
 
 
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para volver al menú principal."""
     query = update.callback_query
-    await query.answer()
+    
+    # Validar que query no sea None
+    if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+        return
+        
+    await TelegramHandlerUtils.safe_answer_query(query)
     user = update.effective_user
     
     # Determinar si es admin
     is_admin = user.id == int(settings.ADMIN_ID)
     
-    await query.edit_message_text(
+    await TelegramHandlerUtils.safe_edit_message(
+        query,
+        context,
         text="👇 Menú Principal",
         reply_markup=UserKeyboards.main_menu(is_admin=is_admin),
         parse_mode="Markdown"
@@ -38,7 +46,12 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service):
     """Handler para mostrar el estado del usuario."""
     query = update.callback_query
-    await query.answer()
+    
+    # Validar que query no sea None
+    if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+        return
+        
+    await TelegramHandlerUtils.safe_answer_query(query)
     try:
         user_id = update.effective_user.id
         user_status = await vpn_service.get_user_status(user_id)
@@ -51,7 +64,9 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         if user.is_vip:
             text += f"👑 **Estado VIP:** Activo hasta {user.vip_expires_at.strftime('%d/%m/%Y')}\n"    
         is_admin = user_id == int(settings.ADMIN_ID)
-        await query.edit_message_text(
+        await TelegramHandlerUtils.safe_edit_message(
+            query,
+            context,
             text=text,
             reply_markup=UserKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
@@ -63,7 +78,9 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         except:
             is_admin = False
             
-        await query.edit_message_text(
+        await TelegramHandlerUtils.safe_edit_message(
+            query,
+            context,
             text=CommonMessages.Errors.GENERIC.format(error=str(e)),
             reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
         )
@@ -71,7 +88,12 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
 async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service=None):
     """Handler para mostrar el menú de operaciones con botones de roles condicionales."""
     query = update.callback_query
-    await query.answer()
+    
+    # Validar que query no sea None
+    if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+        return
+        
+    await TelegramHandlerUtils.safe_answer_query(query)
     
     try:
         user_id = update.effective_user.id
@@ -85,14 +107,18 @@ async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
             except Exception as e:
                 logger.warning(f"No se pudo obtener información del usuario {user_id}: {e}")
         
-        await query.edit_message_text(
+        await TelegramHandlerUtils.safe_edit_message(
+            query,
+            context,
             text=OperationMessages.Menu.MAIN,
             reply_markup=OperationKeyboards.operations_menu(user=user),
             parse_mode="Markdown"
         )
     except Exception as e:
         logger.error(f"Error en operations_handler: {e}")
-        await query.edit_message_text(
+        await TelegramHandlerUtils.safe_edit_message(
+            query,
+            context,
             text=CommonMessages.Errors.GENERIC.format(error=str(e)),
             reply_markup=OperationKeyboards.operations_menu()
         )
@@ -101,7 +127,12 @@ async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
 async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, achievement_service):
     """Handler para mostrar el menú de logros."""
     query = update.callback_query
-    await query.answer()
+    
+    # Validar que query no sea None
+    if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+        return
+        
+    await TelegramHandlerUtils.safe_answer_query(query)
     
     try:
         user_id = update.effective_user.id
@@ -113,7 +144,9 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         text += f"🎁 **Recompensas Pendientes:** {user_achievements['pending_rewards']}\n\n"
         text += "Selecciona una opción para ver más detalles:"
         
-        await query.edit_message_text(
+        await TelegramHandlerUtils.safe_edit_message(
+            query,
+            context,
             text=text,
             reply_markup=OperationKeyboards.achievements_menu(),
             parse_mode="Markdown"
@@ -121,7 +154,9 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         
     except Exception as e:
         logger.error(f"Error en achievements_handler: {e}")
-        await query.edit_message_text(
+        await TelegramHandlerUtils.safe_edit_message(
+            query,
+            context,
             text=CommonMessages.Errors.GENERIC.format(error=str(e)),
             reply_markup=UserKeyboards.main_menu()
         )
@@ -380,12 +415,6 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     
     # Navegación principal
     handlers.append(CallbackQueryHandler(main_menu_handler, pattern="^main_menu$"))
-    # Usar el nuevo sistema de submenús para "my_keys"
-    key_submenu_handler = get_key_submenu_handler(vpn_service)
-    handlers.append(CallbackQueryHandler(
-        lambda u, c: key_submenu_handler.show_key_submenu(u, c), 
-        pattern="^my_keys$"
-    ))
 
     handlers.append(CallbackQueryHandler(lambda u, c: status_handler(u, c, vpn_service), pattern="^status$"))
     handlers.append(CallbackQueryHandler(lambda u, c: operations_handler(u, c, vpn_service), pattern="^operations$"))

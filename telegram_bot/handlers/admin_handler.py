@@ -9,6 +9,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, ConversationHandler
 from config import settings
 from utils.logger import logger
+from utils.telegram_utils import TelegramHandlerUtils
 
 from application.services.admin_service import AdminService
 from telegram_bot.messages import AdminMessages
@@ -47,7 +48,12 @@ class AdminHandler:
     async def show_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra lista de usuarios."""
         query = update.callback_query
-        await query.answer()
+        
+        # Validar que query no sea None
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+            return
+        
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             users = await self.admin_service.get_all_users()
@@ -91,7 +97,12 @@ class AdminHandler:
     async def show_keys(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra lista de todas las claves."""
         query = update.callback_query
-        await query.answer()
+        
+        # Validar que query no sea None
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+            return
+        
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             keys = await self.admin_service.get_all_keys()
@@ -159,7 +170,12 @@ class AdminHandler:
     async def confirm_delete_key(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra confirmación para eliminar clave."""
         query = update.callback_query
-        await query.answer()
+        
+        # Validar que query no sea None
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+            return
+            
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         # Extraer key_id del callback_data
         key_id = query.data.replace("delete_key_", "")
@@ -204,7 +220,12 @@ class AdminHandler:
     async def execute_delete_key(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Ejecuta la eliminación de la clave."""
         query = update.callback_query
-        await query.answer()
+        
+        # Validar que query no sea None
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+            return
+            
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         key_id = query.data.replace("confirm_delete_", "")
         
@@ -247,7 +268,12 @@ class AdminHandler:
     async def show_server_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra estado de los servidores."""
         query = update.callback_query
-        await query.answer()
+        
+        # Validar que query no sea None
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+            return
+            
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         try:
             status = await self.admin_service.get_server_status()
@@ -283,7 +309,12 @@ class AdminHandler:
     async def back_to_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Vuelve al menú principal de administración."""
         query = update.callback_query
-        await query.answer()
+        
+        # Validar que query no sea None
+        if not await TelegramHandlerUtils.validate_callback_query(query, context, update):
+            return
+            
+        await TelegramHandlerUtils.safe_answer_query(query)
         
         await query.edit_message_text(
             text=AdminMessages.Menu.MAIN,
