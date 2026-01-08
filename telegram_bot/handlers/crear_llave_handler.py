@@ -11,7 +11,7 @@ from telegram.ext import (
 from utils.logger import logger
 
 from application.services.vpn_service import VpnService
-from telegram_bot.messages import UserMessages
+from telegram_bot.messages import UserMessages, CommonMessages
 from telegram_bot.keyboard import UserKeyboards
 from utils.qr_generator import QrGenerator
 from config import settings

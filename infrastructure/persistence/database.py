@@ -73,33 +73,47 @@ def _configure_sqlalchemy_logging():
     
     # Configurar nivel de logging basado en el entorno
     if settings.is_development:
-        sqlalchemy_logger.setLevel(logging.DEBUG)
+        sqlalchemy_logger.setLevel(logging.WARNING)  # Solo WARNING y ERROR en desarrollo
     else:
-        sqlalchemy_logger.setLevel(logging.WARNING)
+        sqlalchemy_logger.setLevel(logging.ERROR)  # Solo ERROR en producción
     
     # Crear un handler personalizado que redirija a nuestro logger
     class CustomSQLAlchemyHandler(logging.Handler):
         def emit(self, record):
+            # Solo procesar WARNING y ERROR para reducir ruido
+            if record.levelno < logging.WARNING:
+                return
+                
             # Mapear niveles de logging estándar a métodos de nuestro logger
             level_map = {
-                logging.DEBUG: logger.debug,
-                logging.INFO: logger.info,
                 logging.WARNING: logger.warning,
                 logging.ERROR: logger.error,
                 logging.CRITICAL: logger.critical
             }
             
             # Obtener el método de logging apropiado
-            log_method = level_map.get(record.levelno, logger.info)
+            log_method = level_map.get(record.levelno, logger.warning)
             
             # Formatear el mensaje
             msg = self.format(record)
             
-            # Agregar prefijo para identificar logs de SQLAlchemy
-            formatted_msg = f"🗃️ SQL: {msg}"
+            # Simplificar mensaje para SQL queries
+            if "SELECT" in msg or "INSERT" in msg or "UPDATE" in msg or "DELETE" in msg:
+                # Extraer solo la operación principal, no los parámetros
+                if "SELECT" in msg:
+                    msg = "🔍 Consulta SELECT ejecutada"
+                elif "INSERT" in msg:
+                    msg = "➕ Registro INSERT ejecutado"
+                elif "UPDATE" in msg:
+                    msg = "✏️ Registro UPDATE ejecutado"
+                elif "DELETE" in msg:
+                    msg = "🗑️ Registro DELETE ejecutado"
+            else:
+                # Agregar prefijo para otros logs de SQLAlchemy
+                msg = f"🗃️ SQL: {msg}"
             
             # Enviar al logger personalizado
-            log_method(formatted_msg)
+            log_method(msg)
     
     # Configurar el handler
     handler = CustomSQLAlchemyHandler()
@@ -184,14 +198,14 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         AsyncSession configurada y lista para usar.
     """
     session_factory = get_session_factory()
-    async with session_factory() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    session = session_factory()
+    try:
+        yield session
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
 
 @asynccontextmanager
