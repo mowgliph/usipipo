@@ -5,14 +5,12 @@ Author: uSipipo Team
 Version: 1.0.0
 '''
 
-import logging
 from datetime import datetime
 from typing import List, Optional, Dict
 from domain.entities.achievement import Achievement, UserAchievement, UserStats, AchievementType, get_achievements_by_type
 from domain.interfaces.iachievement_service import IAchievementService
 from domain.interfaces.iachievement_repository import IAchievementRepository, IUserStatsRepository
-
-logger = logging.getLogger(__name__)
+from utils.logger import logger
 
 class AchievementService(IAchievementService):
     '''Implementación del servicio de logros.'''

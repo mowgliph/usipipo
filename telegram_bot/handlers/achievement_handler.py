@@ -5,7 +5,6 @@ Author: uSipipo Team
 Version: 1.0.0
 """
 
-import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from application.services.achievement_service import AchievementService
@@ -13,8 +12,7 @@ from telegram_bot.messages.achievement_messages import AchievementMessages
 from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from domain.entities.achievement import AchievementType
 from utils.spinner import with_spinner, database_spinner
-
-logger = logging.getLogger(__name__)
+from utils.logger import logger
 
 @database_spinner
 async def achievements_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, achievement_service: AchievementService):

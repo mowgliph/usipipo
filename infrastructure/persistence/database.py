@@ -8,6 +8,7 @@ Author: uSipipo Team
 Version: 1.0.0
 """
 
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -57,6 +58,59 @@ def _build_async_database_url(url: str) -> str:
     return url
 
 
+def _configure_sqlalchemy_logging():
+    """
+    Configura SQLAlchemy para usar el logger personalizado en lugar de stdout.
+    
+    Redirige los logs de SQLAlchemy al sistema de logging personalizado.
+    """
+    # Obtener el logger de SQLAlchemy
+    sqlalchemy_logger = logging.getLogger('sqlalchemy.engine')
+    
+    # Remover handlers existentes para evitar duplicación
+    for handler in sqlalchemy_logger.handlers[:]:
+        sqlalchemy_logger.removeHandler(handler)
+    
+    # Configurar nivel de logging basado en el entorno
+    if settings.is_development:
+        sqlalchemy_logger.setLevel(logging.DEBUG)
+    else:
+        sqlalchemy_logger.setLevel(logging.WARNING)
+    
+    # Crear un handler personalizado que redirija a nuestro logger
+    class CustomSQLAlchemyHandler(logging.Handler):
+        def emit(self, record):
+            # Mapear niveles de logging estándar a métodos de nuestro logger
+            level_map = {
+                logging.DEBUG: logger.debug,
+                logging.INFO: logger.info,
+                logging.WARNING: logger.warning,
+                logging.ERROR: logger.error,
+                logging.CRITICAL: logger.critical
+            }
+            
+            # Obtener el método de logging apropiado
+            log_method = level_map.get(record.levelno, logger.info)
+            
+            # Formatear el mensaje
+            msg = self.format(record)
+            
+            # Agregar prefijo para identificar logs de SQLAlchemy
+            formatted_msg = f"🗃️ SQL: {msg}"
+            
+            # Enviar al logger personalizado
+            log_method(formatted_msg)
+    
+    # Configurar el handler
+    handler = CustomSQLAlchemyHandler()
+    handler.setFormatter(logging.Formatter('%(name)s - %(levelname)s - %(message)s'))
+    
+    # Añadir el handler al logger de SQLAlchemy
+    sqlalchemy_logger.addHandler(handler)
+    
+    logger.info("🔧 Configuración de logging de SQLAlchemy aplicada")
+
+
 def get_engine() -> AsyncEngine:
     """
     Obtiene o crea el engine de SQLAlchemy (Singleton).
@@ -67,11 +121,14 @@ def get_engine() -> AsyncEngine:
     global _engine
     
     if _engine is None:
+        # Configurar logging de SQLAlchemy antes de crear el engine
+        _configure_sqlalchemy_logging()
+        
         database_url = _build_async_database_url(settings.DATABASE_URL)
         
         _engine = create_async_engine(
             database_url,
-            echo=settings.is_development,  # Log SQL solo en desarrollo
+            echo=False,  # Desactivar echo ya que usamos nuestro propio logging
             pool_size=settings.DB_POOL_SIZE,
             max_overflow=10,
             pool_timeout=settings.DB_TIMEOUT,
