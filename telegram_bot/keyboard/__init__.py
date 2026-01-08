@@ -22,6 +22,7 @@ from .user_keyboards import UserKeyboards
 from .admin_keyboards import AdminKeyboards
 from .operations_keyboards import OperationKeyboards, SupportKeyboards, TaskKeyboards
 from .common_keyboards import CommonKeyboards
+from .shop_keyboards import ShopKeyboards
 from .keyboard_factory import KeyboardFactory, KeyboardBuilder, KeyboardRegistry, KeyboardType
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     'SupportKeyboards',
     'TaskKeyboards',
     'CommonKeyboards',
+    'ShopKeyboards',
     # Factory and utilities
     'KeyboardFactory',
     'KeyboardBuilder',
