@@ -85,8 +85,9 @@ class CommonMessages:
         """Mensajes de error."""
         
         GENERIC = (
-            "❌ **Error**\n\n"
-            "Algo salió mal. Intenta de nuevo."
+            "❌ Error\n\n"
+            "Algo salió mal. Intenta de nuevo.\n\n"
+            "Detalle: {error}"
         )
         
         NETWORK = (

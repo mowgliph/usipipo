@@ -46,8 +46,8 @@ class ReferralHandler:
                 bot_username=settings.BOT_USERNAME,
                 referral_link=referral_link,
                 referral_code=referral_code,
-                direct_referrals=len(referrals),
-                total_earnings=earnings,
+                referral_count=len(referrals),
+                total_earned=earnings,
                 commission=10
             )
 
@@ -83,8 +83,8 @@ class ReferralHandler:
                 bot_username=settings.BOT_USERNAME,
                 referral_link=referral_link,
                 referral_code=referral_code,
-                direct_referrals=len(referrals),
-                total_earnings=earnings,
+                referral_count=len(referrals),
+                total_earned=earnings,
                 commission=10
             )
 
