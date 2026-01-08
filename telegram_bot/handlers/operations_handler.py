@@ -44,21 +44,6 @@ async def mi_balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
         )
 
 
-async def plan_vip_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler para el botón 'Plan VIP'."""
-    text = OperationMessages.VIP.PRICING.format(
-        max_keys=settings.VIP_PLAN_MAX_KEYS,
-        data_limit=settings.VIP_PLAN_DATA_LIMIT_GB,
-        cost="10 estrellas por mes"
-    )
-
-    await update.message.reply_text(
-        text=text,
-        reply_markup=OperationKeyboards.vip_plans(),
-        parse_mode="Markdown"
-    )
-
-
 async def referidos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, referral_service):
     """Handler para el botón 'Referidos'."""
     user_id = update.effective_user.id

@@ -8,15 +8,13 @@ Author: uSipipo Team
 Version: 1.0.0
 """
 
+from telegram_bot.messages import ShopMessages, CommonMessages
+from telegram_bot.keyboard import ShopKeyboards
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, MessageHandler, filters
-from config import settings
+from telegram.ext import ContextTypes, CallbackQueryHandler, CommandHandler
 from utils.logger import logger
-from datetime import datetime, timedelta, timezone
 
 from application.services.payment_service import PaymentService
-from telegram_bot.messages import ShopMessages, CommonMessages
-from telegram_bot.keyboard import OperationKeyboards, CommonKeyboards
 from utils.spinner import with_spinner
 
 # Estados de conversación
@@ -35,67 +33,6 @@ class ShopHandler:
         self.payment_service = payment_service
 
     # ============================================
-    # PLANES VIP
-    # ============================================
-
-    async def show_vip_plans(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Mostrar planes VIP disponibles."""
-        query = update.callback_query
-        await query.answer()
-
-        try:
-            message = """👑 **Planes VIP**
-
-Disfruta de beneficios exclusivos con nuestros planes VIP:
-
-🟢 **Plan VIP 1 Mes** - 10 ⭐
-  • 10 claves VPN simultáneas
-  • 50 GB de datos por clave
-  • Soporte prioritario
-  • Sin anuncios
-
-🟡 **Plan VIP 3 Meses** - 27 ⭐
-  • 10 claves VPN simultáneas
-  • 50 GB de datos por clave
-  • Soporte prioritario
-  • Sin anuncios
-  • Ahorra 3 ⭐
-
-🔵 **Plan VIP 6 Meses** - 50 ⭐
-  • 10 claves VPN simultáneas
-  • 50 GB de datos por clave
-  • Soporte prioritario
-  • Sin anuncios
-  • Ahorra 10 ⭐
-
-🔴 **Plan VIP 12 Meses** - 90 ⭐
-  • 10 claves VPN simultáneas
-  • 50 GB de datos por clave
-  • Soporte prioritario
-  • Sin anuncios
-  • Ahorra 30 ⭐"""
-
-            keyboard = [
-                [InlineKeyboardButton("1 Mes - 10⭐", callback_data="shop_vip_1month")],
-                [InlineKeyboardButton("3 Meses - 27⭐", callback_data="shop_vip_3months")],
-                [InlineKeyboardButton("6 Meses - 50⭐", callback_data="shop_vip_6months")],
-                [InlineKeyboardButton("12 Meses - 90⭐", callback_data="shop_vip_12months")],
-                [InlineKeyboardButton("🔙 Volver", callback_data="shop_menu")]
-            ]
-
-            await query.edit_message_text(
-                text=message,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="Markdown"
-            )
-            return SHOP_VIP_PLANS
-
-        except Exception as e:
-            logger.error(f"Error mostrando planes VIP: {e}")
-            await query.answer(f"❌ Error: {str(e)}", show_alert=True)
-            return SHOP_MENU
-
-    # ============================================
     # ROLES PREMIUM
     # ============================================
 
@@ -105,46 +42,19 @@ Disfruta de beneficios exclusivos con nuestros planes VIP:
         await query.answer()
 
         try:
-            message = """📋 **Roles Premium**
+            message = f"""{ShopMessages.PremiumRoles.HEADER}
 
-Obtén roles especiales para funcionalidades exclusivas:
+{ShopMessages.PremiumRoles.TASK_MANAGER}
 
-📋 **GESTOR DE TAREAS** - 50 ⭐ / mes
-  Crea y gestiona tareas para otros usuarios
-  • Crear tareas públicas/privadas
-  • Ver participación de usuarios
-  • Recompensas por tareas completadas
-  • Estadísticas detalladas
-  
-  Planes: 1 mes | 3 meses | 6 meses | 1 año
+{ShopMessages.PremiumRoles.ANNOUNCER}
 
-📣 **ANUNCIANTE** - 80 ⭐ / mes
-  Envía anuncios y promociones a otros usuarios
-  • Crear campañas de anuncios
-  • Targeting por región/tipo de usuario
-  • Estadísticas de visualización
-  • Hasta 100 anuncios por mes
-  
-  Planes: 1 mes | 3 meses | 6 meses | 1 año
+{ShopMessages.PremiumRoles.BOTH_ROLES}"""
 
-✨ **Ambos Roles** - 120 ⭐ / mes
-  Obtén acceso a ambos roles premium
-  • Todas las funciones de Gestor de Tareas
-  • Todas las funciones de Anunciante
-  • Descuento especial en paquetes
-  
-  Planes: 1 mes | 3 meses | 6 meses | 1 año"""
-
-            keyboard = [
-                [InlineKeyboardButton("📋 Gestor de Tareas", callback_data="shop_role_task_manager")],
-                [InlineKeyboardButton("📣 Anunciante", callback_data="shop_role_announcer")],
-                [InlineKeyboardButton("✨ Ambos Roles", callback_data="shop_role_both")],
-                [InlineKeyboardButton("🔙 Volver", callback_data="shop_menu")]
-            ]
+            keyboard = ShopKeyboards.premium_roles()
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=keyboard,
                 parse_mode="Markdown"
             )
             return SHOP_PREMIUM_ROLES
@@ -164,44 +74,21 @@ Obtén roles especiales para funcionalidades exclusivas:
         await query.answer()
 
         try:
-            message = """💾 **Paquetes de Almacenamiento**
+            message = f"""{ShopMessages.StoragePlans.HEADER}
 
-Amplía tu límite de datos mensuales:
+{ShopMessages.StoragePlans.BASIC}
 
-🟢 **Paquete Básico** - 5 ⭐
-  • +10 GB de datos
-  • Válido por 30 días
-  • Aplicable a todas tus claves
+{ShopMessages.StoragePlans.STANDARD}
 
-🟡 **Paquete Estándar** - 12 ⭐
-  • +25 GB de datos
-  • Válido por 30 días
-  • Aplicable a todas tus claves
-  • Ahorra 3 ⭐ vs Paquete Básico x3
+{ShopMessages.StoragePlans.PREMIUM}
 
-🔵 **Paquete Premium** - 25 ⭐
-  • +50 GB de datos
-  • Válido por 30 días
-  • Aplicable a todas tus claves
-  • Ahorra 5 ⭐ vs Paquete Estándar x2
+{ShopMessages.StoragePlans.UNLIMITED}"""
 
-🔴 **Paquete Ilimitado** - 100 ⭐
-  • +200 GB de datos
-  • Válido por 30 días
-  • Aplicable a todas tus claves
-  • Mejor ahorro"""
-
-            keyboard = [
-                [InlineKeyboardButton("+10 GB - 5⭐", callback_data="shop_storage_10gb")],
-                [InlineKeyboardButton("+25 GB - 12⭐", callback_data="shop_storage_25gb")],
-                [InlineKeyboardButton("+50 GB - 25⭐", callback_data="shop_storage_50gb")],
-                [InlineKeyboardButton("+200 GB - 100⭐", callback_data="shop_storage_200gb")],
-                [InlineKeyboardButton("🔙 Volver", callback_data="shop_menu")]
-            ]
+            keyboard = ShopKeyboards.storage_plans()
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=keyboard,
                 parse_mode="Markdown"
             )
             return SHOP_STORAGE_PLANS
@@ -222,38 +109,28 @@ Amplía tu límite de datos mensuales:
 
         try:
             user = update.effective_user
-            user_info = await self.payment_service.get_user_balance(user.id)
-            balance = user_info.get('balance_stars', 0) if user_info else 0
+            balance = await self.payment_service.get_user_balance(user.id)
+            balance = balance if balance is not None else 0
 
-            message = f"""🛒 **SHOP uSipipo**
+            message = f"""{ShopMessages.Menu.HEADER}
 
-Tu Balance: ⭐ {balance}
+{ShopMessages.Menu.BALANCE.format(balance=balance)}
 
-Selecciona una categoría:
+{ShopMessages.Menu.CATEGORIES}
 
-👑 **Planes VIP**
-  Obtén acceso a más claves y GB
+{ShopMessages.Menu.VIP_DESCRIPTION}
 
-📋 **Roles Premium**
-  Sé Gestor de Tareas o Anunciante
+{ShopMessages.Menu.ROLES_DESCRIPTION}
 
-💾 **Almacenamiento Adicional**
-  Amplía tus GB de conexión
+{ShopMessages.Menu.STORAGE_DESCRIPTION}
 
-⭐ **Recargar Estrellas**
-  Compra más estrellas con Telegram Stars"""
+{ShopMessages.Menu.RECHARGE_DESCRIPTION}"""
 
-            keyboard = [
-                [InlineKeyboardButton("👑 Planes VIP", callback_data="shop_vip")],
-                [InlineKeyboardButton("📋 Roles Premium", callback_data="shop_roles")],
-                [InlineKeyboardButton("💾 Almacenamiento", callback_data="shop_storage")],
-                [InlineKeyboardButton("⭐ Recargar Estrellas", callback_data="deposit_stars")],
-                [InlineKeyboardButton("🔙 Volver", callback_data="operations")]
-            ]
+            keyboard = ShopKeyboards.main_menu()
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=keyboard,
                 parse_mode="Markdown"
             )
             return SHOP_MENU
@@ -261,6 +138,43 @@ Selecciona una categoría:
         except Exception as e:
             logger.error(f"Error mostrando menú de tienda: {e}")
             await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+
+    async def shop_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Manejar el comando /shop para mostrar el menú principal de la tienda."""
+        try:
+            user = update.effective_user
+            balance = await self.payment_service.get_user_balance(user.id)
+            balance = balance if balance is not None else 0
+
+            message = f"""{ShopMessages.Menu.HEADER}
+
+{ShopMessages.Menu.BALANCE.format(balance=balance)}
+
+{ShopMessages.Menu.CATEGORIES}
+
+{ShopMessages.Menu.VIP_DESCRIPTION}
+
+{ShopMessages.Menu.ROLES_DESCRIPTION}
+
+{ShopMessages.Menu.STORAGE_DESCRIPTION}
+
+{ShopMessages.Menu.RECHARGE_DESCRIPTION}"""
+
+            keyboard = ShopKeyboards.main_menu_command()
+
+            await update.message.reply_text(
+                text=message,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            return SHOP_MENU
+
+        except Exception as e:
+            logger.error(f"Error mostrando menú de tienda desde comando /shop: {e}")
+            await update.message.reply_text(
+                CommonMessages.Errors.GENERIC.format(error=str(e)),
+                parse_mode="Markdown"
+            )
 
     # ============================================
     # CONFIRMAR COMPRA
@@ -293,23 +207,16 @@ Selecciona una categoría:
                 'name': product_info['name']
             }
 
-            message = f"""✅ **Confirmar Compra**
+            message = ShopMessages.Purchase.CONFIRM_HEADER.format(
+                product_name=product_info['name'],
+                cost=product_info['cost']
+            )
 
-Producto: {product_info['name']}
-Costo: ⭐ {product_info['cost']}
-
-¿Deseas proceder con la compra?"""
-
-            keyboard = [
-                [
-                    InlineKeyboardButton("✅ Comprar", callback_data=f"shop_buy_{product_type}_{product_id}"),
-                    InlineKeyboardButton("❌ Cancelar", callback_data="shop_menu")
-                ]
-            ]
+            keyboard = ShopKeyboards.confirm_purchase(product_type, product_id)
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=keyboard,
                 parse_mode="Markdown"
             )
             return CONFIRMING_PURCHASE
@@ -319,6 +226,7 @@ Costo: ⭐ {product_info['cost']}
             await query.answer(f"❌ Error: {str(e)}", show_alert=True)
             return SHOP_MENU
 
+    @with_spinner
     async def execute_purchase(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Ejecutar la compra."""
         query = update.callback_query
@@ -336,22 +244,17 @@ Costo: ⭐ {product_info['cost']}
             product_name = purchase_data['name']
 
             # Verificar balance
-            user_info = await self.payment_service.get_user_balance(user_id)
-            current_balance = user_info.get('balance_stars', 0) if user_info else 0
+            current_balance = await self.payment_service.get_user_balance(user_id)
+            current_balance = current_balance if current_balance is not None else 0
 
             if current_balance < cost:
-                message = f"""❌ **Balance Insuficiente**
+                message = ShopMessages.Purchase.INSUFFICIENT_BALANCE.format(
+                    current_balance=current_balance,
+                    cost=cost,
+                    needed=cost - current_balance
+                )
 
-Balance actual: ⭐ {current_balance}
-Costo del producto: ⭐ {cost}
-Necesitas: ⭐ {cost - current_balance} más
-
-Recargar estrellas con el botón de abajo."""
-
-                keyboard = [
-                    [InlineKeyboardButton("⭐ Recargar Estrellas", callback_data="deposit_stars")],
-                    [InlineKeyboardButton("🔙 Volver", callback_data="shop_menu")]
-                ]
+                keyboard = ShopKeyboards.insufficient_balance()
 
                 await query.edit_message_text(
                     text=message,
@@ -370,25 +273,24 @@ Recargar estrellas con el botón de abajo."""
             )
 
             if result['success']:
-                message = f"""✅ **Compra Exitosa**
+                message = ShopMessages.Purchase.SUCCESS_HEADER.format(
+                    product_name=product_name,
+                    cost=cost,
+                    old_balance=current_balance,
+                    new_balance=current_balance - cost,
+                    additional_message=result.get('message', '')
+                )
 
-Producto: {product_name}
-Costo: ⭐ {cost}
-Balance anterior: ⭐ {current_balance}
-Balance nuevo: ⭐ {current_balance - cost}
-
-{result.get('message', '')}"""
-
-                keyboard = [[InlineKeyboardButton("🔙 Volver", callback_data="operations")]]
+                keyboard = ShopKeyboards.purchase_success()
             else:
-                message = f"""❌ **Error en la Compra**
-
-{result.get('message', 'Error desconocido')}"""
-                keyboard = [[InlineKeyboardButton("🔙 Reintentar", callback_data="shop_menu")]]
+                message = ShopMessages.Purchase.ERROR_HEADER.format(
+                    error_message=result.get('message', 'Error desconocido')
+                )
+                keyboard = ShopKeyboards.purchase_error()
 
             await query.edit_message_text(
                 text=message,
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=keyboard,
                 parse_mode="Markdown"
             )
             return SHOP_MENU
@@ -446,6 +348,7 @@ Balance nuevo: ⭐ {current_balance - cost}
         
         return None
 
+    @with_spinner
     async def _process_purchase(self, user_id: int, product_type: str, product_id: str, cost: int, product_name: str) -> dict:
         """Procesar la compra de un producto."""
         try:
@@ -463,9 +366,8 @@ Balance nuevo: ⭐ {current_balance - cost}
                 # Activar VIP
                 product_info = self._get_product_info(product_type, product_id)
                 duration_days = product_info['duration_days']
-                expires_at = datetime.now(timezone.utc) + timedelta(days=duration_days)
                 
-                await self.payment_service.activate_vip(user_id, expires_at)
+                await self.payment_service.activate_vip(user_id, duration_days)
                 
                 return {
                     'success': True,
@@ -511,16 +413,17 @@ def get_shop_handler(payment_service: PaymentService) -> list:
     handler = ShopHandler(payment_service)
     callbacks = []
     
+    # Comando /shop
+    callbacks.append(
+        CommandHandler("shop", handler.shop_command)
+    )
+    
     # Menú principal
     callbacks.append(
-        CallbackQueryHandler(handler.shop_menu, pattern="^shop_menu$|^plan_vip$|^shop$")
+        CallbackQueryHandler(handler.shop_menu, pattern="^shop_menu$|^shop$")
     )
     
-    # Planes VIP
-    callbacks.append(
-        CallbackQueryHandler(handler.show_vip_plans, pattern="^shop_vip$")
-    )
-    
+    # Planes VIP - Solo callbacks de compra (show_vip_plans eliminado)
     callbacks.append(
         CallbackQueryHandler(handler.confirm_purchase, pattern="^shop_vip_")
     )

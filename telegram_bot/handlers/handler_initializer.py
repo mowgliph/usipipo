@@ -1,4 +1,4 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
 from application.services.achievement_service import AchievementService
@@ -19,7 +19,7 @@ from telegram_bot.handlers.status_handler import status_handler
 from telegram_bot.handlers.support_handler import admin_reply_handler
 from telegram_bot.handlers.cancel_handler import cancel_handler
 from telegram_bot.handlers.operations_handler import (
-    operations_handler, mi_balance_handler, plan_vip_handler, 
+    operations_handler, mi_balance_handler, 
     referidos_handler, atras_handler, operations_menu_callback
 )
 from telegram_bot.handlers.juega_y_gana_handler import juega_y_gana_handler
@@ -53,6 +53,9 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Resolver admin_service (se usará para handlers inline que delegan a AdminHandler)
     admin_service = container.resolve(AdminService)
+    
+    # Resolver vip_command_handler para el comando /vip
+    vip_command_handler, vip_callback_handlers = container.resolve("vip_command_handler")
 
     # Comando /start y botón de registro
     handlers.append(CommandHandler("start", start_handler))
@@ -96,14 +99,13 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Operaciones (Referidos, VIP, etc.)
     handlers.append(MessageHandler(filters.Regex("^💰 Operaciones$"), operations_handler))
-    
     # Botones del menú de operaciones
     handlers.append(MessageHandler(filters.Regex("^💰 Mi Balance$"), 
                                    lambda u, c: mi_balance_handler(u, c, vpn_service)))
     handlers.append(CommandHandler("balance", lambda u, c: mi_balance_handler(u, c, vpn_service)))
 
-    handlers.append(MessageHandler(filters.Regex("^👑 Plan VIP$"), plan_vip_handler))
-    handlers.append(CommandHandler("vip", plan_vip_handler))
+    handlers.append(MessageHandler(filters.Regex("^👑 Plan VIP$"), lambda u, c: vip_command_handler.show_vip_plans(u, c)))
+    handlers.append(CommandHandler("vip", lambda u, c: vip_command_handler.show_vip_plans(u, c)))
 
     handlers.append(MessageHandler(filters.Regex("^🎮 Juega y Gana$"), juega_y_gana_handler))
     handlers.append(CommandHandler("game", juega_y_gana_handler))
@@ -208,6 +210,10 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     shop_handlers = container.resolve("shop_handlers")
     handlers.extend(shop_handlers)
     logger.log_bot_event("INFO", f"Se registraron {len(shop_handlers)} handlers de tienda")
+
+    # Callbacks del handler VIP para integración con tienda
+    handlers.extend(vip_callback_handlers)
+    logger.log_bot_event("INFO", f"Se registraron {len(vip_callback_handlers)} callbacks VIP")
 
     # Handlers para callbacks inline del nuevo sistema
     inline_callback_handlers_list = container.resolve("inline_callback_handlers")

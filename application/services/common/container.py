@@ -63,6 +63,7 @@ from telegram_bot.handlers.admin_handler import get_admin_handler
 from telegram_bot.handlers.task_handler import get_task_handler
 from telegram_bot.handlers.admin_task_handler import get_admin_task_handler
 from telegram_bot.handlers.shop_handler import get_shop_handler
+from telegram_bot.handlers.vip_command_handler import get_vip_command_handler, VipCommandHandler
 from telegram_bot.handlers.inline_callbacks_handler import get_inline_callback_handlers
 from application.services.game_service import GameService
 
@@ -293,6 +294,10 @@ def get_container() -> punq.Container:
         """Factory para los handlers de tienda."""
         return get_shop_handler(create_payment_service())
     
+    def create_vip_command_handler() -> tuple:
+        """Factory para el handler dedicado del comando /vip."""
+        return get_vip_command_handler(create_payment_service())
+    
     def create_inline_callback_handlers_list() -> list:
         """Factory para los handlers de callbacks inline."""
         return get_inline_callback_handlers(
@@ -317,6 +322,7 @@ def get_container() -> punq.Container:
     container.register("task_handlers", factory=create_task_handlers)
     container.register("admin_task_handlers", factory=create_admin_task_handlers)
     container.register("shop_handlers", factory=create_shop_handlers_list)
+    container.register("vip_command_handler", factory=create_vip_command_handler)
     container.register("inline_callback_handlers", factory=create_inline_callback_handlers_list)
 
     logger.debug("✅ Contenedor de dependencias configurado")
