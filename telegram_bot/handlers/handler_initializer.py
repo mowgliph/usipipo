@@ -77,6 +77,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     key_submenu_handler = container.resolve("key_submenu_handlers")
     handlers.append(MessageHandler(filters.Regex("^🛡️ Mis Llaves$"),
                                    lambda u, c: key_submenu_handler.show_key_submenu(u, c)))
+    handlers.append(CommandHandler("mykeys", lambda u, c: key_submenu_handler.show_key_submenu(u, c)))
     
     # Submenú de llaves - Callback handlers
     handlers.extend(key_submenu_handler.get_handlers())
@@ -91,6 +92,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     # Estado y Métricas
     handlers.append(MessageHandler(filters.Regex("^📊 Estado$"),
                                    lambda u, c: status_handler(u, c, vpn_service, admin_service)))
+    handlers.append(CommandHandler("status", lambda u, c: status_handler(u, c, vpn_service, admin_service)))
 
     # Operaciones (Referidos, VIP, etc.)
     handlers.append(MessageHandler(filters.Regex("^💰 Operaciones$"), operations_handler))
@@ -98,10 +100,18 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     # Botones del menú de operaciones
     handlers.append(MessageHandler(filters.Regex("^💰 Mi Balance$"), 
                                    lambda u, c: mi_balance_handler(u, c, vpn_service)))
+    handlers.append(CommandHandler("balance", lambda u, c: mi_balance_handler(u, c, vpn_service)))
+
     handlers.append(MessageHandler(filters.Regex("^👑 Plan VIP$"), plan_vip_handler))
+    handlers.append(CommandHandler("vip", plan_vip_handler))
+
     handlers.append(MessageHandler(filters.Regex("^🎮 Juega y Gana$"), juega_y_gana_handler))
+    handlers.append(CommandHandler("game", juega_y_gana_handler))
+
     handlers.append(MessageHandler(filters.Regex("^👥 Referidos$"), 
                                    lambda u, c: referidos_handler(u, c, referral_service)))
+    handlers.append(CommandHandler("referrals", lambda u, c: referidos_handler(u, c, referral_service)))
+
     handlers.append(MessageHandler(filters.Regex("^🔙 Atrás$"), atras_handler))
     
     # Callback handler para operaciones
@@ -110,6 +120,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     # Sistema de Logros
     handlers.append(MessageHandler(filters.Regex("^🏆 Logros$"),
                                    lambda u, c: achievements_menu_handler(u, c, achievement_service)))
+    handlers.append(CommandHandler("achievements", lambda u, c: achievements_menu_handler(u, c, achievement_service)))
     
     # Callbacks del sistema de logros
     handlers.extend([
