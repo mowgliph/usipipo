@@ -50,16 +50,22 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn
         text += f"📅 **Miembro desde:** {user.created_at.strftime('%d/%m/%Y')}\n"     
         if user.is_vip:
             text += f"👑 **Estado VIP:** Activo hasta {user.vip_expires_at.strftime('%d/%m/%Y')}\n"    
+        is_admin = user_id == int(settings.ADMIN_ID)
         await query.edit_message_text(
             text=text,
-            reply_markup=get_main_menu_for_user(user_id),
+            reply_markup=UserKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
         )     
     except Exception as e:
         logger.error(f"Error en status_handler: {e}")
+        try:
+            is_admin = user_id == int(settings.ADMIN_ID)
+        except:
+            is_admin = False
+            
         await query.edit_message_text(
             text=CommonMessages.Errors.GENERIC.format(error=str(e)),
-            reply_markup=get_main_menu_for_user(user_id)
+            reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
         )
 
 async def operations_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_service=None):
