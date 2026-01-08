@@ -90,7 +90,7 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
 
     # Estado y Métricas
     handlers.append(MessageHandler(filters.Regex("^📊 Estado$"),
-                                   lambda u, c: status_handler(u, c, vpn_service)))
+                                   lambda u, c: status_handler(u, c, vpn_service, admin_service)))
 
     # Operaciones (Referidos, VIP, etc.)
     handlers.append(MessageHandler(filters.Regex("^💰 Operaciones$"), operations_handler))

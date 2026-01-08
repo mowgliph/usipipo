@@ -40,6 +40,10 @@ class IKeyRepository(Protocol):
         """Obtiene todas las llaves activas del sistema."""
         ...
 
+    async def get_all_keys(self) -> List[VpnKey]:
+        """Obtiene todas las llaves del sistema (activas e inactivas)."""
+        ...
+
     async def update_usage(self, key_id: uuid.UUID, used_bytes: int) -> bool:
         """Actualiza el uso de datos de una llave."""
         ...

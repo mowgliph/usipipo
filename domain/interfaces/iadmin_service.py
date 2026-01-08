@@ -51,3 +51,8 @@ class IAdminService(ABC):
     async def get_key_usage_stats(self, key_id: str) -> Dict:
         """Obtener estadísticas de uso de una clave."""
         pass
+
+    @abstractmethod
+    async def get_dashboard_stats(self) -> Dict:
+        """Genera estadísticas completas para el panel de control administrativo."""
+        pass

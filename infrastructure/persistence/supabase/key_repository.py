@@ -148,6 +148,19 @@ class SupabaseKeyRepository(IKeyRepository):
             logger.error(f"❌ Error al obtener llaves activas: {e}")
             return []
 
+    async def get_all_keys(self) -> List[VpnKey]:
+        """Obtiene todas las llaves del sistema (activas e inactivas)."""
+        try:
+            query = select(VpnKeyModel)
+            result = await self.session.execute(query)
+            models = result.scalars().all()
+            
+            return [self._model_to_entity(m) for m in models]
+            
+        except Exception as e:
+            logger.error(f"❌ Error al obtener todas las llaves: {e}")
+            return []
+
     async def get_by_id(self, key_id: uuid.UUID) -> Optional[VpnKey]:
         """Busca una llave por su ID."""
         try:

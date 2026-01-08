@@ -249,6 +249,31 @@ class AdminMessages:
             "   • Hoy: ${revenue_today}\n"
         )
         
+        ADMIN_DASHBOARD = (
+            "📊 **Panel de Control Administrativo**\n"
+            "━━━━━━━━━━━━\n\n"
+            "👤 **Administrador:** {admin_name}\n"
+            "📅 **Fecha:** {current_date}\n\n"
+            "📈 **Resumen del Sistema:**\n"
+            "   • Usuarios Totales: {total_users}\n"
+            "   • Usuarios Activos: {active_users}\n"
+            "   • Usuarios VIP: {vip_users}\n"
+            "   • Llaves Activas: {active_keys}\n"
+            "   • Consumo Total: {total_usage} GB\n"
+            "   • Ingresos Totales: ${total_revenue}\n\n"
+            "📊 **Estadísticas de Uso:**\n"
+            "   • Promedio de Consumo: {avg_usage} GB/usuario\n"
+            "   • Usuarios Nuevos (Hoy): {new_users_today}\n"
+            "   • Llaves Creadas (Hoy): {keys_created_today}\n\n"
+            "🔐 **Distribución de Llaves:**\n"
+            "   • WireGuard: {wireguard_keys} ({wireguard_pct}%)\n"
+            "   • Outline: {outline_keys} ({outline_pct}%)\n\n"
+            "🚀 **Rendimiento del Sistema:**\n"
+            "   • Tiempo de Respuesta: {response_time} ms\n"
+            "   • Uptime: {uptime}%\n"
+            "   • Estado del Servidor: {server_status}\n"
+        )
+        
         USER_STATS = (
             "👥 **Estadísticas de Usuarios**\n"
             "━━━━━━━━━━━━\n\n"
