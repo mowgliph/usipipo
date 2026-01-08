@@ -39,10 +39,10 @@ class PaymentHandler:
         try:
             user_status = await self.vpn_service.get_user_status(telegram_id)
             user = user_status["user"]
-            
+             
             # Verificar si el atributo total_spent existe, de lo contrario usar 0
             total_spent = getattr(user, 'total_spent', 0)
-            
+             
             text = OperationMessages.Balance.DISPLAY.format(
                 name=user.full_name or user.username or f"Usuario {user.telegram_id}",
                 balance=user.balance_stars,
@@ -55,9 +55,18 @@ class PaymentHandler:
             if query.message:
                 current_text = query.message.text or ""
                 current_markup = query.message.reply_markup
-                
-                if current_text == text and current_markup == OperationKeyboards.operations_menu():
-                    return
+                 
+                # Comparar el texto y el teclado de manera más robusta
+                if current_text == text:
+                    # Si el texto es igual, verificar si el teclado también lo es
+                    new_markup = OperationKeyboards.operations_menu()
+                    try:
+                        if current_markup and hasattr(current_markup, 'to_dict') and hasattr(new_markup, 'to_dict'):
+                            if current_markup.to_dict() == new_markup.to_dict():
+                                return
+                    except Exception:
+                        # Si hay un error al comparar, proceder con la edición
+                        pass
 
             await query.edit_message_text(
                 text=text,
