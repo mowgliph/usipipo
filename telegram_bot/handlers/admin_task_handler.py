@@ -336,7 +336,7 @@ class AdminTaskHandler:
                         pattern="^admin_task_menu$"
                     )
                 ],
-                per_message=True,
+                per_message=False,
                 per_chat=True,
                 per_user=True,
             )

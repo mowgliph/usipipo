@@ -24,10 +24,14 @@ async def mi_balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE,
         user_status = await vpn_service.get_user_status(user_id)
         user = user_status["user"]
         
+        # Verificar si el atributo total_spent existe, de lo contrario usar 0
+        total_spent = getattr(user, 'total_spent', 0)
+        
         text = OperationMessages.Balance.DISPLAY.format(
             name=user.full_name or user.username or f"Usuario {user.telegram_id}",
             balance=user.balance_stars,
             total_deposited=user.total_deposited,
+            total_spent=total_spent,
             referral_earnings=user.total_referral_earnings
         )
         

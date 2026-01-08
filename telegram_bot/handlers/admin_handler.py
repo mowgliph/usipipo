@@ -407,9 +407,9 @@ class AdminHandler:
             fallbacks=[
                 CallbackQueryHandler(self.back_to_menu, pattern="^admin$"),
             ],
-            per_message=True,  # ← CAMBIO: era True
+            per_message=False,  
             per_chat=True,
-            per_user=True,      # ← AÑADIDO: para tracking por usuario
+            per_user=True,      
         )
 
 @with_spinner(operation_type="loading")

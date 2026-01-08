@@ -509,7 +509,7 @@ class PaymentHandler:
                     MessageHandler(filters.COMMAND, self.deposit_fallback_handler),
                     MessageHandler(filters.TEXT, self.deposit_fallback_handler)
                 ],
-                per_chat=True,
+                per_chat=False,
                 per_user=True,
             ),
 
