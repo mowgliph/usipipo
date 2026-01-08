@@ -19,6 +19,9 @@ from config import settings
 class UserKeyboards:
     """Teclados para usuarios regulares del bot."""
     
+    # Class constant for pagination
+    ITEMS_PER_PAGE = 5
+     
     @staticmethod
     def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
         """
@@ -105,22 +108,21 @@ class UserKeyboards:
     def server_keys_menu(server_type: str, keys: List[Dict[str, Any]], page: int = 1, total_pages: int = 1) -> InlineKeyboardMarkup:
         """
         Menú de llaves para un servidor específico con paginación.
-        
+         
         Args:
             server_type: Tipo de servidor ('wireguard' o 'outline')
             keys: Lista de llaves disponibles
             page: Página actual
             total_pages: Total de páginas
-            
+             
         Returns:
             InlineKeyboardMarkup con las llaves del servidor
         """
-        ITEMS_PER_PAGE = 5
         keyboard = []
         
         # Mostrar llaves de la página actual
-        start_idx = (page - 1) * ITEMS_PER_PAGE
-        end_idx = start_idx + ITEMS_PER_PAGE
+        start_idx = (page - 1) * UserKeyboards.ITEMS_PER_PAGE
+        end_idx = start_idx + UserKeyboards.ITEMS_PER_PAGE
         page_keys = keys[start_idx:end_idx]
         
         for key in page_keys:
@@ -188,12 +190,11 @@ class UserKeyboards:
         """
         Vista general de todas las llaves con paginación.
         """
-        ITEMS_PER_PAGE = 5
         keyboard = []
         
         # Mostrar llaves de la página actual
-        start_idx = (page - 1) * ITEMS_PER_PAGE
-        end_idx = start_idx + ITEMS_PER_PAGE
+        start_idx = (page - 1) * UserKeyboards.ITEMS_PER_PAGE
+        end_idx = start_idx + UserKeyboards.ITEMS_PER_PAGE
         page_keys = keys[start_idx:end_idx]
         
         for key in page_keys:

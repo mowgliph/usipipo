@@ -141,7 +141,19 @@ class KeySubmenuHandler:
                 })
             
             # Calcular paginación
-            total_pages = max(1, (len(keys_data) + UserKeyboards.ITEMS_PER_PAGE - 1) // UserKeyboards.ITEMS_PER_PAGE)
+            # Debug: Check if ITEMS_PER_PAGE exists as class attribute
+            logger.debug(f"UserKeyboards class attributes: {dir(UserKeyboards)}")
+            logger.debug(f"Looking for ITEMS_PER_PAGE in UserKeyboards: {hasattr(UserKeyboards, 'ITEMS_PER_PAGE')}")
+            
+            # Try to access ITEMS_PER_PAGE with fallback
+            try:
+                items_per_page = UserKeyboards.ITEMS_PER_PAGE
+                logger.debug(f"Using class attribute ITEMS_PER_PAGE: {items_per_page}")
+            except AttributeError:
+                logger.error("ITEMS_PER_PAGE not found as class attribute, using fallback value of 5")
+                items_per_page = 5
+            
+            total_pages = max(1, (len(keys_data) + items_per_page - 1) // items_per_page)
             page = max(1, min(page, total_pages))
             
             # Construir mensaje
