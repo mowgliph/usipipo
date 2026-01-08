@@ -309,6 +309,45 @@ class AdminHandler:
         except Exception as e:
             logger.error(f"Error notificando al usuario {user_id}: {e}")
     
+    async def show_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Muestra estadísticas del bot."""
+        query = update.callback_query
+        await query.answer()
+
+        from utils.logger import logger
+        from datetime import datetime
+        
+        monitoring = logger.monitoring_handler
+
+        if not monitoring:
+            await query.edit_message_text(
+                text="⚠️ El sistema de monitorización no está activo.",
+                reply_markup=AdminKeyboards.main_menu()
+            )
+            return ADMIN_MENU
+
+        # Calcular estadísticas
+        logs = monitoring.bot_logs
+        error_count = sum(1 for log in logs if log['level'] == 'ERROR')
+        warning_count = sum(1 for log in logs if log['level'] == 'WARNING')
+        info_count = sum(1 for log in logs if log['level'] == 'INFO')
+        
+        stats_text = (
+            f"📊 *Estadísticas del Bot*\n\n"
+            f"🔴 *Errores (24h):* {error_count}\n"
+            f"🟡 *Advertencias (24h):* {warning_count}\n"
+            f"🟢 *Info (24h):* {info_count}\n"
+            f"📝 *Total Logs:* {len(logs)}\n\n"
+            f"🕐 *Última Actualización:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        
+        await query.edit_message_text(
+            text=stats_text,
+            reply_markup=AdminKeyboards.main_menu(),
+            parse_mode="Markdown"
+        )
+        return ADMIN_MENU
+
     def get_handlers(self) -> ConversationHandler:
         """Retorna los handlers de administración."""
         return ConversationHandler(
@@ -320,6 +359,7 @@ class AdminHandler:
                     CallbackQueryHandler(self.show_users, pattern="^show_users$"),
                     CallbackQueryHandler(self.show_keys, pattern="^show_keys$"),
                     CallbackQueryHandler(self.show_server_status, pattern="^server_status$"),
+                    CallbackQueryHandler(self.show_stats, pattern="^stats$"),
                 ],
                 VIEWING_USERS: [
                     CallbackQueryHandler(self.back_to_menu, pattern="^admin$"),

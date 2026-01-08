@@ -11,6 +11,7 @@ from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, fil
 from telegram.error import BadRequest
 from utils.logger import logger
 from typing import Dict, Any, List, Optional
+from config import settings
 
 from application.services.vpn_service import VpnService
 from telegram_bot.messages.key_submenu_messages import KeySubmenuMessages
@@ -23,6 +24,21 @@ class KeySubmenuHandler:
     
     def __init__(self, vpn_service: VpnService):
         self.vpn_service = vpn_service
+
+    async def _validate_query(self, query, context, update):
+        """
+        Valida que el objeto query no sea None. Si es None, envía un mensaje de error y retorna False.
+        Si es válido, retorna True.
+        """
+        if query is None:
+            logger.error(f"Error: query es None")
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=CommonMessages.Errors.GENERIC.format(error="Operación no válida"),
+                reply_markup=UserKeyboards.quick_actions()
+            )
+            return False
+        return True
 
     async def _safe_edit_message(self, query, context, text, reply_markup=None, parse_mode=None):
         """
@@ -64,29 +80,32 @@ class KeySubmenuHandler:
         Muestra el menú principal del submenú de llaves.
         """
         query = update.callback_query
-        await query.answer()
         
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
+        await query.answer()
+         
         try:
             user_id = update.effective_user.id
             user_status = await self.vpn_service.get_user_status(user_id)
             keys = user_status.get("keys", [])
-            
-            # Contar llaves por servidor
-            wireguard_keys = [k for k in keys if k.key_type.upper() == 'WIREGUARD']
-            outline_keys = [k for k in keys if k.key_type.upper() == 'OUTLINE']
-            
-            keys_summary = {
-                'wireguard_count': len(wireguard_keys),
-                'outline_count': len(outline_keys),
-                'total_count': len(keys)
-            }
-            
-            # Construir mensaje
+             
+            # Contar llaves por servidor dinámicamente
+            keys_summary = {'total_count': len(keys)}
             message = KeySubmenuMessages.MAIN_MENU
-            message += f"\n🟦 **WireGuard:** {len(wireguard_keys)} llaves"
-            message += f"\n🟩 **Outline:** {len(outline_keys)} llaves"
-            message += f"\n\n📊 **Total:** {len(keys)} llaves activas"
             
+            for protocol in settings.get_vpn_protocols():
+                count = len([k for k in keys if k.key_type.lower() == protocol.lower()])
+                keys_summary[f'{protocol}_count'] = count
+                
+                # Obtener badge y formatear
+                badge = KeySubmenuMessages.get_server_badge(protocol)
+                message += f"\n**{badge}:** {count} llaves"
+
+            message += f"\n\n📊 **Total:** {len(keys)} llaves activas"
+             
             await self._safe_edit_message(
                 query,
                 context,
@@ -94,7 +113,7 @@ class KeySubmenuHandler:
                 reply_markup=UserKeyboards.my_keys_submenu(keys_summary),
                 parse_mode="Markdown"
             )
-            
+             
         except Exception as e:
             logger.error(f"Error en show_key_submenu: {e}")
             await self._safe_edit_message(
@@ -109,6 +128,11 @@ class KeySubmenuHandler:
         Muestra las llaves de un servidor específico con paginación.
         """
         query = update.callback_query
+        
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
         await query.answer()
         
         try:
@@ -116,17 +140,17 @@ class KeySubmenuHandler:
             user_status = await self.vpn_service.get_user_status(user_id)
             all_keys = user_status.get("keys", [])
             
-            # Filtrar llaves por servidor
-            if server_type.upper() == 'WIREGUARD':
-                server_keys = [k for k in all_keys if k.key_type.upper() == 'WIREGUARD']
-                header = KeySubmenuMessages.WIREGUARD_HEADER
-                server_name = "WireGuard"
-            elif server_type.upper() == 'OUTLINE':
-                server_keys = [k for k in all_keys if k.key_type.upper() == 'OUTLINE']
-                header = KeySubmenuMessages.OUTLINE_HEADER
-                server_name = "Outline"
+            # Filtrar llaves por servidor de manera dinámica
+            server_keys = [k for k in all_keys if k.key_type.lower() == server_type.lower()]
+            
+            # Obtener encabezado dinámicamente o usar default
+            header_attr = f"{server_type.upper()}_HEADER"
+            if hasattr(KeySubmenuMessages, header_attr):
+                header = getattr(KeySubmenuMessages, header_attr)
             else:
-                raise ValueError(f"Tipo de servidor desconocido: {server_type}")
+                header = f"🔧 **{server_type.capitalize()} Server**\n━━━━━━━━━━━━\n"
+            
+            server_name = server_type.capitalize()
             
             # Convertir a diccionarios para compatibilidad
             keys_data = []
@@ -189,6 +213,11 @@ class KeySubmenuHandler:
         Muestra el detalle de una llave específica.
         """
         query = update.callback_query
+        
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
         await query.answer()
         
         try:
@@ -231,6 +260,11 @@ class KeySubmenuHandler:
         Maneja la confirmación de eliminación de llave.
         """
         query = update.callback_query
+        
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
         await query.answer()
         
         try:
@@ -262,6 +296,11 @@ class KeySubmenuHandler:
         Ejecuta la eliminación de la llave.
         """
         query = update.callback_query
+        
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
         await query.answer()
         
         try:
@@ -290,6 +329,11 @@ class KeySubmenuHandler:
         Muestra estadísticas detalladas de una llave.
         """
         query = update.callback_query
+        
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
         await query.answer()
         
         try:
@@ -352,6 +396,11 @@ class KeySubmenuHandler:
         Muestra detalles técnicos de la configuración de la llave.
         """
         query = update.callback_query
+        
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
         await query.answer()
         
         try:
@@ -398,6 +447,11 @@ class KeySubmenuHandler:
         Muestra vista general de todas las llaves con paginación.
         """
         query = update.callback_query
+        
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
         await query.answer()
         
         try:
@@ -453,6 +507,11 @@ class KeySubmenuHandler:
         Maneja la navegación de vuelta al menú principal de servidores.
         """
         query = update.callback_query
+        
+        # Validar que query no sea None
+        if not await self._validate_query(query, context, update):
+            return
+        
         await query.answer()
         
         await self.show_key_submenu(update, context)
@@ -474,6 +533,9 @@ class KeySubmenuHandler:
             # Obtener información del usuario
             user = await self.vpn_service.user_repo.get_by_id(key.user_id)
             
+            # Obtener estado del servidor dinámicamente
+            server_status = await self.vpn_service.get_server_status(key.key_type)
+            
             # Formatear los datos para el mensaje
             return {
                 'id': str(key.id),
@@ -484,11 +546,7 @@ class KeySubmenuHandler:
                 'used_gb': round(key.used_bytes / (1024**3), 1),
                 'limit_gb': round(key.data_limit_bytes / (1024**3), 1),
                 'is_active': key.is_active,
-                'server_info': {
-                    'location': 'Miami, USA',  # Esto podría obtenerse de configuración
-                    'ping': 45,  # Esto podría obtenerse de monitoreo real
-                    'load': 65   # Esto podría obtenerse de monitoreo real
-                }
+                'server_info': server_status
             }
         except Exception as e:
             logger.error(f"Error obteniendo datos de llave {key_id}: {e}")
@@ -506,27 +564,20 @@ class KeySubmenuHandler:
             pattern="^key_submenu_main$"
         ))
         
-        # Servidores específicos
-        handlers.append(CallbackQueryHandler(
-            lambda u, c: self.show_server_keys(u, c, "wireguard"), 
-            pattern="^key_submenu_server_wireguard$"
-        ))
-        
-        handlers.append(CallbackQueryHandler(
-            lambda u, c: self.show_server_keys(u, c, "outline"), 
-            pattern="^key_submenu_server_outline$"
-        ))
-        
-        # Paginación por servidor
-        handlers.append(CallbackQueryHandler(
-            lambda u, c: self._handle_server_pagination(u, c, "wireguard"), 
-            pattern="^key_submenu_page_wireguard_"
-        ))
-        
-        handlers.append(CallbackQueryHandler(
-            lambda u, c: self._handle_server_pagination(u, c, "outline"), 
-            pattern="^key_submenu_page_outline_"
-        ))
+        # Servidores específicos (Generación Dinámica)
+        # Reemplaza la definición estática anterior para soportar nuevos protocolos automáticamente
+        for protocol in settings.get_vpn_protocols():
+            # Handler para mostrar llaves del servidor
+            handlers.append(CallbackQueryHandler(
+                lambda u, c, p=protocol: self.show_server_keys(u, c, p), 
+                pattern=f"^key_submenu_server_{protocol}$"
+            ))
+            
+            # Handler para paginación por servidor
+            handlers.append(CallbackQueryHandler(
+                lambda u, c, p=protocol: self._handle_server_pagination(u, c, p), 
+                pattern=f"^key_submenu_page_{protocol}_"
+            ))
         
         # Vista general de todas las llaves
         handlers.append(CallbackQueryHandler(

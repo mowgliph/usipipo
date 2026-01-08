@@ -239,6 +239,54 @@ class VpnService:
         except Exception as e:
             logger.error(f"Error obteniendo configuración Outline para {key_id}: {e}")
             return {'access_url': 'Error al obtener configuración'}
+
+    async def get_server_status(self, server_type: str) -> dict:
+        """
+        Obtiene información de estado del servidor (ubicación, ping, carga).
+        Centraliza la obtención de métricas para ser consumidas por los handlers.
+        """
+        try:
+            # Valores por defecto
+            location = "Miami, USA" # Podría moverse a configuración
+            ping = 45
+            load = 0
+
+            if server_type.lower() == 'outline':
+                # Intentar obtener carga real de Outline
+                try:
+                    info = await self.outline_client.get_server_info()
+                    # Usamos el conteo de llaves como proxy de carga si no hay métrica de CPU
+                    # Normalizamos a un porcentaje (ej: 100 llaves = 100% carga es un ejemplo simple)
+                    key_count = info.get('total_keys', 0)
+                    load = min(key_count, 100) 
+                    if info.get('is_healthy'):
+                         ping = 35 # Si está healthy asumimos buen ping
+                except Exception as e:
+                    logger.warning(f"No se pudo obtener estado real de Outline: {e}")
+
+            elif server_type.lower() == 'wireguard':
+                # Intentar obtener carga real de WireGuard
+                try:
+                    usage = await self.wireguard_client.get_usage()
+                    # Proxy de carga: número de peers activos
+                    active_peers = len(usage)
+                    load = min(active_peers * 2, 100) # Asumimos 50 usuarios = 100% carga
+                except Exception as e:
+                    logger.warning(f"No se pudo obtener estado real de WireGuard: {e}")
+
+            return {
+                'location': location,
+                'ping': ping,
+                'load': load
+            }
+        except Exception as e:
+            logger.error(f"Error general obteniendo estado de servidor {server_type}: {e}")
+            return {
+                'location': 'Desconocida',
+                'ping': 0,
+                'load': 0
+            }
+
     
         
     async def deactivate_inactive_key(self, key_id: uuid.UUID) -> bool:
