@@ -54,9 +54,14 @@ async def referidos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     try:
         referral_data = await referral_service.get_user_referral_data(user_id)
         
+        # Generar el enlace de referido
+        referral_code = referral_data.get("code", "N/A")
+        referral_link = f"https://t.me/{settings.BOT_USERNAME}?start={referral_code}"
+        
         text = OperationMessages.Referral.MENU.format(
-            bot_username="usipipo_vpn_bot",
-            referral_code=referral_data.get("code", "N/A"),
+            bot_username=settings.BOT_USERNAME,
+            referral_link=referral_link,
+            referral_code=referral_code,
             direct_referrals=referral_data.get("direct_referrals", 0),
             total_earnings=referral_data.get("total_earnings", 0),
             commission=10

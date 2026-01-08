@@ -119,7 +119,12 @@ class Settings(BaseSettings):
         ge=1,
         description="Límite de peticiones por minuto por usuario en Telegram"
     )
-    
+
+    BOT_USERNAME: str = Field(
+        default="usipipo_bot",
+        description="Nombre de usuario del bot de Telegram (sin @)"
+    )
+
     TELEGRAM_WEBHOOK_URL: Optional[str] = Field(
         default=None,
         description="URL del webhook de Telegram (opcional, usar polling por defecto)"

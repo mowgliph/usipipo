@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, CommandHandler,filters
 from utils.logger import logger
 
+from config import settings
 from application.services.referral_service import ReferralService
 from application.services.vpn_service import VpnService
 from telegram_bot.messages import OperationMessages, CommonMessages
@@ -37,9 +38,13 @@ class ReferralHandler:
             referral_code = await self.referral_service.get_referral_code(telegram_id)
             referrals = await self.referral_service.get_referrals(telegram_id)
             earnings = await self.referral_service.get_referral_earnings(telegram_id)
-
+    
+            # Generar el enlace de referido
+            referral_link = f"https://t.me/{settings.BOT_USERNAME}?start={referral_code}"
+    
             text = OperationMessages.Referral.MENU.format(
-                bot_username="usipipo_bot",  # TODO: Get from config
+                bot_username=settings.BOT_USERNAME,
+                referral_link=referral_link,
                 referral_code=referral_code,
                 direct_referrals=len(referrals),
                 total_earnings=earnings,
@@ -70,9 +75,13 @@ class ReferralHandler:
             referral_code = await self.referral_service.get_referral_code(telegram_id)
             referrals = await self.referral_service.get_referrals(telegram_id)
             earnings = await self.referral_service.get_referral_earnings(telegram_id)
-
+    
+            # Generar el enlace de referido
+            referral_link = f"https://t.me/{settings.BOT_USERNAME}?start={referral_code}"
+    
             text = OperationMessages.Referral.MENU.format(
-                bot_username="usipipo_bot",  # TODO: Get from config
+                bot_username=settings.BOT_USERNAME,
+                referral_link=referral_link,
                 referral_code=referral_code,
                 direct_referrals=len(referrals),
                 total_earnings=earnings,
@@ -193,7 +202,7 @@ class ReferralHandler:
 
             text = OperationMessages.Referral.SHARE.format(
                 referral_code=escaped_referral_code,
-                bot_username="usipipo_bot"  # TODO: Get from config
+                bot_username=settings.BOT_USERNAME
             )
 
             await query.edit_message_text(
