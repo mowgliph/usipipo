@@ -75,6 +75,7 @@ class PaymentHandler:
     async def deposit_amount_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Procesa la cantidad de estrellas a recargar y crea la factura."""
         logger.info(f"💰 deposit_amount_handler llamado con texto: '{update.message.text}'")
+        logger.info(f"🔍 Contexto de conversación: {context.chat_data}")
         
         try:
             # Validar que sea un número entero (sin decimales)
@@ -86,6 +87,15 @@ class PaymentHandler:
                 logger.warning(f"❌ Decimales detectados en: '{amount_text}'")
                 await update.message.reply_text(
                     "❌ Solo se permiten números enteros (sin decimales).\n\nEnvía un número entero entre 1 y 10000:",
+                    parse_mode="Markdown"
+                )
+                return DEPOSIT_AMOUNT
+            
+            # Validar que sea solo dígitos
+            if not amount_text.isdigit():
+                logger.warning(f"❌ Texto no numérico detectado: '{amount_text}'")
+                await update.message.reply_text(
+                    "❌ Por favor, envía solo números (sin texto ni símbolos).\n\nEnvía un número entero entre 1 y 10000:",
                     parse_mode="Markdown"
                 )
                 return DEPOSIT_AMOUNT
@@ -103,9 +113,12 @@ class PaymentHandler:
                 return DEPOSIT_AMOUNT
 
             telegram_id = update.effective_user.id
+            logger.info(f"👤 Usuario ID: {telegram_id}")
 
             # Crear la factura usando Telegram Stars
             prices = [LabeledPrice(label=f"Recarga de {amount} estrellas", amount=amount)]
+            logger.info(f"📋 Creando factura para {amount} estrellas")
+            
             await update.message.reply_invoice(
                 title=f"Recarga de {amount} Estrellas",
                 description=f"Recarga tu saldo con {amount} estrellas de Telegram.",
@@ -115,17 +128,19 @@ class PaymentHandler:
                 prices=prices,
                 start_parameter="deposit"
             )
-
+            
+            logger.info(f"✅ Factura creada exitosamente para {amount} estrellas")
             return ConversationHandler.END
 
-        except ValueError:
+        except ValueError as ve:
+            logger.error(f"❌ Error de valor en deposit_amount_handler: {ve}")
             await update.message.reply_text(
                 "❌ Por favor, envía un número válido.\n\nIntenta de nuevo:",
                 parse_mode="Markdown"
             )
             return DEPOSIT_AMOUNT
         except Exception as e:
-            logger.error(f"Error in deposit_amount_handler: {e}")
+            logger.error(f"❌ Error in deposit_amount_handler: {e}")
             await update.message.reply_text(
                 text=CommonMessages.Errors.GENERIC.format(error=str(e)),
                 parse_mode="Markdown"
@@ -341,6 +356,28 @@ class PaymentHandler:
             )
 
 
+    async def deposit_fallback_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler de fallback para el proceso de depósito."""
+        logger.info(f"🔄 Fallback handler llamado en conversación de depósito")
+        
+        if update.message and update.message.text:
+            # Si es un comando, cancelar la conversación
+            if update.message.text.startswith('/'):
+                await update.message.reply_text(
+                    "❌ **Operación cancelada**\n\nUsa el menú de operaciones para iniciar nuevamente la recarga.",
+                    parse_mode="Markdown"
+                )
+                return ConversationHandler.END
+            else:
+                # Si es texto, mostrar mensaje de error y mantener en conversación
+                await update.message.reply_text(
+                    "❌ Entrada no válida. Por favor, envía solo un número entero entre 1 y 10000.\n\nEjemplo: 100",
+                    parse_mode="Markdown"
+                )
+                return DEPOSIT_AMOUNT
+        
+        return ConversationHandler.END
+
     async def vip_payment_method_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Maneja la selección del método de pago para VIP."""
         query = update.callback_query
@@ -359,7 +396,7 @@ class PaymentHandler:
 
             # Parsear datos del callback
             parts = callback_data.split('_')
-            if len(parts) == 5 and parts[0] == 'vip' and parts[1] == 'pay':
+            if len(parts) == 6 and parts[0] == 'vip' and parts[1] == 'pay':
                 payment_method = parts[2]  # 'balance' o 'invoice'
                 telegram_id = int(parts[3])
                 months = int(parts[4])
@@ -468,8 +505,10 @@ class PaymentHandler:
                         MessageHandler(filters.TEXT & ~filters.COMMAND, self.deposit_amount_handler)
                     ]
                 },
-                fallbacks=[],
-                per_message=True,
+                fallbacks=[
+                    MessageHandler(filters.COMMAND, self.deposit_fallback_handler),
+                    MessageHandler(filters.TEXT, self.deposit_fallback_handler)
+                ],
                 per_chat=True,
                 per_user=True,
             ),
