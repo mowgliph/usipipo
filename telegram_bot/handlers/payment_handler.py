@@ -51,6 +51,14 @@ class PaymentHandler:
                 referral_earnings=user.total_referral_earnings
             )
 
+            # Verificar si el mensaje actual ya tiene el mismo contenido
+            if query.message:
+                current_text = query.message.text or ""
+                current_markup = query.message.reply_markup
+                
+                if current_text == text and current_markup == OperationKeyboards.operations_menu():
+                    return
+
             await query.edit_message_text(
                 text=text,
                 reply_markup=OperationKeyboards.operations_menu(),
@@ -61,7 +69,8 @@ class PaymentHandler:
             logger.error(f"Error in balance_display_handler: {e}")
             await query.edit_message_text(
                 text=CommonMessages.Errors.GENERIC.format(error=str(e)),
-                reply_markup=OperationKeyboards.operations_menu()
+                reply_markup=OperationKeyboards.operations_menu(),
+                parse_mode="Markdown"
             )
 
     async def deposit_instructions_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
