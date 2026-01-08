@@ -1,4 +1,4 @@
- from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
 from application.services.achievement_service import AchievementService
