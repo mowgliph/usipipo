@@ -13,11 +13,11 @@ Version: 1.0.0
 
 from enum import Enum
 from typing import Any, Dict, Optional, Type, Union
-from user_messages import UserMessages
-from admin_messages import AdminMessages
-from operations_messages import OperationMessages
-from support_messages import SupportMessages, TaskMessages, AchievementMessages
-from common_messages import CommonMessages
+from .user_messages import UserMessages
+from .admin_messages import AdminMessages
+from .operations_messages import OperationMessages
+from .support_messages import SupportMessages, TaskMessages, AchievementMessages
+from .common_messages import CommonMessages
 
 
 # ============================================
