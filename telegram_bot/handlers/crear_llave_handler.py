@@ -71,10 +71,13 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
     try:
         # 1. Crear llave mediante el Servicio de Aplicación
         new_key = await vpn_service.create_key(telegram_id, key_type, key_name)
-        
+         
         # 2. Preparar ID de archivo único
         safe_name = "".join(x for x in key_name if x.isalnum())
         file_id = f"{telegram_id}_{safe_name}"
+        
+        # 3. Verificar si el usuario es admin
+        is_admin = telegram_id == int(settings.ADMIN_ID)
 
         # 3. Generar Código QR
         qr_path = QrGenerator.generate_vpn_qr(new_key.key_data, file_id)
@@ -128,6 +131,7 @@ async def name_received(update: Update, context: ContextTypes.DEFAULT_TYPE, vpn_
 
     except Exception as e:
         logger.error(f"❌ Error en creación de llave: {e}")
+        is_admin = telegram_id == int(settings.ADMIN_ID)
         await update.message.reply_text(
             text=CommonMessages.Errors.GENERIC.format(error=str(e)),
             reply_markup=UserKeyboards.main_menu(is_admin=is_admin)
@@ -176,14 +180,14 @@ def get_creation_handler(vpn_service: VpnService) -> ConversationHandler:
                 CallbackQueryHandler(cancel_creation_from_callback, pattern="^cancel_create_key$")
             ],
             INPUT_NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, 
+                MessageHandler(filters.TEXT & ~filters.COMMAND,
                              lambda u, c: name_received(u, c, vpn_service)),
                 CallbackQueryHandler(cancel_creation_from_callback, pattern="^cancel_create_key$")
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel_creation)],
-        # CORRECCIÓN: Usar per_message=True para handlers mixtos
-        per_message=True,
+        # CORRECCIÓN: Usar per_message=False para evitar problemas con el ID del mensaje
+        per_message=False,
         per_chat=True,
         per_user=True,
         allow_reentry=True
