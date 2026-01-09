@@ -78,10 +78,13 @@ class ConversationRepository:
     async def get_active_by_user(self, user_id: int) -> Optional[Conversation]:
         """Obtiene la conversación activa de un usuario."""
         try:
+            from sqlalchemy import desc
+            
             query = select(ConversationModel).where(
                 (ConversationModel.user_id == user_id) & 
                 (ConversationModel.status == "active")
-            )
+            ).order_by(desc(ConversationModel.last_activity)).limit(1)
+            
             result = await self.session.execute(query)
             model = result.scalar_one_or_none()
             
