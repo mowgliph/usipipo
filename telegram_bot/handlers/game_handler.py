@@ -191,12 +191,25 @@ class GameHandler:
         user_id = query.from_user.id
         game_type = GameType(game_type_str)
         
-        # Animación de juego
-        await query.edit_message_text(
-            f"🎮 Jugando {GameMessages.get_game_name(game_type_str)}...\n\n"
-            f"{GameMessages.get_game_emoji(game_type_str)} ¡Prepárate!",
-            parse_mode="Markdown"
-        )
+        # Animación de juego específica para cada juego
+        if game_type_str == "bowling":
+            await query.edit_message_text(
+                "🎳 ¡Lanzando la bola! 🎳\n\n"
+                "La bola rueda por la pista...",
+                parse_mode="Markdown"
+            )
+        elif game_type_str == "darts":
+            await query.edit_message_text(
+                "🎯 ¡Dardo lanzado! 🎯\n\n"
+                "El dardo vuela hacia el tablero...",
+                parse_mode="Markdown"
+            )
+        elif game_type_str == "dice":
+            await query.edit_message_text(
+                "🎲 ¡Dados rodando! 🎲\n\n"
+                "Los dados giran en el aire...",
+                parse_mode="Markdown"
+            )
         
         # Pequeña pausa para suspense
         import asyncio
@@ -209,16 +222,30 @@ class GameHandler:
             # Obtener balance actualizado
             balance = await self.game_service.get_user_balance(user_id)
             
+            # Mensajes específicos para cada juego
             if result == GameResult.WIN:
-                message = GameMessages.WIN_MESSAGE.format(
-                    game_type=GameMessages.get_game_name(game_type_str),
-                    stars=stars_earned,
-                    total_stars=balance.stars_balance
-                )
+                if game_type_str == "bowling":
+                    message = GameMessages.BOWLING_WIN_MESSAGE.format(
+                        stars=stars_earned,
+                        total_stars=balance.stars_balance
+                    )
+                elif game_type_str == "darts":
+                    message = GameMessages.DARTS_WIN_MESSAGE.format(
+                        stars=stars_earned,
+                        total_stars=balance.stars_balance
+                    )
+                elif game_type_str == "dice":
+                    message = GameMessages.DICE_WIN_MESSAGE.format(
+                        stars=stars_earned,
+                        total_stars=balance.stars_balance
+                    )
             else:
-                message = GameMessages.LOSE_MESSAGE.format(
-                    game_type=GameMessages.get_game_name(game_type_str)
-                )
+                if game_type_str == "bowling":
+                    message = GameMessages.BOWLING_LOSE_MESSAGE
+                elif game_type_str == "darts":
+                    message = GameMessages.DARTS_LOSE_MESSAGE
+                elif game_type_str == "dice":
+                    message = GameMessages.DICE_LOSE_MESSAGE
             
             # Teclado para volver al menú
             keyboard = CommonKeyboards.action_buttons([

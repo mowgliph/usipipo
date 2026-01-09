@@ -2,7 +2,7 @@
 Mensajes del sistema de juegos para el bot uSipipo.
 
 Author: uSipipo Team
-Version: 1.0.0
+Version: 2.0.0
 """
 
 class GameMessages:
@@ -12,16 +12,6 @@ class GameMessages:
     MENU = """🎮 **Play & Earn** 🎮
 
 ¡Gana estrellas jugando y úsalas para obtener planes VIP!
-
-🌟 **¿Qué son las estrellas?**
-• 1 estrella = 1 estrella de Telegram
-• Úsalas para comprar cualquier plan
-• Acumula y canjea cuando quieras
-
-🎯 **Tus juegos diarios:**
-• 🎳 Bowling - 40% de probabilidad de ganar
-• 🎯 Dardos - 35% de probabilidad de ganar  
-• 🎲 Dados - 45% de probabilidad de ganar
 
 📊 **Límites semanales:**
 • 1 juego por día
@@ -45,7 +35,6 @@ Elige tu juego y buena suerte! 🍀"""
 
 Lanza la bola y derriba todos los pines!
 
-🎯 **Probabilidad de ganar:** 40%
 🏆 **Premio:** 1 estrella ⭐
 
 ¿Listo para lanzar? 🎳"""
@@ -54,7 +43,6 @@ Lanza la bola y derriba todos los pines!
 
 Apunta al centro y obtén la máxima puntuación!
 
-🎯 **Probabilidad de ganar:** 35%
 🏆 **Premio:** 1 estrella ⭐
 
 ¿Preparado para disparar? 🎯"""
@@ -63,7 +51,6 @@ Apunta al centro y obtén la máxima puntuación!
 
 Lanza los dados y obtén la combinación perfecta!
 
-🎯 **Probabilidad de ganar:** 45%
 🏆 **Premio:** 1 estrella ⭐
 
 ¿Sientes la suerte? 🎲"""
@@ -84,6 +71,58 @@ Lanza los dados y obtén la combinación perfecta!
 🎯 **Mañana podrás jugar de nuevo**
 
 ¡No te rindas! 🍀"""
+
+    # Mensajes específicos para cada juego
+    BOWLING_WIN_MESSAGE = """🎳 **¡STRIKE!** 🎳
+
+🎯 ¡Derribaste todos los pines! 🎯
+🏆 **Victoria en Bowling**
+⭐ **Estrellas ganadas:** +{stars}
+💰 **Nuevo balance:** {total_stars} estrellas
+
+¡Eres un campeón del bowling! 🌟"""
+
+    DARTS_WIN_MESSAGE = """🎯 **¡BULLSEYE!** 🎯
+
+🎯 ¡Impacto en el centro! 50 puntos! 🎯
+🏆 **Victoria en Dardos**
+⭐ **Estrellas ganadas:** +{stars}
+💰 **Nuevo balance:** {total_stars} estrellas
+
+¡Eres un maestro de los dardos! 🌟"""
+
+    DICE_WIN_MESSAGE = """🎲 **¡DOBLE SEIS!** 🎲
+
+🎲 ¡Sacaste un 6 y un 6! 🎲
+🏆 **Victoria en Dados**
+⭐ **Estrellas ganadas:** +{stars}
+💰 **Nuevo balance:** {total_stars} estrellas
+
+¡La suerte está de tu lado! 🌟"""
+
+    BOWLING_LOSE_MESSAGE = """🎳 **Casi lo logras...** 🎳
+
+🎯 ¡Derribaste 5 pines! 🎯
+😔 **No esta vez...**
+🎯 **Mañana podrás jugar de nuevo**
+
+¡Sigue practicando! 🍀"""
+
+    DARTS_LOSE_MESSAGE = """🎯 **Casi en el blanco...** 🎯
+
+🎯 ¡Impacto en el borde! 10 puntos! 🎯
+😔 **No esta vez...**
+🎯 **Mañana podrás jugar de nuevo**
+
+¡Mejora tu puntería! 🍀"""
+
+    DICE_LOSE_MESSAGE = """🎲 **Casi lo logras...** 🎲
+
+🎲 ¡Sacaste un 2 y un 3! 🎲
+😔 **No esta vez...**
+🎯 **Mañana podrás jugar de nuevo**
+
+¡La suerte cambiará! 🍀"""
 
     # Mensajes de restricción
     ALREADY_PLAYED_TODAY = """⏰ **Ya jugaste hoy**
@@ -136,16 +175,7 @@ Has usado tu juego diario disponible.
 3. Cada victoria = 1 estrella
 4. Usa estrellas para comprar planes
 
-📊 **Probabilidades de ganar:**
-• 🎳 Bowling: 40%
-• 🎯 Dardos: 35%
-• 🎲 Dados: 45%
-
-⭐ **¿Qué son las estrellas?**
-Son monedas virtuales que equivalen a 1 estrella de Telegram real.
-Puedes usarlas para comprar cualquier plan del bot.
-
-🔄 **¿Cuándo se reinicia?**
+💡 **Consejos:**🔄 **¿Cuándo se reinicia?**
 • Juegos diarios: Cada 24 horas
 • Victorias semanales: Cada lunes
 
