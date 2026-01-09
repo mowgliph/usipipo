@@ -38,6 +38,10 @@ class SpinnerManager:
         "vpn": "🌐 Configurando VPN...",
         "payment": "💳 Procesando pago...",
         "register": "👤 Registrando usuario...",
+        "ai_thinking": "🌊 Sip está pensando...",
+        "ai_searching": "🌊 Sip está buscando información...",
+        "ai_analyzing": "🌊 Sip está analizando tu problema...",
+        "ai_generating": "🌊 Sip está generando respuesta...",
         "default": "⏳ Procesando solicitud..."
     }
     

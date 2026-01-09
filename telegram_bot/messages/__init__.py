@@ -8,6 +8,7 @@ from .operations_messages import OperationMessages
 from .support_messages import SupportMessages, TaskMessages, AchievementMessages
 from .common_messages import CommonMessages
 from .shop_messages import ShopMessages
+from .sip_messages import SipMessages
 
 # Factory and utilities
 from .message_factory import (
@@ -32,6 +33,7 @@ __all__ = [
     'AchievementMessages',
     'CommonMessages',
     'ShopMessages',
+    'SipMessages',
     
     # Factory and utilities
     'MessageFactory',

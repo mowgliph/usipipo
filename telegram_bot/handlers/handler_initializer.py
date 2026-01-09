@@ -219,4 +219,9 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     inline_callback_handlers_list = container.resolve("inline_callback_handlers")
     handlers.extend(inline_callback_handlers_list)
 
+    # Sistema de Soporte con IA Sip
+    ai_support_handler = container.resolve("ai_support_handler")
+    handlers.append(ai_support_handler)
+    logger.log_bot_event("INFO", "✅ Handler de IA Sip registrado correctamente")
+
     return handlers

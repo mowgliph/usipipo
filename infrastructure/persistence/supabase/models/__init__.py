@@ -18,6 +18,7 @@ from .base import (
     UserAchievementModel,
     TaskModel,
     UserTaskModel,
+    ConversationModel,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "UserAchievementModel",
     "TaskModel",
     "UserTaskModel",
+    "ConversationModel",
 ]

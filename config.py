@@ -129,7 +129,41 @@ class Settings(BaseSettings):
         default=None,
         description="URL del webhook de Telegram (opcional, usar polling por defecto)"
     )
-    
+
+    # =========================================================================
+    # GROQ IA API
+    # =========================================================================
+    GROQ_API_KEY: str = Field(
+        default="",
+        description="API Key de Groq para el asistente IA Sip"
+    )
+
+    GROQ_MODEL: str = Field(
+        default="llama-3.1-8b-instant",
+        description="Modelo de IA a usar en Groq (llama-3.1-8b-instant o llama-3.3-70b-versatile)"
+    )
+
+    GROQ_TEMPERATURE: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=2.0,
+        description="Temperatura para respuestas de IA (0.0 = determinista, 2.0 = creativo)"
+    )
+
+    GROQ_MAX_TOKENS: int = Field(
+        default=1000,
+        ge=100,
+        le=4000,
+        description="Máximo de tokens en respuesta de IA"
+    )
+
+    GROQ_TIMEOUT: int = Field(
+        default=15,
+        ge=5,
+        le=60,
+        description="Timeout en segundos para peticiones a Groq API"
+    )
+
     # =========================================================================
     # SUPABASE / POSTGRESQL
     # =========================================================================

@@ -275,15 +275,29 @@ class SupportKeyboards:
         """Menú de soporte técnico."""
         keyboard = [
             [
-                InlineKeyboardButton("🎫 Crear Ticket", callback_data="create_ticket"),
-                InlineKeyboardButton("📋 Mis Tickets", callback_data="my_tickets")
+                InlineKeyboardButton("🌊 Sip (Asistente IA)", callback_data="ai_sip_start"),
+                InlineKeyboardButton("🎫 Crear Ticket", callback_data="create_ticket")
             ],
             [
-                InlineKeyboardButton("❓ FAQ", callback_data="faq"),
-                InlineKeyboardButton("🔙 Volver", callback_data="operations")
+                InlineKeyboardButton("📋 Mis Tickets", callback_data="my_tickets"),
+                InlineKeyboardButton("❓ FAQ", callback_data="faq")
             ],
             [
+                InlineKeyboardButton("🔙 Volver", callback_data="operations"),
                 InlineKeyboardButton("❌ Cancelar", callback_data="cancel")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def ai_support_active() -> InlineKeyboardMarkup:
+        """Opciones cuando hay una conversación IA activa."""
+        keyboard = [
+            [
+                InlineKeyboardButton("💡 Preguntas Frecuentes", callback_data="ai_sip_suggestions")
+            ],
+            [
+                InlineKeyboardButton("🔴 Finalizar Chat", callback_data="ai_sip_end")
             ]
         ]
         return InlineKeyboardMarkup(keyboard)

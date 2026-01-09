@@ -17,6 +17,7 @@ from application.services.support_service import SupportService
 from application.services.payment_service import PaymentService
 from application.services.referral_service import ReferralService
 from application.services.achievement_service import AchievementService
+from application.services.ai_support_service import AiSupportService
 
 # Importación de Database
 from infrastructure.persistence.database import init_database, close_database
@@ -28,6 +29,7 @@ from telegram_bot.handlers.handler_initializer import initialize_handlers
 from infrastructure.jobs.ticket_cleaner import close_stale_tickets_job
 from infrastructure.jobs.usage_sync import sync_vpn_usage_job
 from infrastructure.jobs.key_cleanup_job import key_cleanup_job
+from infrastructure.jobs.conversation_cleanup_job import cleanup_stale_conversations_job
 
 # Logging configurado desde utils.logger (centralizado en settings)
 
@@ -56,7 +58,9 @@ def main():
         referral_service = container.resolve(ReferralService)
         payment_service = container.resolve(PaymentService)
         achievement_service = container.resolve(AchievementService)
+        ai_support_service = container.resolve(AiSupportService)
         logger.info("✅ Contenedor de dependencias configurado correctamente.")
+        logger.info("🌊 Servicio de IA Sip inicializado correctamente.")
     except Exception as e:
         logger.critical(f"❌ Error al inicializar el contenedor: {e}")
         sys.exit(1)
@@ -111,6 +115,15 @@ def main():
         data={'vpn_service': vpn_service}
     )
     logger.info("⏰ Job de limpieza de llaves programado.")
+    
+    # Job de limpieza de conversaciones IA (cada 6 horas)
+    job_queue.run_repeating(
+        cleanup_stale_conversations_job,
+        interval=21600,
+        first=300,
+        data={'ai_support_service': ai_support_service}
+    )
+    logger.info("🌊 Job de limpieza de conversaciones IA programado (cada 6h).")
 
     # 4. Registro de Handlers Principales
     handlers = initialize_handlers(

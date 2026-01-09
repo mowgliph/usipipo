@@ -33,10 +33,12 @@ from infrastructure.persistence.supabase.transaction_repository import SupabaseT
 from infrastructure.persistence.supabase.achievement_repository import AchievementRepository, UserStatsRepository
 from infrastructure.persistence.supabase.ticket_repository import TicketRepository
 from infrastructure.persistence.supabase.task_repository import TaskRepository
+from infrastructure.persistence.supabase.conversation_repository import ConversationRepository
 
 # Clientes de Infraestructura
 from infrastructure.api_clients.client_outline import OutlineClient
 from infrastructure.api_clients.client_wireguard import WireGuardClient
+from infrastructure.api_clients.groq_client import GroqClient
 
 # Servicios de Aplicación
 from application.services.vpn_service import VpnService
@@ -46,6 +48,7 @@ from application.services.payment_service import PaymentService
 from application.services.achievement_service import AchievementService
 from application.services.admin_service import AdminService
 from application.services.task_service import TaskService
+from application.services.ai_support_service import AiSupportService
 
 # Handlers
 from telegram_bot.handlers.user_task_manager_handler import get_user_task_manager_handlers
@@ -120,6 +123,7 @@ def get_container() -> punq.Container:
     # =========================================================================
     container.register(OutlineClient, scope=punq.Scope.singleton)
     container.register(WireGuardClient, scope=punq.Scope.singleton)
+    container.register(GroqClient, scope=punq.Scope.singleton)
 
     # =========================================================================
     # 3. REPOSITORIOS (Requieren AsyncSession)
@@ -154,6 +158,10 @@ def get_container() -> punq.Container:
         session = session_factory()
         return TaskRepository(session)
     
+    def create_conversation_repo() -> ConversationRepository:
+        session = session_factory()
+        return ConversationRepository(session)
+    
     container.register(IUserRepository, factory=create_user_repo)
     container.register(IKeyRepository, factory=create_key_repo)
     container.register(ITransactionRepository, factory=create_transaction_repo)
@@ -161,6 +169,7 @@ def get_container() -> punq.Container:
     container.register(IUserStatsRepository, factory=create_user_stats_repo)
     container.register(TicketRepository, factory=create_ticket_repo)
     container.register(TaskRepository, factory=create_task_repo)
+    container.register(ConversationRepository, factory=create_conversation_repo)
 
     # =========================================================================
     # 4. SERVICIOS DE APLICACIÓN
@@ -209,6 +218,12 @@ def get_container() -> punq.Container:
             payment_service=create_payment_service()
         )
     
+    def create_ai_support_service() -> AiSupportService:
+        return AiSupportService(
+            conversation_repo=create_conversation_repo(),
+            groq_client=container.resolve(GroqClient)
+        )
+    
     container.register(VpnService, factory=create_vpn_service)
     container.register(SupportService, factory=create_support_service)
     container.register(ReferralService, factory=create_referral_service)
@@ -216,6 +231,7 @@ def get_container() -> punq.Container:
     container.register(AchievementService, factory=create_achievement_service)
     container.register(AdminService, factory=create_admin_service)
     container.register(TaskService, factory=create_task_service)
+    container.register(AiSupportService, factory=create_ai_support_service)
 
     # =========================================================================
     # 5. HANDLERS (Factories que retornan listas de handlers)
@@ -307,6 +323,11 @@ def get_container() -> punq.Container:
             admin_service=create_admin_service()
         )
     
+    def create_ai_support_handler() -> object:
+        """Factory para el handler de soporte con IA Sip."""
+        from telegram_bot.handlers.ai_support_handler import get_ai_support_handler
+        return get_ai_support_handler(create_ai_support_service())
+    
     container.register("user_task_manager_handlers", factory=create_user_task_manager_handlers)
     container.register("user_announcer_handlers", factory=create_user_announcer_handlers)
     container.register("creation_handlers", factory=create_creation_handlers)
@@ -324,6 +345,7 @@ def get_container() -> punq.Container:
     container.register("shop_handlers", factory=create_shop_handlers_list)
     container.register("vip_command_handler", factory=create_vip_command_handler)
     container.register("inline_callback_handlers", factory=create_inline_callback_handlers_list)
+    container.register("ai_support_handler", factory=create_ai_support_handler)
 
     logger.debug("✅ Contenedor de dependencias configurado")
     

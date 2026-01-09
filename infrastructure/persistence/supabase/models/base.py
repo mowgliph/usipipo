@@ -93,6 +93,9 @@ class UserModel(Base):
     tasks: Mapped[List["UserTaskModel"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    conversations: Mapped[List["ConversationModel"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     
     # Auto-referencia para referidos
     referrals: Mapped[List["UserModel"]] = relationship(
@@ -336,3 +339,31 @@ class UserTaskModel(Base):
     # Relaciones
     user: Mapped["UserModel"] = relationship(back_populates="tasks")
     task: Mapped["TaskModel"] = relationship(back_populates="user_tasks")
+
+
+# =============================================================================
+# MODELO DE CONVERSACIONES IA (SIP)
+# =============================================================================
+
+class ConversationModel(Base):
+    """Modelo de conversaciones con el asistente IA Sip."""
+    __tablename__ = "ai_conversations"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False
+    )
+    user_name: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, server_default="active")
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_activity: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    messages: Mapped[str] = mapped_column(Text, nullable=True)
+    
+    # Relación
+    user: Mapped["UserModel"] = relationship(back_populates="conversations")
