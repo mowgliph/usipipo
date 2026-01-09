@@ -137,33 +137,40 @@ class Settings(BaseSettings):
         default="",
         description="API Key de Groq para el asistente IA Sip"
     )
-
+    
     GROQ_MODEL: str = Field(
-        default="llama-3.3-70b-versatile",
-        description="Modelo de IA a usar en Groq (llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768)"
+        default="openai/gpt-oss-120b",
+        description="Modelo de IA a usar en Groq (openai/gpt-oss-120b, llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768)"
     )
-
+    
     GROQ_TEMPERATURE: float = Field(
         default=0.7,
         ge=0.0,
         le=2.0,
         description="Temperatura para respuestas de IA (0.0 = determinista, 2.0 = creativo)"
     )
-
+    
     GROQ_MAX_TOKENS: int = Field(
         default=2000,
         ge=100,
         le=8000,
         description="Máximo de tokens en respuesta de IA (usado como max_completion_tokens)"
     )
-
+    
     GROQ_TIMEOUT: int = Field(
         default=30,
         ge=10,
         le=120,
         description="Timeout en segundos para peticiones a Groq API"
     )
-
+    
+    GROQ_MAX_RETRIES: int = Field(
+        default=3,
+        ge=1,
+        le=5,
+        description="Número máximo de reintentos para peticiones fallidas"
+    )
+    
     # =========================================================================
     # SUPABASE / POSTGRESQL
     # =========================================================================
@@ -686,3 +693,4 @@ except Exception as e:
     logger.critical(f"   {str(e)}")
     logger.critical("   Revisa tu archivo .env y compara con example.env")
     exit(1)
+

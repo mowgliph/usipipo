@@ -19,6 +19,7 @@ from config import settings
 from utils.logger import logger
 from utils.telegram_utils import TelegramHandlerUtils
 from application.services.support_service import SupportService
+from application.services.common.container import get_container
 
 
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -172,6 +173,30 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=SupportKeyboards.help_menu(),
         parse_mode="Markdown"
     )
+
+
+async def ai_sip_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, ai_support_service):
+    """Handler para iniciar Sip AI desde el menú de ayuda."""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        # Obtener el handler de AI Support
+        from telegram_bot.handlers.ai_support_handler import AiSupportHandler
+        handler = AiSupportHandler(ai_support_service)
+        
+        # Iniciar conversación con AI
+        result = await handler.start_ai_support_callback(update, context)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error en ai_sip_start_handler: {e}")
+        await query.edit_message_text(
+            text="❌ No se pudo iniciar el asistente IA. Por favor, intenta más tarde.",
+            reply_markup=SupportKeyboards.help_menu(),
+            parse_mode="Markdown"
+        )
+        return None
 
 
 async def usage_guide_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -426,6 +451,9 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     handlers.append(CallbackQueryHandler(configuration_handler, pattern="^configuration$"))
     handlers.append(CallbackQueryHandler(faq_handler, pattern="^faq$"))
     handlers.append(CallbackQueryHandler(support_menu_handler, pattern="^support_menu$"))
+    
+    # Handler para iniciar Sip AI desde el menú de ayuda
+    handlers.append(CallbackQueryHandler(lambda u, c: ai_sip_start_handler(u, c, ai_support_service), pattern="^ai_sip_start$"))
     
     # Handlers de soporte
     handlers.append(CallbackQueryHandler(lambda u, c: create_ticket_handler(u, c, support_service), pattern="^create_ticket$"))

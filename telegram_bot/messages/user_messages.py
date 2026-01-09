@@ -239,23 +239,6 @@ class UserMessages:
             "• 10 llaves simultáneas"
         )
         
-        CONFIGURATION = (
-            "🔧 **Configuración de Conexión**\n"
-            "━━━━━━━━━━━━\n\n"
-            "**Para Outline:**\n"
-            "1. Descarga la app Outline\n"
-            "2. Importa la clave QR o texto\n"
-            "3. ¡Conecta y disfruta!\n\n"
-            "**Para WireGuard:**\n"
-            "1. Descarga la app WireGuard\n"
-            "2. Descarga el archivo .conf\n"
-            "3. Importa y conecta\n\n"
-            "━━━━━━━━━━━━\n\n"
-            "📱 **Apps recomendadas:**\n"
-            "• Outline (iOS/Android)\n"
-            "• WireGuard (todas las plataformas)\n"
-        )
-        
         TROUBLESHOOTING = (
             "🛠️ **Solución de Problemas**\n"
             "━━━━━━━━━━━━\n\n"
@@ -273,18 +256,6 @@ class UserMessages:
             "✓ Espera a la renovación\n"
         )
         
-        FAQ = (
-            "❓ **Preguntas Frecuentes**\n"
-            "━━━━━━━━━━━━\n\n"
-            "**¿Es seguro?**\n"
-            "Sí, usamos encriptación de grado militar.\n\n"
-            "**¿Cuántas conexiones simultáneas?**\n"
-            "Hasta 3 dispositivos por llave.\n\n"
-            "**¿Se reinician los datos?**\n"
-            "Sí, mensualmente. Puedes renovar antes.\n\n"
-            "**¿Qué es VIP?**\n"
-            "Datos ilimitados y velocidad prioritaria.\n"
-        )
     
     # ============================================
     # CONFIRMATION DIALOGS
