@@ -169,7 +169,7 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         text=UserMessages.Help.MAIN_MENU,
-        reply_markup=CommonKeyboards.help_menu(),
+        reply_markup=SupportKeyboards.help_menu(),
         parse_mode="Markdown"
     )
 
