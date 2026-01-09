@@ -433,6 +433,50 @@ Soy tu asistente personal para gestionar claves VPN de forma segura y sencilla.
 💬 [Problema pago] 💬 [Otro problema]
 ```
 
+#### `/sipai` o "🌊 Sip"
+**Descripción**: Inicia una conversación con el asistente de IA Sip para obtener ayuda inmediata con problemas de VPN, configuración y seguridad
+**Uso**: `/sipai` o botón "🌊 Sip"
+**Ejemplo**:
+```
+/sipai
+```
+**Respuesta esperada**:
+```
+🌊 **¡Hola! Soy Sip, tu asistente especializado de uSipipo** 🌊
+
+Estoy aquí para ayudarte con todo lo relacionado con VPN, seguridad y privacidad.
+
+🤖 **¿En qué puedo ayudarte?**
+
+🔌 **Conexiones VPN:**
+• Problemas para conectar
+• Configuración en diferentes dispositivos
+• Solución de errores comunes
+
+🔒 **Seguridad y Privacidad:**
+• Cifrado de datos
+• Protección en redes públicas
+• Mejores prácticas de seguridad
+
+💡 **Escribe tu pregunta** y te ayudaré de inmediato.
+
+🔴 *Para finalizar el chat, escribe "Finalizar"*
+```
+
+**Flujo de conversación**:
+1. Usuario envía `/sipai`
+2. Sip responde con mensaje de bienvenida
+3. Usuario hace preguntas sobre VPN/configuración
+4. Sip responde usando IA (Groq)
+5. Si el problema requiere atención humana, Sip escala automáticamente a ticket
+
+**Comandos dentro del chat**:
+- `Finalizar` - Termina la conversación
+- `Salir` - Termina la conversación
+- `Exit` - Termina la conversación
+
+**Escalado automático**: Sip detectará automáticamente cuando necesites hablar con un humano y creará un ticket de soporte.
+
 #### `/ticket <mensaje>`
 **Descripción**: Crea un ticket con mensaje específico
 **Uso**: `/ticket <tu mensaje de soporte>`
@@ -560,6 +604,14 @@ Soy tu asistente personal para gestionar claves VPN de forma segura y sencilla.
 |---------|-------------|------|
 | `/game` | Juegos disponibles | `/game` |
 | `/game_stats` | Estadísticas de juegos | `/game_stats` |
+
+### 📞 **Comandos de Soporte**
+| Comando | Descripción | Uso |
+|---------|-------------|------|
+| `/support` | Ticket de soporte humano | `/support` |
+| `/sipai` | Asistente IA Sip | `/sipai` |
+| `/ticket <mensaje>` | Crear ticket directo | `/ticket <msg>` |
+| `/tickets` | Ver mis tickets | `/tickets` |
 
 ---
 

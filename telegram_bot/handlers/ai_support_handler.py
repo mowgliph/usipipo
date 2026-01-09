@@ -6,7 +6,7 @@ Version: 1.0.0
 """
 
 from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters, CallbackQueryHandler, CommandHandler
 from telegram_bot.messages import SipMessages
 from telegram_bot.keyboard import SupportKeyboards, CommonKeyboards
 from utils.logger import logger
@@ -30,34 +30,72 @@ class AiSupportHandler:
     async def start_ai_support(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Inicia conversación con IA Sip.
-        
+
         Args:
             update: Update de Telegram
             context: Contexto de Telegram
-            
+
         Returns:
             int: Estado de la conversación
         """
         user = update.effective_user
-        
+
         try:
             await self.ai_support_service.start_conversation(
                 user_id=user.id,
                 user_name=user.first_name
             )
-            
+
             await update.message.reply_text(
                 text=SipMessages.WELCOME,
                 reply_markup=SupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
-            
+
             logger.info(f"🌊 Conversación IA iniciada por usuario {user.id}")
             return CHATTING
-            
+
         except Exception as e:
             logger.error(f"❌ Error iniciando soporte IA: {e}")
             await update.message.reply_text(
+                "❌ No pude iniciar el asistente IA. Intenta más tarde."
+            )
+            return ConversationHandler.END
+
+    async def start_ai_support_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Inicia conversación con IA Sip desde callback del menú.
+
+        Args:
+            update: Update de Telegram
+            context: Contexto de Telegram
+
+        Returns:
+            int: Estado de la conversación
+        """
+        query = update.callback_query
+        await query.answer()
+
+        user = update.effective_user
+
+        try:
+            await self.ai_support_service.start_conversation(
+                user_id=user.id,
+                user_name=user.first_name
+            )
+
+            await query.edit_message_text(
+                text=SipMessages.WELCOME,
+                reply_markup=SupportKeyboards.ai_support_active(),
+                parse_mode="Markdown"
+            )
+
+            logger.info(f"🌊 Conversación IA iniciada por usuario {user.id} (callback)")
+            return CHATTING
+
+        except Exception as e:
+            logger.error(f"❌ Error iniciando soporte IA: {e}")
+            await query.edit_message_text(
                 "❌ No pude iniciar el asistente IA. Intenta más tarde."
             )
             return ConversationHandler.END
@@ -195,7 +233,9 @@ def get_ai_support_handler(ai_support_service):
     return ConversationHandler(
         entry_points=[
             MessageHandler(filters.Regex("^🌊 Sip$"), handler.start_ai_support),
-            MessageHandler(filters.Regex("^🤖 Asistente IA$"), handler.start_ai_support)
+            MessageHandler(filters.Regex("^🤖 Asistente IA$"), handler.start_ai_support),
+            CommandHandler("sipai", handler.start_ai_support),
+            CallbackQueryHandler(handler.start_ai_support_callback, pattern="^ai_sip_start$")
         ],
         states={
             CHATTING: [
