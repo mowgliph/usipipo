@@ -37,8 +37,11 @@ authorized_users.json
 # =============================================================================
 # BASE DE DATOS Y MIGRACIONES (ALEMBIC)
 # =============================================================================
-# No ignoramos la carpeta 'migrations/', pero sí archivos específicos si fuera necesario
-# NUNCA ignores los archivos .py dentro de migrations/versions
+# No ignoramos la carpeta 'migrations/', pero sí los archivos autogenerados de versions
+# Los archivos .py en migrations/versions/ contienen información sensible del esquema
+migrations/versions/*.py
+# Mantener solo las carpetas y archivos de plantilla
+!migrations/versions/.gitkeep
 *.db
 *.sqlite
 
