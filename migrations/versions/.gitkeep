@@ -1,0 +1,2 @@
+# Este archivo mantiene la carpeta versions/ en el repositorio
+# Los archivos de migración .py están ignorados por .gitignore
