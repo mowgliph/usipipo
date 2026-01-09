@@ -224,4 +224,10 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     handlers.append(ai_support_handler)
     logger.log_bot_event("INFO", "✅ Handler de IA Sip registrado correctamente")
 
+    # Handler para responder mensajes directos del usuario con IA
+    # Se registra al final para que otros handlers tengan prioridad
+    direct_message_handler = container.resolve("direct_message_handler")
+    handlers.append(direct_message_handler)
+    logger.log_bot_event("INFO", "✅ Handler de mensajes directos con IA registrado correctamente")
+
     return handlers

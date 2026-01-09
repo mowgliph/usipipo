@@ -50,12 +50,8 @@ class AiSupportService(IAiSupportService):
             conversation = Conversation(
                 id=uuid.uuid4(),
                 user_id=user_id,
-                user_name=user_name,
-                started_at=conversation.started_at if 'conversation' in locals() else None,
-                last_activity=conversation.last_activity if 'conversation' in locals() else None
+                user_name=user_name
             )
-            
-            conversation.started_at = conversation.started_at or conversation.last_activity
             
             system_message = Message(
                 role=MessageRole.SYSTEM,

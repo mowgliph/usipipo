@@ -328,6 +328,11 @@ def get_container() -> punq.Container:
         from telegram_bot.handlers.ai_support_handler import get_ai_support_handler
         return get_ai_support_handler(create_ai_support_service())
     
+    def create_direct_message_handler() -> object:
+        """Factory para el handler de mensajes directos con IA."""
+        from telegram_bot.handlers.direct_message_handler import get_direct_message_handler
+        return get_direct_message_handler(create_ai_support_service())
+    
     container.register("user_task_manager_handlers", factory=create_user_task_manager_handlers)
     container.register("user_announcer_handlers", factory=create_user_announcer_handlers)
     container.register("creation_handlers", factory=create_creation_handlers)
@@ -346,6 +351,7 @@ def get_container() -> punq.Container:
     container.register("vip_command_handler", factory=create_vip_command_handler)
     container.register("inline_callback_handlers", factory=create_inline_callback_handlers_list)
     container.register("ai_support_handler", factory=create_ai_support_handler)
+    container.register("direct_message_handler", factory=create_direct_message_handler)
 
     logger.debug("✅ Contenedor de dependencias configurado")
     

@@ -164,21 +164,35 @@ class AiSupportHandler:
         try:
             await self.ai_support_service.end_conversation(user_id)
             
-            await update.message.reply_text(
-                text=SipMessages.CONVERSATION_ENDED,
-                reply_markup=CommonKeyboards.back_button(),
-                parse_mode="Markdown"
-            )
+            # Manejar tanto mensajes como callbacks
+            if update.message:
+                await update.message.reply_text(
+                    text=SipMessages.CONVERSATION_ENDED,
+                    reply_markup=CommonKeyboards.back_button(),
+                    parse_mode="Markdown"
+                )
+            elif update.callback_query:
+                await update.callback_query.edit_message_text(
+                    text=SipMessages.CONVERSATION_ENDED,
+                    reply_markup=CommonKeyboards.back_button(),
+                    parse_mode="Markdown"
+                )
             
             logger.info(f"🌊 Conversación IA finalizada por usuario {user_id}")
             return ConversationHandler.END
             
         except Exception as e:
             logger.error(f"❌ Error finalizando conversación: {e}")
-            await update.message.reply_text(
-                "❌ Hubo un error al finalizar la conversación.",
-                reply_markup=CommonKeyboards.back_button()
-            )
+            if update.message:
+                await update.message.reply_text(
+                    "❌ Hubo un error al finalizar la conversación.",
+                    reply_markup=CommonKeyboards.back_button()
+                )
+            elif update.callback_query:
+                await update.callback_query.edit_message_text(
+                    "❌ Hubo un error al finalizar la conversación.",
+                    reply_markup=CommonKeyboards.back_button()
+                )
             return ConversationHandler.END
     
     async def show_suggested_questions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
