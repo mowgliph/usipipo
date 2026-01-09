@@ -139,8 +139,8 @@ class Settings(BaseSettings):
     )
 
     GROQ_MODEL: str = Field(
-        default="llama-3.1-8b-instant",
-        description="Modelo de IA a usar en Groq (llama-3.1-8b-instant o llama-3.3-70b-versatile)"
+        default="llama-3.3-70b-versatile",
+        description="Modelo de IA a usar en Groq (llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768)"
     )
 
     GROQ_TEMPERATURE: float = Field(
@@ -151,16 +151,16 @@ class Settings(BaseSettings):
     )
 
     GROQ_MAX_TOKENS: int = Field(
-        default=1000,
+        default=2000,
         ge=100,
-        le=4000,
-        description="Máximo de tokens en respuesta de IA"
+        le=8000,
+        description="Máximo de tokens en respuesta de IA (usado como max_completion_tokens)"
     )
 
     GROQ_TIMEOUT: int = Field(
-        default=15,
-        ge=5,
-        le=60,
+        default=30,
+        ge=10,
+        le=120,
         description="Timeout en segundos para peticiones a Groq API"
     )
 
