@@ -322,14 +322,15 @@ class SupportKeyboards:
         """Menú principal de ayuda."""
         keyboard = [
             [
-                InlineKeyboardButton("📖 Guía de Uso", callback_data="usage_guide"),
-                InlineKeyboardButton("🔧 Configuración", callback_data="configuration")
+                InlineKeyboardButton("🌊 Sip AI", callback_data="ai_sip_start"),
+                InlineKeyboardButton("📖 Guía de Uso", callback_data="usage_guide")
             ],
             [
-                InlineKeyboardButton("❓ Preguntas Frecuentes", callback_data="faq"),
-                InlineKeyboardButton("🎫 Soporte", callback_data="support_menu")
+                InlineKeyboardButton("🔧 Configuración", callback_data="configuration"),
+                InlineKeyboardButton("❓ Preguntas Frecuentes", callback_data="faq")
             ],
             [
+                InlineKeyboardButton("🎫 Soporte", callback_data="support_menu"),
                 InlineKeyboardButton("🔙 Volver", callback_data="main_menu")
             ]
         ]
