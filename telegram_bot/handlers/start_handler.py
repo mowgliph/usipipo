@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 from application.services.vpn_service import VpnService
 from application.services.achievement_service import AchievementService
 from telegram_bot.messages import UserMessages, CommonMessages
-from telegram_bot.keyboard import UserKeyboards, Keyboards
+from telegram_bot.keyboard import UserKeyboards
 from config import settings
 from utils.logger import logger
 from telegram import ReplyKeyboardRemove
@@ -100,10 +100,8 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         except Exception as e:
             logger.error(f"Error mostrando menú inline en start_handler: {e}")
-            # Fallback: mostrar botón de respaldo si falla el menú inline
             await update.message.reply_text(
-                text="📋 Presiona el botón para mostrar el menú principal:",
-                reply_markup=Keyboards.show_menu_button()
+                text=CommonMessages.Errors.GENERIC.format(error="No se pudo mostrar el menú. Usa /start para intentarlo nuevamente.")
             )
         
             
