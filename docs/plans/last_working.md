@@ -54,9 +54,19 @@ telegram_bot/
 6. **Migrate achievements to features/achievements** - 100% funcional
 7. **Migrate admin to features/admin** - 100% funcional
 8. **Migrate support to features/support** - 100% funcional
+9. **Migrate key_management to features/key_management** - 100% funcional
+10. **Migrate operations to features/operations** - 100% funcional
 
 ### 🔄 EN PROGRESO:
-9. **Update all imports across the codebase** - Iniciando ahora
+11. **Migrate vip to features/vip** - Iniciando ahora
 
 ### ⏳ PENDIENTE:
-10. **Eliminar código redundante**
+12. **Migrate shop to features/shop**
+13. **Migrate payments to features/payments**
+14. **Migrate referral to features/referral**
+15. **Migrate game to features/game**
+16. **Migrate broadcast to features/broadcast**
+17. **Migrate task_management to features/task_management**
+18. **Migrate announcer to features/announcer**
+19. **Update all imports across the codebase**
+20. **Eliminar código redundante**
