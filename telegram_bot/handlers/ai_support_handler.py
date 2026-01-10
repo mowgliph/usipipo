@@ -260,7 +260,9 @@ def get_ai_support_handler(ai_support_service):
             MessageHandler(filters.Regex("^(Finalizar|Salir|Exit)$"), handler.end_ai_support),
             CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
         ],
-        name="ai_support_conversation"
+        name="ai_support_conversation",
+        per_message=True,
+        per_callback_query=True
     )
 
 
