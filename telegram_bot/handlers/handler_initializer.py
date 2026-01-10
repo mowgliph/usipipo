@@ -234,10 +234,19 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     user_management_handlers = get_user_management_handlers(vpn_service, achievement_service)
     handlers.extend(user_management_handlers)
 
+    # Sistema de Gestión de Llaves VPN (usando nueva feature structure)
+    from telegram_bot.features.vpn_keys import get_vpn_keys_handlers
+    vpn_keys_handlers = get_vpn_keys_handlers(vpn_service)
+    handlers.extend(vpn_keys_handlers)
+
+    # Sistema de Logros (usando nueva feature structure)
+    from telegram_bot.features.achievements import get_achievements_handlers
+    achievements_handlers = get_achievements_handlers(achievement_service)
+    handlers.extend(achievements_handlers)
+
     # Debug logging para verificar el handler
     logger.info(f"🔍 ai_support_handler type: {type(ai_support_handler)}")
     logger.info(f"🔍 ai_support_handler entry_points: {ai_support_handler.entry_points}")
-
 
     # Handler para responder mensajes directos del usuario con IA
     # Se registra al final para que otros handlers tengan prioridad
