@@ -288,10 +288,15 @@ def get_ai_support_handler(ai_support_service):
             MessageHandler(filters.Regex("^(Finalizar|Salir|Exit)$"), handler.end_ai_support),
             CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
         ],
-        name="ai_support_conversation",
-        per_chat=True,   # Asegúrate de que esto sea True
-        per_user=True,
-        per_message=False
+        persistent=False,
+        per_chat=True,    # Rastreo por chat (Recomendado)
+        per_user=True,    # Rastreo por usuario
+        per_message=False, # Elimina el warning al ser explícito
+        allow_reentry=True # Permite que el usuario reinicie la charla si se traba
+        # name="ai_support_conversation",
+        # per_chat=True,   # Asegúrate de que esto sea True
+        # per_user=True,
+        # per_message=False
     )
 
 
