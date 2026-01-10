@@ -320,7 +320,8 @@ def get_container() -> punq.Container:
             vpn_service=create_vpn_service(),
             achievement_service=create_achievement_service(),
             support_service=create_support_service(),
-            admin_service=create_admin_service()
+            admin_service=create_admin_service(),
+            ai_support_service=create_ai_support_service()
         )
     
     def create_ai_support_handler() -> object:
