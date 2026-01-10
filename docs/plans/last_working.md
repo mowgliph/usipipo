@@ -58,12 +58,12 @@ telegram_bot/
 10. **Migrate operations to features/operations** - 100% funcional
 11. **Migrate vip to features/vip** - 100% funcional
 12. **Migrate shop to features/shop** - 100% funcional
+13. **Migrate payments to features/payments** - 100% funcional
 
 ### 🔄 EN PROGRESO:
-13. **Migrate payments to features/payments** - Iniciando ahora
+14. **Migrate referral to features/referral** - Iniciando ahora
 
 ### ⏳ PENDIENTE:
-14. **Migrate referral to features/referral**
 15. **Migrate game to features/game**
 16. **Migrate broadcast to features/broadcast**
 17. **Migrate task_management to features/task_management**
