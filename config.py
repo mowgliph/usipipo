@@ -133,14 +133,29 @@ class Settings(BaseSettings):
     # =========================================================================
     # GROQ IA API
     # =========================================================================
+    # GROQ_API_KEY: str = Field(
+    #     default="",
+    #     description="API Key de Groq para el asistente IA Sip"
+    # )
+    
+    # GROQ_MODEL: str = Field(
+    #     default="openai/gpt-oss-120b",
+    #     description="Modelo de IA a usar en Groq (openai/gpt-oss-120b, llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768)"
+    # )
+
     GROQ_API_KEY: str = Field(
         default="",
-        description="API Key de Groq para el asistente IA Sip"
+        description="API Key de Groq"
     )
     
     GROQ_MODEL: str = Field(
         default="openai/gpt-oss-120b",
-        description="Modelo de IA a usar en Groq (openai/gpt-oss-120b, llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768)"
+        description="Modelo principal: openai/gpt-oss-120b"
+    )
+
+    GROQ_MAX_TOKENS: int = Field(
+        default=4096, # Puedes subir esto si necesitas respuestas más largas
+        description="Tokens máximos de respuesta"
     )
     
     GROQ_TEMPERATURE: float = Field(
@@ -150,12 +165,12 @@ class Settings(BaseSettings):
         description="Temperatura para respuestas de IA (0.0 = determinista, 2.0 = creativo)"
     )
     
-    GROQ_MAX_TOKENS: int = Field(
-        default=2000,
-        ge=100,
-        le=8000,
-        description="Máximo de tokens en respuesta de IA (usado como max_completion_tokens)"
-    )
+    # GROQ_MAX_TOKENS: int = Field(
+    #     default=2000,
+    #     ge=100,
+    #     le=8000,
+    #     description="Máximo de tokens en respuesta de IA (usado como max_completion_tokens)"
+    # )
     
     GROQ_TIMEOUT: int = Field(
         default=30,

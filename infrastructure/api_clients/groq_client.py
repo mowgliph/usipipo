@@ -9,120 +9,205 @@ Basado en la documentación oficial de Groq:
 Author: uSipipo Team
 Version: 2.0.0
 """
-
-from typing import List, Dict
+from typing import List, Dict, Optional
 from groq import Groq, AsyncGroq
 from groq import RateLimitError, APIConnectionError, APIStatusError
 from config import settings
 from utils.logger import logger
 
-
 class GroqClient:
     """Cliente de infraestructura para API de Groq."""
     
-    # Modelo por defecto utilizado
-    DEFAULT_MODEL = "openai/gpt-oss-120b"
-    
+    # Actualizamos el diccionario con los datos REALES que me diste
     MODELS = {
-        DEFAULT_MODEL: {
-            "description": "Modelo GPT-OSS 120B de OpenAI (disponible en Groq)",
+        "openai/gpt-oss-120b": {
+            "description": "GPT OSS 120B - High capability agentic model",
             "context_window": 131072,
-        },
+        }
     }
     
     def __init__(self):
         """Inicializa el cliente de Groq con configuración."""
+        
+        # 1. Verificación explícita de la API Key
         if not settings.GROQ_API_KEY:
-            logger.warning("⚠️ GROQ_API_KEY no configurada. Sip no funcionará correctamente.")
+            logger.critical("❌ ERROR CRÍTICO: GROQ_API_KEY está vacía en config.py o .env")
+            # Esto ayudará a ver si el problema es la llave
         
-        # Cliente síncrono (para operaciones que no requieren async)
-        self.client = Groq(api_key=settings.GROQ_API_KEY)
-        # Cliente asíncrono (para operaciones async)
-        self.async_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        try:
+            # Cliente síncrono
+            self.client = Groq(api_key=settings.GROQ_API_KEY)
+            # Cliente asíncrono
+            self.async_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        except Exception as e:
+            logger.error(f"❌ Error al crear cliente Groq: {e}")
         
-        # Configuración del modelo (hardcodeado para usar solo GPT-OSS 120B)
-        self.model = self.DEFAULT_MODEL
+        # 2. IMPORTANTE: Usar el modelo de settings, no el hardcodeado
+        # Si settings.GROQ_MODEL tiene valor, lo usa. Si no, usa el string directo.
+        self.model = settings.GROQ_MODEL if settings.GROQ_MODEL else "openai/gpt-oss-120b"
+        
         self.temperature = settings.GROQ_TEMPERATURE
         self.max_tokens = settings.GROQ_MAX_TOKENS
         self.timeout = settings.GROQ_TIMEOUT
         
-        logger.info(f"🌊 GroqClient inicializado con modelo: {self.model}")
-    
+        logger.info(f"🌊 GroqClient inicializado. Modelo objetivo: {self.model}")
+
     async def chat_completion(self, messages: List[Dict[str, str]]) -> str:
         """
-        Realiza petición de chat completion a Groq de forma asíncrona.
-        
-        Args:
-            messages: Lista de mensajes en formato dict [{"role": "user", "content": "..."}]
-                      Roles soportados: "system", "user", "assistant"
-            
-        Returns:
-            str: Respuesta generada por el modelo
-            
-        Raises:
-            ValueError: Si la API key no está configurada
-            RateLimitError: Si se excede el límite de llamadas
-            APIConnectionError: Si hay error de conexión
-            APIStatusError: Si hay error en la respuesta de la API
-            Exception: Para otros errores
+        Genera una respuesta de chat asíncrona usando el modelo configurado.
         """
-        if not self.validate_api_key():
-            raise ValueError("API key de Groq no configurada o inválida")
-        
         try:
-            logger.debug(f"🌊 Enviando {len(messages)} mensajes a Groq API")
-            logger.debug(f"🌊 Modelo: {self.model}, Timeout: {self.timeout}s")
+            # Log para depuración: Ver qué estamos enviando
+            logger.debug(f"📤 Enviando request a Groq: {self.model}")
             
-            # Usar cliente asíncrono para mantener el event loop libre
-            response = await self.async_client.chat.completions.create(
-                messages=messages,
+            completion = await self.async_client.chat.completions.create(
                 model=self.model,
+                messages=messages,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
-                timeout=float(self.timeout) if self.timeout else None
+                timeout=self.timeout
             )
             
-            logger.debug(f"🌊 Respuesta recibida de Groq: {response}")
+            # Extraer respuesta
+            response_content = completion.choices[0].message.content
             
-            if response.choices and len(response.choices) > 0:
-                content = response.choices[0].message.content
-                if content:
-                    logger.debug(f"🌊 Contenido de respuesta: {len(content)} caracteres")
-                    return content
-                else:
-                    logger.error("🌊 Groq API devolvió contenido vacío en la respuesta")
-                    raise ValueError("La API de Groq devolvió una respuesta vacía")
-            else:
-                logger.error(f"🌊 Groq API no devolvió choices. Response: {response}")
-                raise ValueError("La API de Groq no devolvió ninguna opción de respuesta")
+            # Log de uso de tokens (útil para ver si conecta)
+            if hasattr(completion, 'usage'):
+                logger.info(f"💰 Tokens usados: {completion.usage.total_tokens}")
                 
-        except RateLimitError as e:
-            logger.error(f"🌊 Rate limit excedido en Groq API: {str(e)}")
-            raise ValueError("Has excedido el límite de llamadas a la IA. Por favor, espera un momento.") from e
-        
-        except APIConnectionError as e:
-            logger.error(f"🌊 Error de conexión con Groq API: {str(e)}")
-            raise ValueError("No se pudo conectar con el servicio de IA. Verifica tu conexión a internet.") from e
-        
-        except APIStatusError as e:
-            logger.error(f"🌊 Error de estado en Groq API: {str(e)}")
-            raise ValueError(f"Error del servicio de IA: código {e.status_code}") from e
-        
-        except (ValueError, TypeError, KeyError, AttributeError, TimeoutError) as e:
-            error_type = type(e).__name__
-            error_msg = str(e)
-            logger.error(f"🌊 Error en Groq API [{error_type}]: {error_msg}")
+            return response_content
+
+        except APIConnectionError:
+            logger.error("❌ Error de conexión con Groq. Revisa tu internet o DNS.")
+            return "Lo siento, tengo problemas de conexión en este momento."
             
-            if "timeout" in error_msg.lower():
-                raise ValueError("Sip está tardando mucho en responder. Por favor, intenta con un mensaje más corto.") from e
-            elif "authentication" in error_msg.lower() or "api key" in error_msg.lower():
-                raise ValueError("Error de autenticación con Sip. Contacta al administrador.") from e
-            elif "rate limit" in error_msg.lower():
-                raise ValueError("Sip está recibiendo muchas solicitudes. Por favor, espera un momento.") from e
-            elif "model" in error_msg.lower():
-                raise ValueError("El modelo de IA no está disponible. Contacta al administrador.") from e
-            else:
-                raise ValueError(f"Error al comunicarse con Sip: {error_msg}") from e
+        except RateLimitError:
+            logger.error("⚠️ Límite de velocidad alcanzado (Rate Limit).")
+            return "Estoy un poco saturado, por favor intenta en unos segundos."
+            
+        except APIStatusError as e:
+            logger.error(f"❌ Error de estado API ({e.status_code}): {e.message}")
+            if e.status_code == 404:
+                 logger.error(f"🔍 El modelo '{self.model}' no fue encontrado. Verifica el nombre exacto.")
+            return "Ocurrió un error en el servidor de IA."
+            
+        except Exception as e:
+            logger.error(f"❌ Error inesperado en Groq: {str(e)}")
+            return "Ocurrió un error inesperado al procesar tu mensaje."
+        
+# from typing import List, Dict
+# from groq import Groq, AsyncGroq
+# from groq import RateLimitError, APIConnectionError, APIStatusError
+# from config import settings
+# from utils.logger import logger
+
+
+# class GroqClient:
+#     """Cliente de infraestructura para API de Groq."""
+    
+#     # Modelo por defecto utilizado
+#     DEFAULT_MODEL = "openai/gpt-oss-120b"
+    
+#     MODELS = {
+#         DEFAULT_MODEL: {
+#             "description": "Modelo GPT-OSS 120B de OpenAI (disponible en Groq)",
+#             "context_window": 131072,
+#         },
+#     }
+    
+#     def __init__(self):
+#         """Inicializa el cliente de Groq con configuración."""
+#         if not settings.GROQ_API_KEY:
+#             logger.warning("⚠️ GROQ_API_KEY no configurada. Sip no funcionará correctamente.")
+        
+#         # Cliente síncrono (para operaciones que no requieren async)
+#         self.client = Groq(api_key=settings.GROQ_API_KEY)
+#         # Cliente asíncrono (para operaciones async)
+#         self.async_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        
+#         # Configuración del modelo (hardcodeado para usar solo GPT-OSS 120B)
+#         self.model = self.DEFAULT_MODEL
+#         self.temperature = settings.GROQ_TEMPERATURE
+#         self.max_tokens = settings.GROQ_MAX_TOKENS
+#         self.timeout = settings.GROQ_TIMEOUT
+        
+#         logger.info(f"🌊 GroqClient inicializado con modelo: {self.model}")
+    
+#     async def chat_completion(self, messages: List[Dict[str, str]]) -> str:
+#         """
+#         Realiza petición de chat completion a Groq de forma asíncrona.
+        
+#         Args:
+#             messages: Lista de mensajes en formato dict [{"role": "user", "content": "..."}]
+#                       Roles soportados: "system", "user", "assistant"
+            
+#         Returns:
+#             str: Respuesta generada por el modelo
+            
+#         Raises:
+#             ValueError: Si la API key no está configurada
+#             RateLimitError: Si se excede el límite de llamadas
+#             APIConnectionError: Si hay error de conexión
+#             APIStatusError: Si hay error en la respuesta de la API
+#             Exception: Para otros errores
+#         """
+#         if not self.validate_api_key():
+#             raise ValueError("API key de Groq no configurada o inválida")
+        
+#         try:
+#             logger.debug(f"🌊 Enviando {len(messages)} mensajes a Groq API")
+#             logger.debug(f"🌊 Modelo: {self.model}, Timeout: {self.timeout}s")
+            
+#             # Usar cliente asíncrono para mantener el event loop libre
+#             response = await self.async_client.chat.completions.create(
+#                 messages=messages,
+#                 model=self.model,
+#                 temperature=self.temperature,
+#                 max_tokens=self.max_tokens,
+#                 timeout=float(self.timeout) if self.timeout else None
+#             )
+            
+#             logger.debug(f"🌊 Respuesta recibida de Groq: {response}")
+            
+#             if response.choices and len(response.choices) > 0:
+#                 content = response.choices[0].message.content
+#                 if content:
+#                     logger.debug(f"🌊 Contenido de respuesta: {len(content)} caracteres")
+#                     return content
+#                 else:
+#                     logger.error("🌊 Groq API devolvió contenido vacío en la respuesta")
+#                     raise ValueError("La API de Groq devolvió una respuesta vacía")
+#             else:
+#                 logger.error(f"🌊 Groq API no devolvió choices. Response: {response}")
+#                 raise ValueError("La API de Groq no devolvió ninguna opción de respuesta")
+                
+#         except RateLimitError as e:
+#             logger.error(f"🌊 Rate limit excedido en Groq API: {str(e)}")
+#             raise ValueError("Has excedido el límite de llamadas a la IA. Por favor, espera un momento.") from e
+        
+#         except APIConnectionError as e:
+#             logger.error(f"🌊 Error de conexión con Groq API: {str(e)}")
+#             raise ValueError("No se pudo conectar con el servicio de IA. Verifica tu conexión a internet.") from e
+        
+#         except APIStatusError as e:
+#             logger.error(f"🌊 Error de estado en Groq API: {str(e)}")
+#             raise ValueError(f"Error del servicio de IA: código {e.status_code}") from e
+        
+#         except (ValueError, TypeError, KeyError, AttributeError, TimeoutError) as e:
+#             error_type = type(e).__name__
+#             error_msg = str(e)
+#             logger.error(f"🌊 Error en Groq API [{error_type}]: {error_msg}")
+            
+#             if "timeout" in error_msg.lower():
+#                 raise ValueError("Sip está tardando mucho en responder. Por favor, intenta con un mensaje más corto.") from e
+#             elif "authentication" in error_msg.lower() or "api key" in error_msg.lower():
+#                 raise ValueError("Error de autenticación con Sip. Contacta al administrador.") from e
+#             elif "rate limit" in error_msg.lower():
+#                 raise ValueError("Sip está recibiendo muchas solicitudes. Por favor, espera un momento.") from e
+#             elif "model" in error_msg.lower():
+#                 raise ValueError("El modelo de IA no está disponible. Contacta al administrador.") from e
+#             else:
+#                 raise ValueError(f"Error al comunicarse con Sip: {error_msg}") from e
     
     def chat_completion_sync(self, messages: List[Dict[str, str]]) -> str:
         """
