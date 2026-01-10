@@ -8,7 +8,7 @@ Author: uSipipo Team
 Version: 2.0.0 - Feature-based architecture
 """
 
-from .handlers import AiSupportHandler, get_ai_support_handler, get_ai_callback_handlers
+from .handlers.ai_support import AiSupportHandler, get_ai_support_handler, get_ai_callback_handlers
 
 __all__ = [
     'AiSupportHandler',

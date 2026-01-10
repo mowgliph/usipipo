@@ -7,8 +7,8 @@ Version: 2.0.0 - Feature-based architecture
 
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters, CallbackQueryHandler, CommandHandler
-from .messages import SipMessages
-from .keyboards import AiSupportKeyboards
+from .messages.ai_support import SipMessages
+from .keyboards.ai_support import AiSupportKeyboards
 from utils.logger import logger
 
 CHATTING = 1
