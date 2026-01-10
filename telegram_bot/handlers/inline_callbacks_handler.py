@@ -19,7 +19,6 @@ from config import settings
 from utils.logger import logger
 from utils.telegram_utils import TelegramHandlerUtils
 from application.services.support_service import SupportService
-from application.services.common.container import get_container
 
 
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -414,17 +413,16 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Función para registrar todos los handlers de callbacks inline
 def get_inline_callback_handlers(vpn_service=None, achievement_service=None, support_service=None, admin_service=None):
     """Retorna una lista de handlers para callbacks inline."""
+    from application.services.common.container import get_container
     handlers = []
     
     # Obtener support_service del contenedor si no se proporciona
     if support_service is None:
-        from application.services.common.container import get_container
         container = get_container()
         support_service = container.resolve(SupportService)
 
     # Obtener admin_service si no se proporciona y crear instancia del AdminHandler
     if admin_service is None:
-        from application.services.common.container import get_container
         container = get_container()
         admin_service = container.resolve(AdminService)
 
@@ -466,7 +464,6 @@ def get_inline_callback_handlers(vpn_service=None, achievement_service=None, sup
     
     # Registrar handlers de roles de usuario (Gestor de Tareas y Anunciante)
     try:
-        from application.services.common.container import get_container
         from domain.interfaces.iuser_repository import IUserRepository
         
         container = get_container()
