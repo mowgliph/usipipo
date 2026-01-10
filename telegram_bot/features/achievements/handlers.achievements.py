@@ -13,9 +13,12 @@ from .keyboards.achievements import AchievementsKeyboards
 from domain.entities.achievement import AchievementType
 from utils.logger import logger
 from utils.spinner import database_spinner
+from common.base_handler import BaseHandler
+from common.decorators import safe_callback_query, database_operation
+from common.patterns import ListPattern
 
 
-class AchievementsHandler:
+class AchievementsHandler(BaseHandler, ListPattern):
     """Handler para sistema de logros."""
     
     def __init__(self, achievement_service: AchievementService):
@@ -25,76 +28,60 @@ class AchievementsHandler:
         Args:
             achievement_service: Servicio de logros
         """
-        self.achievement_service = achievement_service
-        logger.info("🏆 AchievementsHandler inicializado")
+        super().__init__(achievement_service, "AchievementService")
 
     @database_spinner
+    @database_operation
     async def achievements_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Maneja el menú principal de logros."""
         user_id = update.effective_user.id
         
-        try:
-            # Obtener resumen del usuario
-            summary = await self.achievement_service.get_user_summary(user_id)
-            
-            if not summary:
-                # Inicializar logros si no existen
-                await self.achievement_service.initialize_user_achievements(user_id)
-                summary = await self.achievement_service.get_user_summary(user_id)
-            
-            # Formatear mensaje principal
-            message = AchievementsMessages.Menu.MAIN.format(
-                completed=summary.get('completed_achievements', 0),
-                total=summary.get('total_achievements', 0),
-                stars=summary.get('total_reward_stars', 0),
-                pending=summary.get('pending_rewards', 0)
-            )
-            
-            await update.message.reply_text(
-                text=message,
-                reply_markup=AchievementsKeyboards.achievements_menu(),
-                parse_mode="Markdown"
-            )
-            
-        except Exception as e:
-            logger.error(f"Error en achievements_menu: {e}")
-            await update.message.reply_text(
-                text=AchievementsMessages.Error.SYSTEM_ERROR,
-                parse_mode="Markdown"
-            )
+        # Obtener resumen del usuario
+        summary = await self.service.get_user_summary(user_id)
+        
+        if not summary:
+            # Inicializar logros si no existen
+            await self.service.initialize_user_achievements(user_id)
+            summary = await self.service.get_user_summary(user_id)
+        
+        # Formatear mensaje principal
+        message = AchievementsMessages.Menu.MAIN.format(
+            completed=summary.get('completed_achievements', 0),
+            total=summary.get('total_achievements', 0),
+            stars=summary.get('total_reward_stars', 0),
+            pending=summary.get('pending_rewards', 0)
+        )
+        
+        await self._reply_message(
+            update,
+            text=message,
+            reply_markup=AchievementsKeyboards.achievements_menu(),
+            parse_mode="Markdown"
+        )
 
+    @safe_callback_query
     @database_spinner
+    @database_operation
     async def achievements_progress(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra el progreso general de logros."""
-        query = update.callback_query
-        await query.answer()
-        
         user_id = update.effective_user.id
         
-        try:
-            summary = await self.achievement_service.get_user_summary(user_id)
-            
-            message = AchievementsMessages.Progress.OVERVIEW.format(
-                completed=summary.get('completed_achievements', 0),
-                total=summary.get('total_achievements', 0),
-                percentage=int((summary.get('completed_achievements', 0) / max(summary.get('total_achievements', 1), 1)) * 100),
-                stars=summary.get('total_reward_stars', 0),
-                pending=summary.get('pending_rewards', 0)
-            )
-            
-            await query.edit_message_text(
-                text=message,
-                reply_markup=AchievementsKeyboards.back_to_menu(),
-                parse_mode="Markdown"
-            )
-            
-        except Exception as e:
-            logger.error(f"Error en achievements_progress: {e}")
-            await query.edit_message_text(
-                text=AchievementsMessages.Error.SYSTEM_ERROR,
-                reply_markup=AchievementsKeyboards.back_to_menu(),
-                parse_mode="Markdown"
-            )
+        summary = await self.service.get_user_summary(user_id)
+        
+        message = AchievementsMessages.Progress.OVERVIEW.format(
+            completed=summary.get('completed_achievements', 0),
+            total=summary.get('total_achievements', 0),
+            percentage=int((summary.get('completed_achievements', 0) / max(summary.get('total_achievements', 1), 1)) * 100),
+            stars=summary.get('total_reward_stars', 0),
+            pending=summary.get('pending_rewards', 0)
+        )
+        
+        await self._edit_message_with_keyboard(
+            update, context,
+            text=message,
+            reply_markup=AchievementsKeyboards.back_to_menu(),
+            parse_mode="Markdown"
+        )
 
     @database_spinner
     async def achievements_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

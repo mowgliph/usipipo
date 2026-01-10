@@ -5,6 +5,8 @@ Author: uSipipo Team
 Version: 2.0.0 - Feature-based architecture
 """
 
+from common.messages import CommonMessages
+
 
 class AchievementsMessages:
     """Mensajes para sistema de logros."""
@@ -96,17 +98,11 @@ class AchievementsMessages:
         )
     
     # ============================================
-    # ERRORS
+    # ERRORS - Using common messages
     # ============================================
     
-    class Error:
-        """Mensajes de error."""
-        
-        SYSTEM_ERROR = (
-            "❌ **Error del Sistema**\n\n"
-            "No pude cargar la información de logros.\n\n"
-            "Por favor, intenta más tarde."
-        )
+    class Error(CommonMessages.Error):
+        """Mensajes de error específicos de logros."""
         
         ACHIEVEMENT_NOT_FOUND = (
             "❌ **Logro No Encontrado**\n\n"

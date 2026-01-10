@@ -6,6 +6,7 @@ Version: 2.0.0 - Feature-based architecture
 """
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from common.keyboards import CommonKeyboards
 
 
 class AchievementsKeyboards:
@@ -42,12 +43,7 @@ class AchievementsKeyboards:
         Returns:
             InlineKeyboardMarkup: Teclado de retorno
         """
-        keyboard = [
-            [
-                InlineKeyboardButton("🔙 Volver a Logros", callback_data="achievements_menu")
-            ]
-        ]
-        return InlineKeyboardMarkup(keyboard)
+        return CommonKeyboards.back_to_previous_menu()
 
     @staticmethod
     def achievement_actions(achievement_id: int, is_completed: bool, reward_claimed: bool) -> InlineKeyboardMarkup:
