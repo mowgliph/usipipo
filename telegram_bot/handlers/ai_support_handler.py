@@ -232,43 +232,9 @@ class AiSupportHandler:
             await self.show_suggested_questions(update, context)
 
 
-# def get_ai_support_conversation_handler(ai_support_service):
-#     handler = AiSupportHandler(ai_support_service)
-    
-#     return ConversationHandler(
-#         entry_points=[
-#             MessageHandler(filters.Regex("^🌊 Sip$"), handler.start_ai_support),
-#             MessageHandler(filters.Regex("^🤖 Asistente IA$"), handler.start_ai_support),
-#             CommandHandler("sipai", handler.start_ai_support),
-#             CallbackQueryHandler(handler.start_ai_support_callback, pattern="^ai_sip_start$")
-#         ],
-#         states={
-#             CHATTING: [
-#                 # Filtramos para que solo acepte texto y no comandos o botones de otros handlers
-#                 MessageHandler(filters.TEXT & ~filters.COMMAND, handler.handle_ai_message)
-#             ]
-#         },
-#         fallbacks=[
-#             MessageHandler(filters.Regex("^(Finalizar|Salir|Exit)$"), handler.end_ai_support),
-#             CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
-#         ],
-#         name="ai_support_conversation",
-#         persistent=False,
-#         per_chat=True,    # Rastreo por chat (Recomendado)
-#         per_user=True,    # Rastreo por usuario
-#         per_message=False, # Elimina el warning al ser explícito
-#         allow_reentry=True # Permite que el usuario reinicie la charla si se traba
-#     )
-
 def get_ai_support_handler(ai_support_service):
     """
     Retorna el handler de conversación con IA Sip.
-    
-    Args:
-        ai_support_service: Servicio de soporte con IA
-        
-    Returns:
-        ConversationHandler: Handler configurado
     """
     handler = AiSupportHandler(ai_support_service)
     
@@ -290,15 +256,45 @@ def get_ai_support_handler(ai_support_service):
         ],
         name="ai_support_conversation",
         persistent=False,
-        per_chat=True,    # Rastreo por chat (Recomendado)
-        per_user=True,    # Rastreo por usuario
-        per_message=False, # Elimina el warning al ser explícito
-        allow_reentry=True # Permite que el usuario reinicie la charla si se traba
-        # name="ai_support_conversation",
-        # per_chat=True,   # Asegúrate de que esto sea True
-        # per_user=True,
-        # per_message=False
+        per_chat=True,
+        per_user=True,
+        per_message=False,
+        allow_reentry=True 
     )
+
+# def get_ai_support_handler(ai_support_service):
+#     """
+#     Retorna el handler de conversación con IA Sip.
+    
+#     Args:
+#         ai_support_service: Servicio de soporte con IA
+        
+#     Returns:
+#         ConversationHandler: Handler configurado
+#     """
+#     handler = AiSupportHandler(ai_support_service)
+    
+#     return ConversationHandler(
+#         entry_points=[
+#             MessageHandler(filters.Regex("^🌊 Sip$"), handler.start_ai_support),
+#             MessageHandler(filters.Regex("^🤖 Asistente IA$"), handler.start_ai_support),
+#             CommandHandler("sipai", handler.start_ai_support),
+#             CallbackQueryHandler(handler.start_ai_support_callback, pattern="^ai_sip_start$")
+#         ],
+#         states={
+#             CHATTING: [
+#                 MessageHandler(filters.TEXT & ~filters.COMMAND, handler.handle_ai_message)
+#             ]
+#         },
+#         fallbacks=[
+#             MessageHandler(filters.Regex("^(Finalizar|Salir|Exit)$"), handler.end_ai_support),
+#             CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
+#         ],
+#         name="ai_support_conversation",
+#         per_chat=True,   # Asegúrate de que esto sea True
+#         per_user=True,
+#         per_message=False
+#     )
 
 
 def get_ai_callback_handler(ai_support_service):
