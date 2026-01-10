@@ -2,7 +2,7 @@
 Handler para responder mensajes directos del usuario con IA Sip.
 
 Author: uSipipo Team
-Version: 1.0.0
+Version: 1.0.1 - Added conversation state check
 """
 
 from telegram import Update
@@ -67,6 +67,7 @@ class DirectMessageHandler:
     async def handle_direct_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Procesa mensaje directo del usuario y responde con IA.
+        SOLO se activa si NO hay una conversación activa en el ConversationHandler.
         
         Args:
             update: Update de Telegram
@@ -75,15 +76,23 @@ class DirectMessageHandler:
         user_message = update.message.text
         user_id = update.effective_user.id
         
-        # Verificar si es un botón del menú
+        # 1. Verificar si es un botón del menú
         if self._is_menu_button(user_message):
             logger.debug(f"📨 Mensaje '{user_message}' es un botón del menú, ignorando")
             return
         
+        # 2. Verificar si hay una conversación IA activa (gestionada por ConversationHandler)
+        # Si el flag existe y es True, significa que el ConversationHandler debería manejar esto
+        if context.user_data.get('in_ai_conversation', False):
+            logger.debug(f"📨 Usuario {user_id} tiene conversación IA activa, dejando al ConversationHandler")
+            return
+        
+        logger.info(f"📨 Mensaje directo de usuario {user_id}: '{user_message[:30]}...'")
+        
         try:
             await update.message.chat.send_action(action="typing")
             
-            # Verificar si hay una conversación activa
+            # Verificar si hay una conversación activa en la BD
             conversation = await self.ai_support_service.get_active_conversation(user_id)
             
             if not conversation:
@@ -100,8 +109,11 @@ class DirectMessageHandler:
                 user_message=user_message
             )
             
+            from telegram_bot.keyboard import SupportKeyboards
+            
             await update.message.reply_text(
-                f"🌊 **Sip:**\n\n{ai_response}",
+                f"🌊 **Sip:**\n\n{ai_response}\n\n_💡 Escribe 'Finalizar' para terminar el chat_",
+                reply_markup=SupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
             
