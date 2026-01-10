@@ -244,6 +244,16 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     achievements_handlers = get_achievements_handlers(achievement_service)
     handlers.extend(achievements_handlers)
 
+    # Sistema Administrativo (usando nueva feature structure)
+    from telegram_bot.features.admin import get_admin_conversation_handler
+    admin_handler = get_admin_conversation_handler(admin_service)
+    handlers.append(admin_handler)
+
+    # Sistema de Soporte Técnico (usando nueva feature structure)
+    from telegram_bot.features.support import get_support_conversation_handler
+    support_handler = get_support_conversation_handler(support_service)
+    handlers.append(support_handler)
+
     # Debug logging para verificar el handler
     logger.info(f"🔍 ai_support_handler type: {type(ai_support_handler)}")
     logger.info(f"🔍 ai_support_handler entry_points: {ai_support_handler.entry_points}")
