@@ -220,8 +220,19 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     handlers.extend(inline_callback_handlers_list)
 
     # Sistema de Soporte con IA Sip
+    from telegram_bot.handlers.ai_support_handler import get_ai_callback_handlers
     ai_support_handler = container.resolve("ai_support_handler")
     handlers.append(ai_support_handler)
+
+    # Callbacks de IA Sip para uso fuera del ConversationHandler
+    ai_support_service = container.resolve("ai_support_service")
+    ai_callback_handlers = get_ai_callback_handlers(ai_support_service)
+    handlers.extend(ai_callback_handlers)
+
+    # Debug logging para verificar el handler
+    logger.info(f"🔍 ai_support_handler type: {type(ai_support_handler)}")
+    logger.info(f"🔍 ai_support_handler entry_points: {ai_support_handler.entry_points}")
+
     logger.log_bot_event("INFO", "✅ Handler de IA Sip registrado correctamente")
 
     # Handler para responder mensajes directos del usuario con IA

@@ -2,13 +2,13 @@
 Handler para conversaciones con el asistente IA Sip.
 
 Author: uSipipo Team
-Version: 1.0.1 - Fixed conversation state handling
+Version: 2.0.0 - Feature-based architecture
 """
 
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters, CallbackQueryHandler, CommandHandler
-from telegram_bot.messages import SipMessages
-from telegram_bot.keyboard import SupportKeyboards, CommonKeyboards
+from .messages import SipMessages
+from .keyboards import AiSupportKeyboards
 from utils.logger import logger
 
 CHATTING = 1
@@ -51,7 +51,7 @@ class AiSupportHandler:
 
             await update.message.reply_text(
                 text=SipMessages.WELCOME,
-                reply_markup=SupportKeyboards.ai_support_active(),
+                reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
 
@@ -92,7 +92,7 @@ class AiSupportHandler:
 
             await query.edit_message_text(
                 text=SipMessages.WELCOME,
-                reply_markup=SupportKeyboards.ai_support_active(),
+                reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
 
@@ -136,7 +136,7 @@ class AiSupportHandler:
             
             await update.message.reply_text(
                 f"🌊 **Sip:**\n\n{ai_response}",
-                reply_markup=SupportKeyboards.ai_support_active(),
+                reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
             
@@ -148,7 +148,7 @@ class AiSupportHandler:
             context.user_data['in_ai_conversation'] = False
             await update.message.reply_text(
                 SipMessages.ERROR_NO_ACTIVE_CONVERSATION,
-                reply_markup=CommonKeyboards.back_button(),
+                reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
             return ConversationHandler.END
@@ -157,7 +157,7 @@ class AiSupportHandler:
             logger.error(f"❌ Error en chat IA: {e}")
             await update.message.reply_text(
                 SipMessages.ERROR_PROCESSING_MESSAGE,
-                reply_markup=SupportKeyboards.ai_support_active(),
+                reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
             return CHATTING
@@ -185,13 +185,13 @@ class AiSupportHandler:
             if update.message:
                 await update.message.reply_text(
                     text=SipMessages.CONVERSATION_ENDED,
-                    reply_markup=CommonKeyboards.back_button(),
+                    reply_markup=AiSupportKeyboards.ai_support_active(),
                     parse_mode="Markdown"
                 )
             elif update.callback_query:
                 await update.callback_query.edit_message_text(
                     text=SipMessages.CONVERSATION_ENDED,
-                    reply_markup=CommonKeyboards.back_button(),
+                    reply_markup=AiSupportKeyboards.ai_support_active(),
                     parse_mode="Markdown"
                 )
             
@@ -203,12 +203,12 @@ class AiSupportHandler:
             if update.message:
                 await update.message.reply_text(
                     "❌ Hubo un error al finalizar la conversación.",
-                    reply_markup=CommonKeyboards.back_button()
+                    reply_markup=AiSupportKeyboards.ai_support_active()
                 )
             elif update.callback_query:
                 await update.callback_query.edit_message_text(
                     "❌ Hubo un error al finalizar la conversación.",
-                    reply_markup=CommonKeyboards.back_button()
+                    reply_markup=AiSupportKeyboards.ai_support_active()
                 )
             return ConversationHandler.END
     
@@ -226,7 +226,7 @@ class AiSupportHandler:
         try:
             await query.edit_message_text(
                 text=SipMessages.SUGGESTED_QUESTIONS,
-                reply_markup=SupportKeyboards.ai_support_active(),
+                reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
         except Exception as e:
