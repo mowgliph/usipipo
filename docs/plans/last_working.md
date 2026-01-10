@@ -59,14 +59,14 @@ telegram_bot/
 11. **Migrate vip to features/vip** - 100% funcional
 12. **Migrate shop to features/shop** - 100% funcional
 13. **Migrate payments to features/payments** - 100% funcional
+14. **Migrate referral to features/referral** - 100% funcional
 
 ### 🔄 EN PROGRESO:
-14. **Migrate referral to features/referral** - Iniciando ahora
+15. **Update all imports across the codebase** - Iniciando ahora
 
 ### ⏳ PENDIENTE:
-15. **Migrate game to features/game**
-16. **Migrate broadcast to features/broadcast**
-17. **Migrate task_management to features/task_management**
-18. **Migrate announcer to features/announcer**
-19. **Update all imports across the codebase**
+16. **Migrate game to features/game**
+17. **Migrate broadcast to features/broadcast**
+18. **Migrate task_management to features/task_management**
+19. **Migrate announcer to features/announcer**
 20. **Eliminar código redundante**

@@ -5,25 +5,23 @@ from application.services.achievement_service import AchievementService
 from application.services.admin_service import AdminService
 from application.services.common.container import get_container
 from config import settings
-from telegram_bot.handlers.achievement_handler import (
+
+# Importaciones de features migradas
+from telegram_bot.features.achievements.handlers.achievements import (
     achievements_menu_handler, achievements_progress_handler, achievements_list_handler,
     achievements_category_handler, achievements_next_handler, achievements_rewards_handler,
     claim_reward_handler, achievements_leaderboard_handler, leaderboard_category_handler
 )
-from telegram_bot.handlers.admin_handler import admin_command_handler
-from telegram_bot.handlers.ayuda_handler import ayuda_handler, help_command_handler
-from telegram_bot.handlers.info_handler import info_handler
-from telegram_bot.handlers.start_handler import start_handler
-from telegram_bot.handlers.keys_manager_handler import delete_callback_handler
-from telegram_bot.handlers.status_handler import status_handler
-from telegram_bot.handlers.support_handler import admin_reply_handler
-from telegram_bot.handlers.cancel_handler import cancel_handler
-from telegram_bot.handlers.operations_handler import (
+from telegram_bot.features.admin.handlers.admin import admin_command_handler
+from telegram_bot.features.user_management.handlers.user_management import start_handler, status_handler
+from telegram_bot.features.support.handlers.support import admin_reply_handler
+from telegram_bot.features.operations.handlers.operations import (
     operations_handler, mi_balance_handler, 
     referidos_handler, atras_handler, operations_menu_callback
 )
-from telegram_bot.handlers.juega_y_gana_handler import juega_y_gana_handler
-from telegram_bot.handlers.menu_handler import show_menu_handler
+from telegram_bot.features.key_management.handlers.key_management import delete_callback_handler
+from telegram_bot.features.announcer.handlers.announcer import juega_y_gana_handler
+from telegram_bot.features.user_management.keyboards.user_management import show_menu_handler
 from telegram_bot.keyboard import UserKeyboards
 from telegram_bot.messages import UserMessages
 from utils.logger import logger, get_logger
@@ -253,6 +251,36 @@ def initialize_handlers(vpn_service, support_service, referral_service, payment_
     from telegram_bot.features.support import get_support_conversation_handler
     support_handler = get_support_conversation_handler(support_service)
     handlers.append(support_handler)
+
+    # Sistema de Operaciones (usando nueva feature structure)
+    from telegram_bot.features.operations import get_operations_handlers
+    operations_handlers = get_operations_handlers(vpn_service, referral_service)
+    handlers.extend(operations_handlers)
+
+    # Sistema de Comercio Electrónico (usando nueva feature structure)
+    from telegram_bot.features.shop import get_shop_conversation_handler
+    shop_handler = get_shop_conversation_handler(payment_service, vpn_service)
+    handlers.append(shop_handler)
+
+    # Sistema de Pagos (usando nueva feature structure)
+    from telegram_bot.features.payments import get_payments_conversation_handler
+    payments_handler = get_payments_conversation_handler(payment_service, vpn_service, referral_service)
+    handlers.append(payments_handler)
+
+    # Sistema de Referidos (usando nueva feature structure)
+    from telegram_bot.features.referral import get_referral_conversation_handler
+    referral_handler = get_referral_conversation_handler(referral_service, vpn_service)
+    handlers.append(referral_handler)
+
+    # Sistema VIP (usando nueva feature structure)
+    from telegram_bot.features.vip import get_vip_handlers
+    vip_handlers = get_vip_handlers(payment_service, vpn_service)
+    handlers.extend(vip_handlers)
+
+    # Sistema de Gestión Avanzada de Llaves (usando nueva feature structure)
+    from telegram_bot.features.key_management import get_key_management_handlers
+    key_management_handlers = get_key_management_handlers(vpn_service)
+    handlers.extend(key_management_handlers)
 
     # Debug logging para verificar el handler
     logger.info(f"🔍 ai_support_handler type: {type(ai_support_handler)}")

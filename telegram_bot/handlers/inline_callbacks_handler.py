@@ -8,14 +8,14 @@ Version: 2.0.0 - Sistema de teclados inline
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, ContextTypes
 from telegram_bot.keyboard import UserKeyboards, AdminKeyboards, OperationKeyboards, SupportKeyboards, CommonKeyboards
-from telegram_bot.handlers.admin_handler import AdminHandler
+from telegram_bot.features.admin.handlers.admin import AdminHandler
 from application.services.admin_service import AdminService
 from application.services.ai_support_service import AiSupportService
 from telegram_bot.messages import UserMessages, CommonMessages, OperationMessages, SupportMessages
-from telegram_bot.messages.admin_messages import AdminMessages
-from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
-from telegram_bot.handlers.user_task_manager_handler import get_user_task_manager_handlers
-from telegram_bot.handlers.user_announcer_handler import get_user_announcer_handlers
+from telegram_bot.features.admin.messages.admin import AdminMessages
+from telegram_bot.features.key_management.handlers.key_management import get_key_management_handlers
+from telegram_bot.features.task_management.handlers.task_management import get_user_task_manager_handlers
+from telegram_bot.features.announcer.handlers.announcer import get_user_announcer_handlers
 from config import settings
 from utils.logger import logger
 from utils.telegram_utils import TelegramHandlerUtils
