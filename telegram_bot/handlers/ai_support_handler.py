@@ -7,7 +7,6 @@ Version: 1.0.0
 
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters, CallbackQueryHandler, CommandHandler
-from telegram.error import BadRequest
 from telegram_bot.messages import SipMessages
 from telegram_bot.keyboard import SupportKeyboards, CommonKeyboards
 from utils.logger import logger
@@ -195,40 +194,17 @@ class AiSupportHandler:
                     reply_markup=CommonKeyboards.back_button()
                 )
             return ConversationHandler.END
-        
-
-
     
-    # async def show_suggested_questions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    #     """
-    #     Muestra preguntas sugeridas al usuario.
-        
-    #     Args:
-    #         update: Update de Telegram
-    #         context: Contexto de Telegram
-    #     """
-    #     query = update.callback_query
-    #     await query.answer()
-        
-    #     try:
-    #         await query.edit_message_text(
-    #             text=SipMessages.SUGGESTED_QUESTIONS,
-    #             reply_markup=SupportKeyboards.ai_support_active(),
-    #             parse_mode="Markdown"
-    #         )
-    #     except Exception as e:
-    #         logger.error(f"❌ Error mostrando sugerencias: {e}")
-
     async def show_suggested_questions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Muestra preguntas sugeridas al usuario.
+        
+        Args:
+            update: Update de Telegram
+            context: Contexto de Telegram
         """
         query = update.callback_query
-        # Es buena práctica poner el answer() en un try por si la query expiró
-        try:
-            await query.answer()
-        except Exception:
-            pass
+        await query.answer()
         
         try:
             await query.edit_message_text(
@@ -236,12 +212,6 @@ class AiSupportHandler:
                 reply_markup=SupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
-        except BadRequest as e:
-            # Si el error es que el mensaje no ha cambiado, lo ignoramos (es benigno)
-            if "Message is not modified" in str(e):
-                logger.debug("⚠️ El usuario intentó actualizar sugerencias pero ya estaban visibles.")
-            else:
-                logger.error(f"❌ Error mostrando sugerencias (BadRequest): {e}")
         except Exception as e:
             logger.error(f"❌ Error mostrando sugerencias: {e}")
     
@@ -262,35 +232,35 @@ class AiSupportHandler:
             await self.show_suggested_questions(update, context)
 
 
-# def get_ai_support_handler(ai_support_service):
-#     """
-#     Retorna el handler de conversación con IA Sip.
-#     """
-#     handler = AiSupportHandler(ai_support_service)
+def get_ai_support_handler(ai_support_service):
+    """
+    Retorna el handler de conversación con IA Sip.
+    """
+    handler = AiSupportHandler(ai_support_service)
     
-#     return ConversationHandler(
-#         entry_points=[
-#             MessageHandler(filters.Regex("^🌊 Sip$"), handler.start_ai_support),
-#             MessageHandler(filters.Regex("^🤖 Asistente IA$"), handler.start_ai_support),
-#             CommandHandler("sipai", handler.start_ai_support),
-#             CallbackQueryHandler(handler.start_ai_support_callback, pattern="^ai_sip_start$")
-#         ],
-#         states={
-#             CHATTING: [
-#                 MessageHandler(filters.TEXT & ~filters.COMMAND, handler.handle_ai_message)
-#             ]
-#         },
-#         fallbacks=[
-#             MessageHandler(filters.Regex("^(Finalizar|Salir|Exit)$"), handler.end_ai_support),
-#             CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
-#         ],
-#         name="ai_support_conversation",
-#         persistent=False,
-#         per_chat=True,
-#         per_user=True,
-#         per_message=False,
-#         allow_reentry=True 
-#     )
+    return ConversationHandler(
+        entry_points=[
+            MessageHandler(filters.Regex("^🌊 Sip$"), handler.start_ai_support),
+            MessageHandler(filters.Regex("^🤖 Asistente IA$"), handler.start_ai_support),
+            CommandHandler("sipai", handler.start_ai_support),
+            CallbackQueryHandler(handler.start_ai_support_callback, pattern="^ai_sip_start$")
+        ],
+        states={
+            CHATTING: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handler.handle_ai_message)
+            ]
+        },
+        fallbacks=[
+            MessageHandler(filters.Regex("^(Finalizar|Salir|Exit)$"), handler.end_ai_support),
+            CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
+        ],
+        name="ai_support_conversation",
+        persistent=False,
+        per_chat=True,
+        per_user=True,
+        per_message=False,
+        allow_reentry=True 
+    )
 
 # def get_ai_support_handler(ai_support_service):
 #     """
@@ -327,52 +297,15 @@ class AiSupportHandler:
 #     )
 
 
-# def get_ai_callback_handler(ai_support_service):
-#     """
-#     Retorna el handler de callbacks para IA Sip.
-    
-#     Args:
-#         ai_support_service: Servicio de soporte con IA
-        
-#     Returns:
-#         CallbackQueryHandler: Handler de callbacks
-#     """
-#     handler = AiSupportHandler(ai_support_service)
-#     return CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
-
-def get_ai_support_handler(ai_support_service):
-    """
-    Retorna el handler de conversación con IA Sip.
-    """
-    handler = AiSupportHandler(ai_support_service)
-    
-    return ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.Regex("^🌊 Sip$"), handler.start_ai_support),
-            MessageHandler(filters.Regex("^🤖 Asistente IA$"), handler.start_ai_support),
-            CommandHandler("sipai", handler.start_ai_support),
-            CallbackQueryHandler(handler.start_ai_support_callback, pattern="^ai_sip_start$")
-        ],
-        states={
-            CHATTING: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handler.handle_ai_message)
-            ]
-        },
-        fallbacks=[
-            MessageHandler(filters.Regex("^(Finalizar|Salir|Exit)$"), handler.end_ai_support),
-            CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
-        ],
-        name="ai_support_conversation",
-        persistent=False,
-        per_chat=True,
-        per_user=True,
-        # ELIMINADO: per_message=False (Es el default para per_chat=True, quitarlo reduce el ruido en logs)
-        allow_reentry=True 
-    )
-
 def get_ai_callback_handler(ai_support_service):
     """
     Retorna el handler de callbacks para IA Sip.
+    
+    Args:
+        ai_support_service: Servicio de soporte con IA
+        
+    Returns:
+        CallbackQueryHandler: Handler de callbacks
     """
     handler = AiSupportHandler(ai_support_service)
     return CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
