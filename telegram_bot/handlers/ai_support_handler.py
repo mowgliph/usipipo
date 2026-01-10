@@ -261,8 +261,7 @@ def get_ai_support_handler(ai_support_service):
             CallbackQueryHandler(handler.handle_callback, pattern="^ai_sip_")
         ],
         name="ai_support_conversation",
-        per_message=True,
-        per_callback_query=True
+        per_message=True
     )
 
 
