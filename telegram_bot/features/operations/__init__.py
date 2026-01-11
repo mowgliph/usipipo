@@ -1,14 +1,29 @@
 """
-Operations Feature - Operaciones del Usuario
+Operations Feature - Sistema de Operaciones
 
-Este módulo contiene toda la funcionalidad relacionada con las operaciones del usuario,
-incluyendo balance, referidos, VIP y otras transacciones financieras.
+Este módulo contiene toda la funcionalidad relacionada con las operaciones principales
+del bot, incluyendo comandos básicos y flujo de trabajo.
 
 Author: uSipipo Team
 Version: 2.0.0 - Feature-based architecture
 """
 
-from .handlers.operations import OperationsHandler, get_operations_handlers, get_operations_callback_handlers
+import importlib.util
+import sys
+
+# Importar el módulo con nombre de archivo con puntos usando importlib
+spec = importlib.util.spec_from_file_location(
+    "handlers.operations",
+    "telegram_bot/features/operations/handlers.operations.py"
+)
+module = importlib.util.module_from_spec(spec)
+sys.modules["handlers.operations"] = module
+spec.loader.exec_module(module)
+
+# Importar los símbolos específicos desde el módulo cargado
+OperationsHandler = module.OperationsHandler
+get_operations_handlers = module.get_operations_handlers
+get_operations_callback_handlers = module.get_operations_callback_handlers
 
 __all__ = [
     'OperationsHandler',

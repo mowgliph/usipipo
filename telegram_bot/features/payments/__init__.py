@@ -1,14 +1,29 @@
 """
-Payments Feature - Sistema de Procesamiento de Pagos
+Payments Feature - Sistema de Pagos
 
-Este módulo contiene toda la funcionalidad relacionada con el procesamiento de pagos,
-incluyendo métodos de pago, transacciones, facturación y gestión financiera.
+Este módulo contiene toda la funcionalidad relacionada con el sistema de pagos,
+transacciones y gestión financiera.
 
 Author: uSipipo Team
 Version: 2.0.0 - Feature-based architecture
 """
 
-from .handlers.payments import PaymentsHandler, get_payments_handlers, get_payments_callback_handlers
+import importlib.util
+import sys
+
+# Importar el módulo con nombre de archivo con puntos usando importlib
+spec = importlib.util.spec_from_file_location(
+    "handlers.payments",
+    "telegram_bot/features/payments/handlers.payments.py"
+)
+module = importlib.util.module_from_spec(spec)
+sys.modules["handlers.payments"] = module
+spec.loader.exec_module(module)
+
+# Importar los símbolos específicos desde el módulo cargado
+PaymentsHandler = module.PaymentsHandler
+get_payments_handlers = module.get_payments_handlers
+get_payments_callback_handlers = module.get_payments_callback_handlers
 
 __all__ = [
     'PaymentsHandler',

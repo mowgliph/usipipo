@@ -1,14 +1,29 @@
 """
-Support Feature - Sistema de Soporte Técnico
+Support Feature - Sistema de Soporte
 
-Este módulo contiene toda la funcionalidad relacionada con el soporte técnico,
-incluyendo tickets, chat con admin, FAQ y gestión de incidencias.
+Este módulo contiene toda la funcionalidad relacionada con el sistema de soporte,
+tickets, atención al cliente y resolución de problemas.
 
 Author: uSipipo Team
 Version: 2.0.0 - Feature-based architecture
 """
 
-from .handlers.support import SupportHandler, get_support_handlers, get_support_callback_handlers
+import importlib.util
+import sys
+
+# Importar el módulo con nombre de archivo con puntos usando importlib
+spec = importlib.util.spec_from_file_location(
+    "handlers.support",
+    "telegram_bot/features/support/handlers.support.py"
+)
+module = importlib.util.module_from_spec(spec)
+sys.modules["handlers.support"] = module
+spec.loader.exec_module(module)
+
+# Importar los símbolos específicos desde el módulo cargado
+SupportHandler = module.SupportHandler
+get_support_handlers = module.get_support_handlers
+get_support_callback_handlers = module.get_support_callback_handlers
 
 __all__ = [
     'SupportHandler',

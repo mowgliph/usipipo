@@ -1,14 +1,29 @@
 """
-Game Feature - Sistema de Juegos y Gamificación
+Game Feature - Sistema de Juegos
 
-Este módulo contiene toda la funcionalidad relacionada con juegos,
-ruletas, desafíos, recompensas y sistema de gamificación.
+Este módulo contiene toda la funcionalidad relacionada con el sistema de juegos,
+competiciones y actividades interactivas.
 
 Author: uSipipo Team
 Version: 2.0.0 - Feature-based architecture
 """
 
-from .handlers.game import GameHandler, get_game_handlers, get_game_callback_handlers
+import importlib.util
+import sys
+
+# Importar el módulo con nombre de archivo con puntos usando importlib
+spec = importlib.util.spec_from_file_location(
+    "handlers.game",
+    "telegram_bot/features/game/handlers.game.py"
+)
+module = importlib.util.module_from_spec(spec)
+sys.modules["handlers.game"] = module
+spec.loader.exec_module(module)
+
+# Importar los símbolos específicos desde el módulo cargado
+GameHandler = module.GameHandler
+get_game_handlers = module.get_game_handlers
+get_game_callback_handlers = module.get_game_callback_handlers
 
 __all__ = [
     'GameHandler',
