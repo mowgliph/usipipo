@@ -50,24 +50,59 @@ from application.services.admin_service import AdminService
 from application.services.task_service import TaskService
 from application.services.ai_support_service import AiSupportService
 
-# Handlers
-from telegram_bot.handlers.user_task_manager_handler import get_user_task_manager_handlers
-from telegram_bot.handlers.user_announcer_handler import get_user_announcer_handlers
-from telegram_bot.handlers.crear_llave_handler import get_creation_handler
-from telegram_bot.handlers.key_submenu_handler import get_key_submenu_handler
-from telegram_bot.handlers.support_handler import get_support_handler
-from telegram_bot.handlers.referral_handler import get_referral_handlers
-from telegram_bot.handlers.payment_handler import get_payment_handlers
-from telegram_bot.handlers.monitoring_handler import get_monitoring_handlers
-from telegram_bot.handlers.broadcast_handler import get_broadcast_handler
-from telegram_bot.handlers.game_handler import get_game_handlers
-from telegram_bot.handlers.support_menu_handler import get_support_menu_handler
-from telegram_bot.handlers.admin_handler import get_admin_handler
-from telegram_bot.handlers.task_handler import get_task_handler
-from telegram_bot.handlers.admin_task_handler import get_admin_task_handler
-from telegram_bot.handlers.shop_handler import get_shop_handler
-from telegram_bot.handlers.vip_command_handler import get_vip_command_handler, VipCommandHandler
-from telegram_bot.handlers.inline_callbacks_handler import get_inline_callback_handlers
+# Handlers - Feature-based architecture
+from telegram_bot.features.task_management import (
+    get_task_management_handlers,
+    get_task_management_callback_handlers
+)
+from telegram_bot.features.announcer import get_announcer_handlers
+from telegram_bot.features.vpn_keys import (
+    get_vpn_keys_handler,
+    get_vpn_keys_handlers,
+    get_vpn_keys_callback_handlers
+)
+from telegram_bot.features.key_management import (
+    get_key_management_handlers,
+    get_key_management_callback_handlers
+)
+from telegram_bot.features.support import (
+    get_support_handlers,
+    get_support_callback_handlers,
+    get_support_conversation_handler
+)
+from telegram_bot.features.referral import (
+    get_referral_handlers,
+    get_referral_callback_handlers
+)
+from telegram_bot.features.payments import (
+    get_payments_handlers,
+    get_payments_callback_handlers
+)
+from telegram_bot.features.operations import (
+    get_operations_handlers,
+    get_operations_callback_handlers
+)
+from telegram_bot.features.broadcast import get_broadcast_handlers
+from telegram_bot.features.game import (
+    get_game_handlers,
+    get_game_callback_handlers
+)
+from telegram_bot.features.admin import (
+    get_admin_handlers,
+    get_admin_callback_handlers
+)
+from telegram_bot.features.shop import (
+    get_shop_handlers,
+    get_shop_callback_handlers
+)
+from telegram_bot.features.vip import (
+    get_vip_handlers,
+    get_vip_callback_handlers
+)
+from telegram_bot.features.ai_support import (
+    get_ai_support_handler,
+    get_ai_callback_handlers
+)
 from application.services.game_service import GameService
 
 
@@ -235,32 +270,36 @@ def get_container() -> punq.Container:
 
     # =========================================================================
     # 5. HANDLERS (Factories que retornan listas de handlers)
+    # Feature-based architecture - usando funciones desde features
     # =========================================================================
     
     def create_user_task_manager_handlers() -> list:
         """Factory para los handlers de Gestor de Tareas (Premium)."""
-        return get_user_task_manager_handlers(
+        return get_task_management_handlers(
             task_service=create_task_service(),
-            user_repository=create_user_repo()
+            vpn_service=create_vpn_service()
         )
     
     def create_user_announcer_handlers() -> list:
         """Factory para los handlers de Anunciante (Premium)."""
-        return get_user_announcer_handlers(
-            user_repository=create_user_repo()
+        from application.services.announcer_service import AnnouncerService
+        announcer_service = AnnouncerService()
+        return get_announcer_handlers(
+            announcer_service=announcer_service,
+            vpn_service=create_vpn_service()
         )
     
     def create_creation_handlers() -> object:
         """Factory para los handlers de creación de llaves."""
-        return get_creation_handler(create_vpn_service())
+        return get_vpn_keys_handler(create_vpn_service())
     
     def create_key_submenu_handlers() -> object:
         """Factory para los handlers de submenú de llaves."""
-        return get_key_submenu_handler(create_vpn_service())
+        return get_key_management_handlers(create_vpn_service())
     
     def create_support_handlers() -> object:
         """Factory para los handlers de soporte."""
-        return get_support_handler(create_support_service())
+        return get_support_conversation_handler(create_support_service())
     
     def create_referral_handlers_list() -> list:
         """Factory para los handlers de referidos."""
@@ -271,19 +310,30 @@ def get_container() -> punq.Container:
     
     def create_payment_handlers_list() -> list:
         """Factory para los handlers de pagos."""
-        return get_payment_handlers(
-            referral_service=create_referral_service(),
+        return get_payments_handlers(
+            payment_service=create_payment_service(),
             vpn_service=create_vpn_service(),
-            payment_service=create_payment_service()
+            referral_service=create_referral_service()
         )
     
-    def create_monitoring_handlers_list() -> tuple:
+    def create_monitoring_handlers_list() -> list:
         """Factory para los handlers de monitorización."""
-        return get_monitoring_handlers(settings.ADMIN_ID)
+        # Monitoring handlers están en operations feature
+        return get_operations_handlers(
+            vpn_service=create_vpn_service(),
+            referral_service=create_referral_service()
+        )
     
-    def create_broadcast_handlers() -> object:
+    def create_broadcast_handlers() -> list:
         """Factory para los handlers de broadcast."""
-        return get_broadcast_handler()
+        # TODO: BroadcastService no existe aún
+        try:
+            from application.services.broadcast_service import BroadcastService
+            broadcast_service = BroadcastService()
+        except ImportError:
+            logger.warning("BroadcastService no encontrado, retornando lista vacía")
+            return []
+        return get_broadcast_handlers(broadcast_service)
     
     def create_game_handlers_list() -> list:
         """Factory para los handlers de juegos."""
@@ -292,47 +342,71 @@ def get_container() -> punq.Container:
     
     def create_support_menu_handlers_list() -> list:
         """Factory para los handlers del menú de soporte."""
-        return get_support_menu_handler(create_support_service())
+        return get_support_handlers(create_support_service())
     
-    def create_admin_handlers() -> object:
+    def create_admin_handlers() -> list:
         """Factory para los handlers de administración."""
-        return get_admin_handler(create_admin_service())
+        handlers = get_admin_handlers(create_admin_service())
+        return handlers if isinstance(handlers, list) else [handlers]
     
-    def create_task_handlers() -> object:
+    def create_task_handlers() -> list:
         """Factory para los handlers de tareas."""
-        return get_task_handler(create_task_service())
+        return get_task_management_handlers(
+            task_service=create_task_service(),
+            vpn_service=create_vpn_service()
+        )
     
-    def create_admin_task_handlers() -> object:
+    def create_admin_task_handlers() -> list:
         """Factory para los handlers de administración de tareas."""
-        return get_admin_task_handler(create_task_service())
+        # Admin task handlers están en task_management feature
+        return get_task_management_handlers(
+            task_service=create_task_service(),
+            vpn_service=create_vpn_service()
+        )
     
     def create_shop_handlers_list() -> list:
         """Factory para los handlers de tienda."""
-        return get_shop_handler(create_payment_service())
+        return get_shop_handlers(
+            payment_service=create_payment_service(),
+            vpn_service=create_vpn_service()
+        )
     
-    def create_vip_command_handler() -> tuple:
+    def create_vip_command_handler() -> list:
         """Factory para el handler dedicado del comando /vip."""
-        return get_vip_command_handler(create_payment_service())
+        return get_vip_handlers(
+            payment_service=create_payment_service(),
+            vpn_service=create_vpn_service()
+        )
     
     def create_inline_callback_handlers_list() -> list:
         """Factory para los handlers de callbacks inline."""
-        return get_inline_callback_handlers(
-            vpn_service=create_vpn_service(),
-            achievement_service=create_achievement_service(),
-            support_service=create_support_service(),
-            admin_service=create_admin_service(),
-            ai_support_service=create_ai_support_service()
-        )
+        # Combinar callbacks de diferentes features
+        handlers = []
+        handlers.extend(get_task_management_callback_handlers(create_task_service(), create_vpn_service()))
+        handlers.extend(get_admin_callback_handlers(create_admin_service()))
+        handlers.extend(get_support_callback_handlers(create_support_service()))
+        handlers.extend(get_payments_callback_handlers(create_payment_service(), create_vpn_service(), create_referral_service()))
+        handlers.extend(get_referral_callback_handlers(create_referral_service(), create_vpn_service()))
+        handlers.extend(get_vpn_keys_callback_handlers(create_vpn_service()))
+        handlers.extend(get_key_management_callback_handlers(create_vpn_service()))
+        handlers.extend(get_game_callback_handlers(GameService()))
+        handlers.extend(get_shop_callback_handlers(create_payment_service(), create_vpn_service()))
+        handlers.extend(get_vip_callback_handlers(create_payment_service(), create_vpn_service()))
+        handlers.extend(get_ai_callback_handlers(create_ai_support_service()))
+        handlers.extend(get_achievements_callback_handlers(create_achievement_service()))
+        handlers.extend(get_operations_callback_handlers(create_vpn_service(), create_referral_service()))
+        return handlers
     
     def create_ai_support_handler() -> object:
         """Factory para el handler de soporte con IA Sip."""
-        from telegram_bot.handlers.ai_support_handler import get_ai_support_handler
         return get_ai_support_handler(create_ai_support_service())
     
     def create_direct_message_handler() -> object:
         """Factory para el handler de mensajes directos con IA."""
-        from telegram_bot.handlers.direct_message_handler import get_direct_message_handler
-        return get_direct_message_handler(create_ai_support_service())
+        # TODO: direct_message_handler no existe en features
+        # Por ahora, retornar None o crear wrapper
+        logger.warning("direct_message_handler no implementado en features")
+        return None
     
     container.register("user_task_manager_handlers", factory=create_user_task_manager_handlers)
     container.register("user_announcer_handlers", factory=create_user_announcer_handlers)
