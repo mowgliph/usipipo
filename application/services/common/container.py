@@ -49,6 +49,7 @@ from application.services.achievement_service import AchievementService
 from application.services.admin_service import AdminService
 from application.services.task_service import TaskService
 from application.services.ai_support_service import AiSupportService
+from application.services.broadcast_service import BroadcastService
 
 # Handlers - Feature-based architecture
 from telegram_bot.features.task_management import (
@@ -259,6 +260,9 @@ def get_container() -> punq.Container:
             groq_client=container.resolve(GroqClient)
         )
     
+    def create_broadcast_service() -> BroadcastService:
+        return BroadcastService()
+    
     container.register(VpnService, factory=create_vpn_service)
     container.register(SupportService, factory=create_support_service)
     container.register(ReferralService, factory=create_referral_service)
@@ -326,13 +330,7 @@ def get_container() -> punq.Container:
     
     def create_broadcast_handlers() -> list:
         """Factory para los handlers de broadcast."""
-        # TODO: BroadcastService no existe aún
-        try:
-            from application.services.broadcast_service import BroadcastService
-            broadcast_service = BroadcastService()
-        except ImportError:
-            logger.warning("BroadcastService no encontrado, retornando lista vacía")
-            return []
+        broadcast_service = create_broadcast_service()
         return get_broadcast_handlers(broadcast_service)
     
     def create_game_handlers_list() -> list:
@@ -404,7 +402,6 @@ def get_container() -> punq.Container:
     def create_direct_message_handler() -> object:
         """Factory para el handler de mensajes directos con IA."""
         # TODO: direct_message_handler no existe en features
-        # Por ahora, retornar None o crear wrapper
         logger.warning("direct_message_handler no implementado en features")
         return None
     

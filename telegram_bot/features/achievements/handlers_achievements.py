@@ -8,9 +8,8 @@ Version: 2.0.0 - Feature-based architecture
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from application.services.achievement_service import AchievementService
-from .messages.achievements import AchievementsMessages
-from .keyboards.achievements import AchievementsKeyboards
-from domain.entities.achievement import AchievementType
+from .messages_achievements import AchievementsMessages
+from .keyboards_achievements import AchievementsKeyboards
 from utils.logger import logger
 from utils.spinner import database_spinner
 from common.base_handler import BaseHandler

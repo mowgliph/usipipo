@@ -7,11 +7,9 @@ Version: 2.0.0 - Feature-based architecture
 
 from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters
-from telegram.error import BadRequest
-from typing import Dict, Any, List, Optional
 from application.services.vpn_service import VpnService
-from .messages.key_management import KeyManagementMessages
-from .keyboards.key_management import KeyManagementKeyboards
+from .messages_key_management import KeyManagementMessages
+from .keyboards_key_management import KeyManagementKeyboards
 from config import settings
 from utils.logger import logger
 from utils.telegram_utils import TelegramHandlerUtils

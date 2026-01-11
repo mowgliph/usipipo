@@ -8,8 +8,8 @@ Version: 2.0.0 - Feature-based architecture
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, ConversationHandler, CommandHandler
 from application.services.admin_service import AdminService
-from .messages.admin import AdminMessages
-from .keyboards.admin import AdminKeyboards
+from .messages_admin import AdminMessages
+from .keyboards_admin import AdminKeyboards
 from config import settings
 from utils.logger import logger
 from utils.telegram_utils import TelegramHandlerUtils

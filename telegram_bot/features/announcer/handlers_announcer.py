@@ -9,8 +9,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler, ConversationHandler
 from application.services.announcer_service import AnnouncerService
 from application.services.vpn_service import VpnService
-from .messages.announcer import AnnouncerMessages
-from .keyboards.announcer import AnnouncerKeyboards
+from .messages_announcer import AnnouncerMessages
+from .keyboards_announcer import AnnouncerKeyboards
 from utils.logger import logger
 
 # Estados de conversación
