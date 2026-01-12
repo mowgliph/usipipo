@@ -9,8 +9,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler, ConversationHandler
 from application.services.task_service import TaskService
 from application.services.vpn_service import VpnService
-from .messages_task_management import TaskManagementMessages
-from .keyboards_task_management import TaskManagementKeyboards
+from telegram_bot.features.task_management.messages_task_management import TaskManagementMessages
+from telegram_bot.features.task_management.keyboards_task_management import TaskManagementKeyboards
 from utils.logger import logger
 
 # Estados de conversación
