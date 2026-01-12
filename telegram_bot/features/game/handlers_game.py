@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler, ConversationHandler
 from domain.entities.game import GameType, GameResult
-from .messages.game import GameMessages
-from .keyboards.game import GameKeyboards
+from .messages_game import GameMessages
+from .keyboards_game import GameKeyboards
 from utils.logger import get_logger
 
 # Estados de conversación

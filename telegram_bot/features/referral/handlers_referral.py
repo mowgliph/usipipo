@@ -9,8 +9,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler, ConversationHandler
 from application.services.referral_service import ReferralService
 from application.services.vpn_service import VpnService
-from .messages.referral import ReferralMessages
-from .keyboards.referral import ReferralKeyboards
+from .messages_referral import ReferralMessages
+from .keyboards_referral import ReferralKeyboards
 from config import settings
 from utils.logger import logger
 

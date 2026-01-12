@@ -8,8 +8,8 @@ Version: 2.0.0 - Feature-based architecture
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filters, CommandHandler, CallbackQueryHandler
 from application.services.support_service import SupportService
-from .messages.support import SupportMessages
-from .keyboards.support import SupportKeyboards
+from .messages_support import SupportMessages
+from .keyboards_support import SupportKeyboards
 from config import settings
 from utils.logger import logger
 

@@ -9,8 +9,8 @@ from telegram import Update
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler
 from application.services.vpn_service import VpnService
 from application.services.referral_service import ReferralService
-from .messages.operations import OperationsMessages
-from .keyboards.operations import OperationsKeyboards
+from .messages_operations import OperationsMessages
+from .keyboards_operations import OperationsKeyboards
 from config import settings
 from utils.logger import logger
 

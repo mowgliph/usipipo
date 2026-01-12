@@ -11,13 +11,13 @@ Version: 2.0.0 - Feature-based architecture
 import importlib.util
 import sys
 
-# Importar el módulo con nombre de archivo con puntos usando importlib
+# Importar el módulo con nombre de archivo con guiones bajos usando importlib
 spec = importlib.util.spec_from_file_location(
-    "handlers.payments",
-    "telegram_bot/features/payments/handlers.payments.py"
+    "handlers_payments",
+    "telegram_bot/features/payments/handlers_payments.py"
 )
 module = importlib.util.module_from_spec(spec)
-sys.modules["handlers.payments"] = module
+sys.modules["handlers_payments"] = module
 spec.loader.exec_module(module)
 
 # Importar los símbolos específicos desde el módulo cargado

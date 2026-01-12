@@ -9,8 +9,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler, ConversationHandler
 from application.services.payment_service import PaymentService
 from application.services.vpn_service import VpnService
-from .messages.shop import ShopMessages
-from .keyboards.shop import ShopKeyboards
+from .messages_shop import ShopMessages
+from .keyboards_shop import ShopKeyboards
 from utils.logger import logger
 from utils.spinner import with_spinner
 

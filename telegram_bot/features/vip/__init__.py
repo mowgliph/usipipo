@@ -13,11 +13,11 @@ import sys
 
 # Importar el módulo con nombre de archivo con puntos usando importlib
 spec = importlib.util.spec_from_file_location(
-    "handlers.vip",
-    "telegram_bot/features/vip/handlers.vip.py"
+    "handlers_vip",
+    "telegram_bot/features/vip/handlers_vip.py"
 )
 module = importlib.util.module_from_spec(spec)
-sys.modules["handlers.vip"] = module
+sys.modules["handlers_vip"] = module
 spec.loader.exec_module(module)
 
 # Importar los símbolos específicos desde el módulo cargado

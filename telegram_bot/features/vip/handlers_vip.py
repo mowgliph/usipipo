@@ -9,8 +9,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler, CommandHandler
 from application.services.payment_service import PaymentService
 from application.services.vpn_service import VpnService
-from .messages.vip import VipMessages
-from .keyboards.vip import VipKeyboards
+from .messages_vip import VipMessages
+from .keyboards_vip import VipKeyboards
 from config import settings
 from utils.logger import logger
 

@@ -10,8 +10,8 @@ from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHan
 from application.services.payment_service import PaymentService
 from application.services.vpn_service import VpnService
 from application.services.referral_service import ReferralService
-from .messages.payments import PaymentsMessages
-from .keyboards.payments import PaymentsKeyboards
+from .messages_payments import PaymentsMessages
+from .keyboards_payments import PaymentsKeyboards
 from config import settings
 from utils.logger import logger
 

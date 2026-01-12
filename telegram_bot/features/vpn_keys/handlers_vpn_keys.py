@@ -16,8 +16,8 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 from application.services.vpn_service import VpnService
-from .messages.vpn_keys import VpnKeysMessages
-from .keyboards.vpn_keys import VpnKeysKeyboards
+from .messages_vpn_keys import VpnKeysMessages
+from .keyboards_vpn_keys import VpnKeysKeyboards
 from utils.qr_generator import QrGenerator
 from config import settings
 from utils.logger import logger

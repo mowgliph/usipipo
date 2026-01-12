@@ -11,8 +11,8 @@ from telegram.ext import ContextTypes, CommandHandler, MessageHandler, CallbackQ
 from application.services.vpn_service import VpnService
 from application.services.achievement_service import AchievementService
 from application.services.admin_service import AdminService
-from .messages.user_management import UserManagementMessages
-from .keyboards.user_management import UserManagementKeyboards
+from .messages_user_management import UserManagementMessages
+from .keyboards_user_management import UserManagementKeyboards
 from config import settings
 from utils.logger import logger
 from utils.spinner import registration_spinner
