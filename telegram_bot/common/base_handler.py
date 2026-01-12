@@ -10,7 +10,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from utils.logger import logger
 from utils.telegram_utils import TelegramHandlerUtils
-
+from .messages import CommonMessages
+from .keyboards import CommonKeyboards
 
 class BaseHandler(ABC):
     """Base class for all feature handlers with common functionality."""
@@ -53,7 +54,7 @@ class BaseHandler(ABC):
         handler_class = self.__class__.__name__
         logger.error(f"Error en {handler_class}.{operation}: {error}")
         
-        from .messages import CommonMessages
+        
         
         error_message = CommonMessages.Error.SYSTEM_ERROR
         
@@ -77,7 +78,7 @@ class BaseHandler(ABC):
         Returns:
             InlineKeyboardMarkup: Back navigation keyboard
         """
-        from .keyboards import CommonKeyboards
+        
         return CommonKeyboards.back_to_main_menu()
     
     async def _edit_message_with_keyboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE,

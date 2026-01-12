@@ -11,7 +11,7 @@ class TaskManagementMessages:
     
     # ============================================
     # MENU
-    ============================================
+    #============================================
     
     class Menu:
         """Mensajes del menú de gestión de tareas."""
@@ -29,7 +29,7 @@ class TaskManagementMessages:
     
     # ============================================
     # CREATE
-    ============================================
+    #============================================
     
     class Create:
         """Mensajes de creación de tareas."""
@@ -66,7 +66,7 @@ class TaskManagementMessages:
     
     # ============================================
     # LIST
-    ============================================
+    #============================================
     
     class List:
         """Mensajes de lista de tareas."""
@@ -104,7 +104,7 @@ class TaskManagementMessages:
     
     # ============================================
     # DETAILS
-    ============================================
+    #============================================
     
     class Details:
         """Mensajes de detalles de tareas."""
@@ -149,7 +149,7 @@ class TaskManagementMessages:
     
     # ============================================
     # ASSIGNMENT
-    ============================================
+    #============================================
     
     class Assignment:
         """Mensajes de asignación de tareas."""
@@ -178,7 +178,7 @@ class TaskManagementMessages:
     
     # ============================================
     # STATUS
-    ============================================
+    #============================================
     
     class Status:
         """Mensajes de estado de tareas."""
@@ -217,7 +217,7 @@ class TaskManagementMessages:
     
     # ============================================
     # CALENDAR
-    ============================================
+    #============================================
     
     class Calendar:
         """Mensajes de calendario de tareas."""
@@ -249,7 +249,7 @@ class TaskManagementMessages:
     
     # ============================================
     # ERRORS
-    ============================================
+    #============================================
     
     class Error:
         """Mensajes de error."""
@@ -288,7 +288,7 @@ class TaskManagementMessages:
     
     # ============================================
     # SUCCESS
-    ============================================
+    #============================================
     
     class Success:
         """Mensajes de éxito."""
@@ -325,7 +325,7 @@ class TaskManagementMessages:
     
     # ============================================
     # TEMPLATES
-    ============================================
+    #============================================
     
     class Templates:
         """Mensajes de plantillas de tareas."""
@@ -353,7 +353,7 @@ class TaskManagementMessages:
     
     # ============================================
     # COLLABORATION
-    ============================================
+    #============================================
     
     class Collaboration:
         """Mensajes de colaboración."""
@@ -388,7 +388,7 @@ class TaskManagementMessages:
     
     # ============================================
     # NOTIFICATIONS
-    ============================================
+    #============================================
     
     class Notifications:
         """Mensajes de notificaciones."""
