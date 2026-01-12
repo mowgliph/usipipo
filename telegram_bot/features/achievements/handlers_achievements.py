@@ -12,9 +12,9 @@ from .messages_achievements import AchievementsMessages
 from .keyboards_achievements import AchievementsKeyboards
 from utils.logger import logger
 from utils.spinner import database_spinner
-from common.base_handler import BaseHandler
-from common.decorators import safe_callback_query, database_operation
-from common.patterns import ListPattern
+from telegram_bot.common.base_handler import BaseHandler
+from telegram_bot.common.decorators import safe_callback_query, database_operation
+from telegram_bot.common.patterns import ListPattern
 
 
 class AchievementsHandler(BaseHandler, ListPattern):
@@ -86,13 +86,13 @@ class AchievementsHandler(BaseHandler, ListPattern):
     async def achievements_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra la lista de logros disponibles."""
         query = update.callback_query
-        await query.answer()
-        
+        await self._safe_answer_query(query)
+
         user_id = update.effective_user.id
-        
+
         try:
-            user_achievements = await self.achievement_service.get_user_achievements(user_id)
-            
+            user_achievements = await self.service.get_user_achievements(user_id)
+
             if not user_achievements:
                 message = AchievementsMessages.List.NO_ACHIEVEMENTS
             else:
@@ -103,43 +103,39 @@ class AchievementsHandler(BaseHandler, ListPattern):
                     if category not in categories:
                         categories[category] = []
                     categories[category].append(achievement)
-                
+
                 message = AchievementsMessages.List.HEADER
-                
+
                 for category, achievements in categories.items():
                     message += f"\n📂 **{category}**\n"
                     for achievement in achievements:
                         status = "✅" if achievement.completed else "⏳"
                         message += f"{status} {achievement.title}\n"
-            
-            await query.edit_message_text(
+
+            await self._safe_edit_message(
+                query, context,
                 text=message,
                 reply_markup=AchievementsKeyboards.back_to_menu(),
                 parse_mode="Markdown"
             )
-            
+
         except Exception as e:
-            logger.error(f"Error en achievements_list: {e}")
-            await query.edit_message_text(
-                text=AchievementsMessages.Error.SYSTEM_ERROR,
-                reply_markup=AchievementsKeyboards.back_to_menu(),
-                parse_mode="Markdown"
-            )
+            await self._handle_error(update, context, e, "achievements_list")
 
     @database_spinner
     async def claim_reward(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Reclama una recompensa de logro."""
         query = update.callback_query
-        await query.answer()
-        
+        await self._safe_answer_query(query)
+
         user_id = update.effective_user.id
-        
+
         try:
             # Extraer achievement_id del callback_data
             achievement_id = int(query.data.split("_")[-1])
-            
-            result = await self.achievement_service.claim_reward(user_id, achievement_id)
-            
+
+            result = await self.service.claim_reward(user_id, achievement_id)
+
             if result:
                 message = AchievementsMessages.Reward.CLAIMED.format(
                     title=result.get('title', 'Logro'),
@@ -147,52 +143,44 @@ class AchievementsHandler(BaseHandler, ListPattern):
                 )
             else:
                 message = AchievementsMessages.Reward.ALREADY_CLAIMED
-            
-            await query.edit_message_text(
+
+            await self._safe_edit_message(
+                query, context,
                 text=message,
                 reply_markup=AchievementsKeyboards.back_to_menu(),
                 parse_mode="Markdown"
             )
-            
+
         except Exception as e:
-            logger.error(f"Error en claim_reward: {e}")
-            await query.edit_message_text(
-                text=AchievementsMessages.Error.SYSTEM_ERROR,
-                reply_markup=AchievementsKeyboards.back_to_menu(),
-                parse_mode="Markdown"
-            )
+            await self._handle_error(update, context, e, "claim_reward")
 
     @database_spinner
     async def achievements_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra el leaderboard de logros."""
         query = update.callback_query
-        await query.answer()
-        
+        await self._safe_answer_query(query)
+
         try:
-            leaderboard = await self.achievement_service.get_leaderboard(limit=10)
-            
+            leaderboard = await self.service.get_leaderboard(limit=10)
+
             if not leaderboard:
                 message = AchievementsMessages.Leaderboard.NO_DATA
             else:
                 message = AchievementsMessages.Leaderboard.HEADER
-                
+
                 for i, entry in enumerate(leaderboard, 1):
                     medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
                     message += f"\n{medal} **{entry['name']}** - {entry['total_achievements']} logros, {entry['total_stars']} ⭐"
-            
-            await query.edit_message_text(
+
+            await self._safe_edit_message(
+                query, context,
                 text=message,
                 reply_markup=AchievementsKeyboards.back_to_menu(),
                 parse_mode="Markdown"
             )
-            
+
         except Exception as e:
-            logger.error(f"Error en achievements_leaderboard: {e}")
-            await query.edit_message_text(
-                text=AchievementsMessages.Error.SYSTEM_ERROR,
-                reply_markup=AchievementsKeyboards.back_to_menu(),
-                parse_mode="Markdown"
-            )
+            await self._handle_error(update, context, e, "achievements_leaderboard")
 
 
 def get_achievements_handlers(achievement_service: AchievementService):

@@ -10,21 +10,22 @@ from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, filt
 from .messages_ai_support import SipMessages
 from .keyboards_ai_support import AiSupportKeyboards
 from utils.logger import logger
+from telegram_bot.common.base_handler import BaseConversationHandler
 
 CHATTING = 1
 
 
-class AiSupportHandler:
+class AiSupportHandler(BaseConversationHandler):
     """Handler para conversaciones con IA de soporte."""
-    
+
     def __init__(self, ai_support_service):
         """
         Inicializa el handler de IA Sip.
-        
+
         Args:
             ai_support_service: Servicio de soporte con IA
         """
-        self.ai_support_service = ai_support_service
+        super().__init__(ai_support_service, "AiSupportService")
         logger.info("🌊 AiSupportHandler inicializado")
     
     async def start_ai_support(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -41,7 +42,7 @@ class AiSupportHandler:
         user = update.effective_user
 
         try:
-            await self.ai_support_service.start_conversation(
+            await self.service.start_conversation(
                 user_id=user.id,
                 user_name=user.first_name
             )
@@ -49,7 +50,8 @@ class AiSupportHandler:
             # Marcar en el contexto que estamos en conversación IA
             context.user_data['in_ai_conversation'] = True
 
-            await update.message.reply_text(
+            await self._reply_message(
+                update,
                 text=SipMessages.WELCOME,
                 reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
@@ -60,9 +62,7 @@ class AiSupportHandler:
 
         except Exception as e:
             logger.error(f"❌ Error iniciando soporte IA: {e}")
-            await update.message.reply_text(
-                "❌ No pude iniciar el asistente IA. Intenta más tarde."
-            )
+            await self._reply_message(update, "❌ No pude iniciar el asistente IA. Intenta más tarde.")
             return ConversationHandler.END
 
     async def start_ai_support_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -77,12 +77,12 @@ class AiSupportHandler:
             int: Estado de la conversación
         """
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer_query(query)
 
         user = update.effective_user
 
         try:
-            await self.ai_support_service.start_conversation(
+            await self.service.start_conversation(
                 user_id=user.id,
                 user_name=user.first_name
             )
@@ -90,7 +90,8 @@ class AiSupportHandler:
             # Marcar en el contexto que estamos en conversación IA
             context.user_data['in_ai_conversation'] = True
 
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query, context,
                 text=SipMessages.WELCOME,
                 reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
@@ -101,9 +102,7 @@ class AiSupportHandler:
 
         except Exception as e:
             logger.error(f"❌ Error iniciando soporte IA: {e}")
-            await query.edit_message_text(
-                "❌ No pude iniciar el asistente IA. Intenta más tarde."
-            )
+            await self._safe_edit_message(query, context, "❌ No pude iniciar el asistente IA. Intenta más tarde.")
             return ConversationHandler.END
     
     async def handle_ai_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,34 +127,37 @@ class AiSupportHandler:
         
         try:
             await update.message.chat.send_action(action="typing")
-            
-            ai_response = await self.ai_support_service.send_message(
+
+            ai_response = await self.service.send_message(
                 user_id=user_id,
                 user_message=user_message
             )
-            
-            await update.message.reply_text(
+
+            await self._reply_message(
+                update,
                 f"🌊 **Sip:**\n\n{ai_response}",
                 reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
-            
+
             logger.info(f"🌊 Respuesta IA enviada a usuario {user_id}")
             return CHATTING
-            
+
         except ValueError as e:
             logger.warning(f"⚠️ Error de validación: {e}")
             context.user_data['in_ai_conversation'] = False
-            await update.message.reply_text(
+            await self._reply_message(
+                update,
                 SipMessages.ERROR_NO_ACTIVE_CONVERSATION,
                 reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
             return ConversationHandler.END
-            
+
         except Exception as e:
             logger.error(f"❌ Error en chat IA: {e}")
-            await update.message.reply_text(
+            await self._reply_message(
+                update,
                 SipMessages.ERROR_PROCESSING_MESSAGE,
                 reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
@@ -179,34 +181,40 @@ class AiSupportHandler:
         context.user_data['in_ai_conversation'] = False
         
         try:
-            await self.ai_support_service.end_conversation(user_id)
-            
+            await self.service.end_conversation(user_id)
+
             # Manejar tanto mensajes como callbacks
             if update.message:
-                await update.message.reply_text(
+                await self._reply_message(
+                    update,
                     text=SipMessages.CONVERSATION_ENDED,
                     reply_markup=AiSupportKeyboards.ai_support_active(),
                     parse_mode="Markdown"
                 )
             elif update.callback_query:
-                await update.callback_query.edit_message_text(
+                await self._handle_callback_query(update, context)
+                await self._safe_edit_message(
+                    update.callback_query, context,
                     text=SipMessages.CONVERSATION_ENDED,
                     reply_markup=AiSupportKeyboards.ai_support_active(),
                     parse_mode="Markdown"
                 )
-            
+
             logger.info(f"🌊 Conversación IA finalizada por usuario {user_id}")
             return ConversationHandler.END
-            
+
         except Exception as e:
             logger.error(f"❌ Error finalizando conversación: {e}")
             if update.message:
-                await update.message.reply_text(
+                await self._reply_message(
+                    update,
                     "❌ Hubo un error al finalizar la conversación.",
                     reply_markup=AiSupportKeyboards.ai_support_active()
                 )
             elif update.callback_query:
-                await update.callback_query.edit_message_text(
+                await self._handle_callback_query(update, context)
+                await self._safe_edit_message(
+                    update.callback_query, context,
                     "❌ Hubo un error al finalizar la conversación.",
                     reply_markup=AiSupportKeyboards.ai_support_active()
                 )
@@ -215,36 +223,37 @@ class AiSupportHandler:
     async def show_suggested_questions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Muestra preguntas sugeridas al usuario.
-        
+
         Args:
             update: Update de Telegram
             context: Contexto de Telegram
         """
         query = update.callback_query
-        await query.answer()
-        
+        await self._safe_answer_query(query)
+
         try:
-            await query.edit_message_text(
+            await self._safe_edit_message(
+                query, context,
                 text=SipMessages.SUGGESTED_QUESTIONS,
                 reply_markup=AiSupportKeyboards.ai_support_active(),
                 parse_mode="Markdown"
             )
         except Exception as e:
-            logger.error(f"❌ Error mostrando sugerencias: {e}")
+            await self._handle_error(update, context, e, "show_suggested_questions")
     
     async def handle_end_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Maneja el callback de finalizar conversación.
-        
+
         Args:
             update: Update de Telegram
             context: Contexto de Telegram
-            
+
         Returns:
             int: Estado final de la conversación
         """
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer_query(query)
         return await self.end_ai_support(update, context)
 
 

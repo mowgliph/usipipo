@@ -12,6 +12,7 @@ from application.services.vpn_service import VpnService
 from .messages_announcer import AnnouncerMessages
 from .keyboards_announcer import AnnouncerKeyboards
 from utils.logger import logger
+from telegram_bot.common.base_handler import BaseConversationHandler
 
 # Estados de conversación
 ANNOUNCER_MENU = 0
@@ -21,18 +22,18 @@ COMPOSING_AD = 3
 CONFIRMING_CAMPAIGN = 4
 
 
-class AnnouncerHandler:
+class AnnouncerHandler(BaseConversationHandler):
     """Handler para sistema de anuncios."""
-    
+
     def __init__(self, announcer_service: AnnouncerService, vpn_service: VpnService = None):
         """
         Inicializa el handler de anuncios.
-        
+
         Args:
             announcer_service: Servicio de anuncios
             vpn_service: Servicio de VPN (opcional)
         """
-        self.announcer_service = announcer_service
+        super().__init__(announcer_service, "AnnouncerService")
         self.vpn_service = vpn_service
         logger.info("📢 AnnouncerHandler inicializado")
 

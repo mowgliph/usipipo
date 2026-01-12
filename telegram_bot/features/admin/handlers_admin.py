@@ -12,8 +12,8 @@ from .messages_admin import AdminMessages
 from .keyboards_admin import AdminKeyboards
 from config import settings
 from utils.logger import logger
-from utils.telegram_utils import TelegramHandlerUtils
 from utils.spinner import with_spinner
+from telegram_bot.common.base_handler import BaseConversationHandler
 
 # Estados de la conversación de administración
 ADMIN_MENU = 0
@@ -23,29 +23,30 @@ DELETING_KEY = 3
 CONFIRMING_DELETE = 4
 
 
-class AdminHandler:
+class AdminHandler(BaseConversationHandler):
     """Handler para funciones administrativas."""
-    
+
     def __init__(self, admin_service: AdminService):
         """
         Inicializa el handler administrativo.
-        
+
         Args:
             admin_service: Servicio de administración
         """
-        self.admin_service = admin_service
+        super().__init__(admin_service, "AdminService")
         logger.info("🔧 AdminHandler inicializado")
 
     async def admin_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra el menú de administración."""
         user = update.effective_user
-        
+
         # Verificar si es admin
         if user.id != int(settings.ADMIN_ID):
-            await update.message.reply_text("⚠️ Acceso denegado. Función solo para administradores.")
+            await self._reply_message(update, "⚠️ Acceso denegado. Función solo para administradores.", parse_mode="Markdown")
             return ConversationHandler.END
-        
-        await update.message.reply_text(
+
+        await self._reply_message(
+            update,
             text=AdminMessages.Menu.MAIN,
             reply_markup=AdminKeyboards.main_menu(),
             parse_mode="Markdown"
@@ -56,11 +57,11 @@ class AdminHandler:
     async def show_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra lista de usuarios."""
         query = update.callback_query
-        await TelegramHandlerUtils.safe_answer_query(query)
-        
+        await self._safe_answer_query(query)
+
         try:
-            users = await self.admin_service.get_all_users()
-            
+            users = await self.service.get_all_users()
+
             if not users:
                 message = AdminMessages.Users.NO_USERS
             else:
@@ -68,37 +69,31 @@ class AdminHandler:
                 for user in users[:20]:  # Limitar a 20 usuarios
                     status = "✅ Activo" if user.is_active else "❌ Inactivo"
                     message += f"\n👤 {user.full_name or user.username or 'N/A'} ({user.id})\n   {status}\n"
-                
+
                 if len(users) > 20:
                     message += f"\n... y {len(users) - 20} más usuarios"
-            
-            await TelegramHandlerUtils.safe_edit_message(
+
+            await self._safe_edit_message(
                 query, context,
                 text=message,
                 reply_markup=AdminKeyboards.back_to_menu(),
                 parse_mode="Markdown"
             )
             return VIEWING_USERS
-            
+
         except Exception as e:
-            logger.error(f"Error en show_users: {e}")
-            await TelegramHandlerUtils.safe_edit_message(
-                query, context,
-                text=AdminMessages.Error.SYSTEM_ERROR,
-                reply_markup=AdminKeyboards.back_to_menu(),
-                parse_mode="Markdown"
-            )
+            await self._handle_error(update, context, e, "show_users")
             return ADMIN_MENU
 
     @with_spinner
     async def show_keys(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra lista de llaves VPN."""
         query = update.callback_query
-        await TelegramHandlerUtils.safe_answer_query(query)
-        
+        await self._safe_answer_query(query)
+
         try:
-            keys = await self.admin_service.get_all_keys()
-            
+            keys = await self.service.get_all_keys()
+
             if not keys:
                 message = AdminMessages.Keys.NO_KEYS
             else:
@@ -106,37 +101,31 @@ class AdminHandler:
                 for key in keys[:20]:  # Limitar a 20 llaves
                     status = "🟢 Activa" if key.is_active else "🔴 Inactiva"
                     message += f"\n🔑 {key.name} ({key.type.upper()}) - {key.user_id}\n   {status}\n"
-                
+
                 if len(keys) > 20:
                     message += f"\n... y {len(keys) - 20} más llaves"
-            
-            await TelegramHandlerUtils.safe_edit_message(
+
+            await self._safe_edit_message(
                 query, context,
                 text=message,
                 reply_markup=AdminKeyboards.back_to_menu(),
                 parse_mode="Markdown"
             )
             return VIEWING_KEYS
-            
+
         except Exception as e:
-            logger.error(f"Error en show_keys: {e}")
-            await TelegramHandlerUtils.safe_edit_message(
-                query, context,
-                text=AdminMessages.Error.SYSTEM_ERROR,
-                reply_markup=AdminKeyboards.back_to_menu(),
-                parse_mode="Markdown"
-            )
+            await self._handle_error(update, context, e, "show_keys")
             return ADMIN_MENU
 
     @with_spinner
     async def show_server_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra estado del servidor."""
         query = update.callback_query
-        await TelegramHandlerUtils.safe_answer_query(query)
-        
+        await self._safe_answer_query(query)
+
         try:
-            stats = await self.admin_service.get_server_stats()
-            
+            stats = await self.service.get_server_stats()
+
             message = AdminMessages.Server.HEADER
             message += f"\n📊 **Usuarios Totales:** {stats.get('total_users', 0)}"
             message += f"\n✅ **Usuarios Activos:** {stats.get('active_users', 0)}"
@@ -145,31 +134,25 @@ class AdminHandler:
             message += f"\n💾 **Uso de Storage:** {stats.get('storage_usage', 'N/A')}"
             message += f"\n📈 **CPU:** {stats.get('cpu_usage', 'N/A')}%"
             message += f"\n🌐 **Red:** {stats.get('network_usage', 'N/A')}"
-            
-            await TelegramHandlerUtils.safe_edit_message(
+
+            await self._safe_edit_message(
                 query, context,
                 text=message,
                 reply_markup=AdminKeyboards.back_to_menu(),
                 parse_mode="Markdown"
             )
             return ADMIN_MENU
-            
+
         except Exception as e:
-            logger.error(f"Error en show_server_status: {e}")
-            await TelegramHandlerUtils.safe_edit_message(
-                query, context,
-                text=AdminMessages.Error.SYSTEM_ERROR,
-                reply_markup=AdminKeyboards.back_to_menu(),
-                parse_mode="Markdown"
-            )
+            await self._handle_error(update, context, e, "show_server_status")
             return ADMIN_MENU
 
     async def back_to_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Vuelve al menú principal de administración."""
         query = update.callback_query
-        await TelegramHandlerUtils.safe_answer_query(query)
-        
-        await TelegramHandlerUtils.safe_edit_message(
+        await self._safe_answer_query(query)
+
+        await self._safe_edit_message(
             query, context,
             text=AdminMessages.Menu.MAIN,
             reply_markup=AdminKeyboards.main_menu(),
@@ -180,13 +163,10 @@ class AdminHandler:
     async def end_admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Finaliza la sesión administrativa."""
         if update.message:
-            await update.message.reply_text(
-                "👋 Sesión administrativa finalizada.",
-                reply_markup=AdminKeyboards.back_to_user_menu()
-            )
+            await self._reply_message(update, "👋 Sesión administrativa finalizada.", reply_markup=AdminKeyboards.back_to_user_menu())
         elif update.callback_query:
-            await TelegramHandlerUtils.safe_answer_query(update.callback_query)
-            await TelegramHandlerUtils.safe_edit_message(
+            await self._handle_callback_query(update, context)
+            await self._safe_edit_message(
                 update.callback_query, context,
                 text="👋 Sesión administrativa finalizada.",
                 reply_markup=AdminKeyboards.back_to_user_menu()
