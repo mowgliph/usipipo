@@ -17,6 +17,7 @@ spec = importlib.util.spec_from_file_location(
     "telegram_bot/features/referral/handlers_referral.py"
 )
 module = importlib.util.module_from_spec(spec)
+module.__package__ = "telegram_bot.features.referral"
 sys.modules["handlers_referral"] = module
 spec.loader.exec_module(module)
 

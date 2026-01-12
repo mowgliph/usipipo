@@ -17,6 +17,7 @@ spec = importlib.util.spec_from_file_location(
     "telegram_bot/features/user_management/handlers_user_management.py"
 )
 module = importlib.util.module_from_spec(spec)
+module.__package__ = "telegram_bot.features.user_management"
 sys.modules["handlers_user_management"] = module
 spec.loader.exec_module(module)
 

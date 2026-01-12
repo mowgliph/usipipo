@@ -17,6 +17,7 @@ spec = importlib.util.spec_from_file_location(
     "telegram_bot/features/game/handlers_game.py"
 )
 module = importlib.util.module_from_spec(spec)
+module.__package__ = "telegram_bot.features.game"
 sys.modules["handlers_game"] = module
 spec.loader.exec_module(module)
 

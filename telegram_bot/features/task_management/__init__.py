@@ -17,6 +17,7 @@ spec = importlib.util.spec_from_file_location(
     "telegram_bot/features/task_management/handlers_task_management.py"
 )
 module = importlib.util.module_from_spec(spec)
+module.__package__ = "telegram_bot.features.task_management"
 sys.modules["handlers_task_management"] = module
 spec.loader.exec_module(module)
 

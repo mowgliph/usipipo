@@ -17,6 +17,7 @@ spec = importlib.util.spec_from_file_location(
     "telegram_bot/features/payments/handlers_payments.py"
 )
 module = importlib.util.module_from_spec(spec)
+module.__package__ = "telegram_bot.features.payments"
 sys.modules["handlers_payments"] = module
 spec.loader.exec_module(module)
 

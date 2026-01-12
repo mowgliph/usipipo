@@ -17,6 +17,7 @@ spec = importlib.util.spec_from_file_location(
     "telegram_bot/features/vpn_keys/handlers_vpn_keys.py"
 )
 module = importlib.util.module_from_spec(spec)
+module.__package__ = "telegram_bot.features.vpn_keys"
 sys.modules["handlers_vpn_keys"] = module
 spec.loader.exec_module(module)
 
