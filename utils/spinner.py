@@ -186,15 +186,19 @@ def with_spinner(
             # Extraer update y context de los argumentos
             update = None
             context = None
-            
-            # Método más robusto: buscar por tipo y posición
-            for i, arg in enumerate(args):
+
+            # Buscar update y context en argumentos posicionales
+            for arg in args:
                 if isinstance(arg, Update):
                     update = arg
-                elif i == 1:  # Context suele ser el segundo argumento en handlers
-                    # Verificación más robusta para ContextTypes.DEFAULT_TYPE
-                    if hasattr(arg, 'bot'):
-                        context = arg
+                elif hasattr(arg, 'bot'):
+                    context = arg
+
+            # También buscar en kwargs por si acaso
+            if 'context' in kwargs and hasattr(kwargs['context'], 'bot'):
+                context = kwargs['context']
+            if 'update' in kwargs and isinstance(kwargs['update'], Update):
+                update = kwargs['update']
             
             # Si no hay update, no podemos mostrar spinner
             if not update:
@@ -292,13 +296,19 @@ def with_animated_spinner(
             # Extraer update y context de los argumentos
             update = None
             context = None
-            
+
+            # Buscar update y context en argumentos posicionales
             for arg in args:
                 if isinstance(arg, Update):
                     update = arg
-                elif hasattr(arg, 'bot') and hasattr(arg, 'chat_data'):
-                    # Verificación más robusta para ContextTypes.DEFAULT_TYPE
+                elif hasattr(arg, 'bot'):
                     context = arg
+
+            # También buscar en kwargs por si acaso
+            if 'context' in kwargs and hasattr(kwargs['context'], 'bot'):
+                context = kwargs['context']
+            if 'update' in kwargs and isinstance(kwargs['update'], Update):
+                update = kwargs['update']
             
             if not update:
                 return await func(*args, **kwargs)

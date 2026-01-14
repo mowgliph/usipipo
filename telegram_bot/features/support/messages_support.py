@@ -101,6 +101,22 @@ class SupportMessages:
             "• Indica tu razón social y datos fiscales\n"
             "• Recibirás la factura en 24-48h"
         )
+        
+        TECHNICAL = (
+            "🔧 **Problemas Técnicos**\n\n"
+            "❓ **¿La app no responde?**\n"
+            "• Reinicia la aplicación\n"
+            "• Verifica tu conexión a internet\n"
+            "• Actualiza a la última versión\n\n"
+            "❓ **¿Error de autenticación?**\n"
+            "• Verifica tus credenciales\n"
+            "• Limpia caché de la app\n"
+            "• Contacta soporte si persiste\n\n"
+            "❓ **¿Problemas con el servidor?**\n"
+            "• Revisa el estado del servidor\n"
+            "• Prueba con otro servidor\n"
+            "• Reporta el problema a soporte"
+        )
     
     # ============================================
     # HELP

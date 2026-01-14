@@ -249,14 +249,47 @@ class CommonKeyboards:
         return InlineKeyboardMarkup(keyboard)
 
     @staticmethod
+    def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
+        """
+        Main menu keyboard.
+
+        Args:
+            is_admin: Whether to include admin options
+
+        Returns:
+            InlineKeyboardMarkup: Main menu keyboard
+        """
+        keyboard = [
+            [
+                InlineKeyboardButton("🛡️ Mis Llaves", callback_data="key_management"),
+                InlineKeyboardButton("📊 Estado", callback_data="status")
+            ],
+            [
+                InlineKeyboardButton("💰 Operaciones", callback_data="operations"),
+                InlineKeyboardButton("🏆 Logros", callback_data="achievements")
+            ],
+            [
+                InlineKeyboardButton("⚙️ Ayuda", callback_data="help")
+            ]
+        ]
+
+        # Add admin options if applicable
+        if is_admin:
+            keyboard.insert(0, [
+                InlineKeyboardButton("🔧 Panel Admin", callback_data="admin")
+            ])
+
+        return InlineKeyboardMarkup(keyboard)
+
+    @staticmethod
     def empty_state(help_callback: str = "help", back_callback: str = "back") -> InlineKeyboardMarkup:
         """
         Keyboard for empty states.
-        
+
         Args:
             help_callback: Callback data for help button
             back_callback: Callback data for back button
-            
+
         Returns:
             InlineKeyboardMarkup: Empty state keyboard
         """
@@ -269,5 +302,5 @@ class CommonKeyboards:
                 InlineKeyboardButton("🔙 Volver", callback_data=back_callback)
             ]
         ]
-        
+
         return InlineKeyboardMarkup(keyboard)

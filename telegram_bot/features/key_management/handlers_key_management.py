@@ -269,14 +269,18 @@ class KeyManagementHandler(BaseHandler):
         """
         query = update.callback_query
         await self._safe_answer_query(query)
-        
+
         user = update.effective_user
         is_admin = user.id == int(settings.ADMIN_ID)
-        
+
+        # Import common messages for consistency
+        from telegram_bot.common.messages import CommonMessages  # noqa: E402
+        from telegram_bot.common.keyboards import CommonKeyboards  # noqa: E402
+
         await self._safe_edit_message(
             query, context,
-            text="👇 Menú Principal",
-            reply_markup=UserManagementKeyboards.main_menu(is_admin=is_admin),
+            text=CommonMessages.Menu.WELCOME_BACK,
+            reply_markup=CommonKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
         )
 

@@ -28,6 +28,7 @@ class AchievementsHandler(ListPattern):
         """
         super().__init__(achievement_service, "AchievementService")
 
+    @safe_callback_query
     @database_spinner
     @database_operation
     async def achievements_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -203,16 +204,17 @@ def get_achievements_handlers(achievement_service: AchievementService):
 def get_achievements_callback_handlers(achievement_service: AchievementService):
     """
     Retorna los handlers de callbacks para logros.
-    
+
     Args:
         achievement_service: Servicio de logros
-        
+
     Returns:
         list: Lista de CallbackQueryHandler
     """
     handler = AchievementsHandler(achievement_service)
-    
+
     return [
+        CallbackQueryHandler(handler.achievements_menu, pattern="^achievements$"),
         CallbackQueryHandler(handler.achievements_progress, pattern="^achievements_progress$"),
         CallbackQueryHandler(handler.achievements_list, pattern="^achievements_list$"),
         CallbackQueryHandler(handler.claim_reward, pattern="^claim_reward_"),

@@ -168,12 +168,25 @@ class CommonMessages:
         )
     
     # ============================================
+    # MENU
+    # ============================================
+
+    class Menu:
+        """Menu messages."""
+
+        WELCOME_BACK = (
+            "🏠 **Menú Principal**\n\n"
+            "Has regresado al menú principal.\n\n"
+            "Selecciona una opción para continuar:"
+        )
+
+    # ============================================
     # HELP
     # ============================================
-    
+
     class Help:
         """Help messages."""
-        
+
         GENERAL_HELP = (
             "❓ **Ayuda General**\n\n"
             "Usa los botones del menú para navegar.\n\n"
@@ -182,7 +195,7 @@ class CommonMessages:
             "✅ **Confirmar** - Confirma la acción\n\n"
             "Si necesitas ayuda adicional, contacta soporte."
         )
-        
+
         CONTACT_SUPPORT = (
             "🎧 **Contactar Soporte**\n\n"
             "Si tienes problemas o preguntas:\n\n"
