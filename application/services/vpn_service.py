@@ -289,6 +289,36 @@ class VpnService:
 
     
         
+    async def get_key_by_id(self, key_id: str) -> Optional[VpnKey]:
+        """Obtiene una llave por su ID."""
+        try:
+            from uuid import UUID
+            key_uuid = UUID(key_id)
+            return await self.key_repo.get_by_id(key_uuid)
+        except Exception as e:
+            logger.error(f"Error obteniendo llave por ID {key_id}: {e}")
+            return None
+
+    async def update_key(self, key: VpnKey) -> bool:
+        """Actualiza una llave en la base de datos."""
+        try:
+            await self.key_repo.save(key)
+            logger.info(f"🔑 Llave {key.id} actualizada")
+            return True
+        except Exception as e:
+            logger.error(f"Error actualizando llave {key.id}: {e}")
+            return False
+
+    async def delete_key(self, key_id: str) -> bool:
+        """Elimina una llave (usa revoke_key para consistencia)."""
+        try:
+            from uuid import UUID
+            key_uuid = UUID(key_id)
+            return await self.revoke_key(key_uuid)
+        except Exception as e:
+            logger.error(f"Error eliminando llave {key_id}: {e}")
+            return False
+
     async def deactivate_inactive_key(self, key_id: uuid.UUID) -> bool:
         """Desactiva una llave por inactividad (soft delete)."""
         try:
