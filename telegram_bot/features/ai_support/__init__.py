@@ -26,8 +26,13 @@ AiSupportHandler = module.AiSupportHandler
 get_ai_support_handler = module.get_ai_support_handler
 get_ai_callback_handlers = module.get_ai_callback_handlers
 
+# Import direct message handler
+from .direct_message_handler import DirectMessageHandler, get_direct_message_handler
+
 __all__ = [
     'AiSupportHandler',
-    'get_ai_support_handler', 
-    'get_ai_callback_handlers'
+    'get_ai_support_handler',
+    'get_ai_callback_handlers',
+    'DirectMessageHandler',
+    'get_direct_message_handler'
 ]

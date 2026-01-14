@@ -248,6 +248,29 @@ Soy tu asistente personal para gestionar claves VPN de forma segura y sencilla.
 💰 Ingresos mes: 1,250 estrellas
 ```
 
+#### `/logs`
+**Descripción**: Muestra las últimas líneas del log del sistema (solo admin)
+**Uso**: `/logs`
+**Requisitos**: Ser el administrador configurado
+**Ejemplo**:
+```
+/logs
+```
+**Respuesta esperada**:
+```
+📋 Últimas Líneas de Log
+
+```
+2024-01-15 10:30:15 | INFO     | main:main - 🚀 Iniciando uSipipo VPN Manager Bot...
+2024-01-15 10:30:16 | INFO     | main:main - ✅ Contenedor de dependencias configurado correctamente.
+2024-01-15 10:30:16 | INFO     | main:main - 🌊 Servicio de IA Sip inicializado correctamente.
+2024-01-15 10:30:17 | INFO     | main:main - 🤖 Bot en línea y escuchando mensajes...
+2024-01-15 10:30:20 | INFO     | admin_service:get_dashboard_stats - 📊 Obteniendo estadísticas del dashboard
+```
+
+📅 *Extraído: 2024-01-15 10:35:22*
+```
+
 ---
 
 ## 🔌 Gestión de VPN
@@ -591,6 +614,7 @@ Estoy aquí para ayudarte con todo lo relacionado con VPN, seguridad y privacida
 | `/admin_keys` | Lista claves | ✅ Admin |
 | `/admin_stats` | Estadísticas | ✅ Admin |
 | `/admin_delete` | Eliminar clave | ✅ Admin |
+| `/logs` | Ver logs del sistema | ✅ Admin |
 
 ### 💰 **Comandos de Pagos**
 | Comando | Descripción | Uso |

@@ -105,6 +105,7 @@ from telegram_bot.features.ai_support import (
     get_ai_support_handler,
     get_ai_callback_handlers
 )
+from telegram_bot.features.ai_support.direct_message_handler import get_direct_message_handler
 from telegram_bot.features.achievements import (
     get_achievements_handlers,
     get_achievements_callback_handlers
@@ -566,9 +567,7 @@ def _configure_handlers(container: punq.Container) -> None:
 
     def create_direct_message_handler() -> object:
         """Factory para el handler de mensajes directos con IA."""
-        # TODO: direct_message_handler no existe en features
-        logger.warning("direct_message_handler no implementado en features")
-        return None
+        return get_direct_message_handler(create_ai_support_service())
 
     container.register("user_task_manager_handlers", factory=create_user_task_manager_handlers)
     container.register("user_announcer_handlers", factory=create_user_announcer_handlers)

@@ -26,10 +26,10 @@ class AdminKeyboards:
             ],
             [
                 InlineKeyboardButton("📊 Estado Servidor", callback_data="server_status"),
-                InlineKeyboardButton("⚙️ Configuración", callback_data="settings")
+                InlineKeyboardButton("📋 Ver Logs", callback_data="logs")
             ],
             [
-                InlineKeyboardButton("📦 Backup", callback_data="backup"),
+                InlineKeyboardButton("⚙️ Configuración", callback_data="settings"),
                 InlineKeyboardButton("🔧 Mantenimiento", callback_data="maintenance")
             ],
             [

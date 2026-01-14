@@ -22,6 +22,7 @@ from telegram_bot.features.achievements.handlers_achievements import (
 from telegram_bot.features.ai_support.handlers_ai_support import (
     get_ai_support_handler, get_ai_callback_handlers
 )
+from telegram_bot.features.ai_support.direct_message_handler import get_direct_message_handler
 from telegram_bot.features.announcer.handlers_announcer import (
     get_announcer_handlers, get_announcer_callback_handlers
 )
@@ -91,9 +92,17 @@ def _get_ai_support_handlers(container) -> List[BaseHandler]:
     """Initialize and return AI support handlers."""
     ai_support_service = container.resolve(AiSupportService)
     handlers = []
+
+    # 1. ConversationHandler for explicit AI chats (high priority)
     handlers.extend([get_ai_support_handler(ai_support_service)])
     handlers.extend(get_ai_callback_handlers(ai_support_service))
-    logger.info("✅ Handlers de soporte IA configurados")
+    logger.info("✅ Handlers de soporte IA (ConversationHandler) configurados")
+
+    # 2. Direct message handler (fallback - registered last)
+    direct_message_handler = container.resolve("direct_message_handler")
+    handlers.append(direct_message_handler)
+    logger.info("✅ Handler de mensajes directos registrado (fallback)")
+
     return handlers
 
 

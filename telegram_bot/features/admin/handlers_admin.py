@@ -14,6 +14,8 @@ from config import settings
 from utils.logger import logger
 from utils.spinner import with_spinner
 from telegram_bot.common.base_handler import BaseConversationHandler
+from datetime import datetime
+from pathlib import Path
 
 # Estados de la conversación de administración
 ADMIN_MENU = 0
@@ -147,6 +149,57 @@ class AdminHandler(BaseConversationHandler):
             await self._handle_error(update, context, e, "show_server_status")
             return ADMIN_MENU
 
+    @with_spinner
+    async def logs_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Muestra los logs del sistema."""
+        user = update.effective_user
+
+        # Verificar si es admin
+        if user.id != int(settings.ADMIN_ID):
+            await self._reply_message(update, AdminMessages.Error.ACCESS_DENIED, parse_mode="Markdown")
+            return ConversationHandler.END
+
+        try:
+            # Obtener logs usando el logger
+            logs_content = logger.get_last_logs(lines=20)
+            
+            # Si hay error o no hay logs
+            if "Error leyendo logs:" in logs_content or "El archivo de log aún no existe" in logs_content:
+                message = AdminMessages.Logs.NO_LOGS
+            else:
+                # Formatear logs para mostrar
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                message = AdminMessages.Logs.LOGS_DISPLAY.format(
+                    logs_content=logs_content[-3000:],  # Limitar para evitar mensaje muy largo
+                    timestamp=timestamp
+                )
+
+            if update.message:
+                await self._reply_message(update, message, parse_mode="Markdown")
+            elif update.callback_query:
+                await self._safe_answer_query(update.callback_query)
+                await self._safe_edit_message(
+                    update.callback_query, context,
+                    text=message,
+                    reply_markup=AdminKeyboards.back_to_menu(),
+                    parse_mode="Markdown"
+                )
+            return ADMIN_MENU
+
+        except Exception as e:
+            error_message = AdminMessages.Logs.LOGS_ERROR.format(error=str(e))
+            if update.message:
+                await self._reply_message(update, error_message, parse_mode="Markdown")
+            elif update.callback_query:
+                await self._safe_answer_query(update.callback_query)
+                await self._safe_edit_message(
+                    update.callback_query, context,
+                    text=error_message,
+                    reply_markup=AdminKeyboards.back_to_menu(),
+                    parse_mode="Markdown"
+                )
+            return ADMIN_MENU
+
     async def back_to_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Vuelve al menú principal de administración."""
         query = update.callback_query
@@ -188,6 +241,7 @@ def get_admin_handlers(admin_service: AdminService):
     
     return [
         CommandHandler("admin", handler.admin_menu),
+        CommandHandler("logs", handler.logs_handler),
     ]
 
 
@@ -207,6 +261,7 @@ def get_admin_callback_handlers(admin_service: AdminService):
         CallbackQueryHandler(handler.show_users, pattern="^show_users$"),
         CallbackQueryHandler(handler.show_keys, pattern="^show_keys$"),
         CallbackQueryHandler(handler.show_server_status, pattern="^server_status$"),
+        CallbackQueryHandler(handler.logs_handler, pattern="^logs$"),
         CallbackQueryHandler(handler.back_to_menu, pattern="^admin$"),
         CallbackQueryHandler(handler.end_admin, pattern="^end_admin$"),
     ]
@@ -231,6 +286,7 @@ def get_admin_conversation_handler(admin_service: AdminService) -> ConversationH
                 CallbackQueryHandler(handler.show_users, pattern="^show_users$"),
                 CallbackQueryHandler(handler.show_keys, pattern="^show_keys$"),
                 CallbackQueryHandler(handler.show_server_status, pattern="^server_status$"),
+                CallbackQueryHandler(handler.logs_handler, pattern="^logs$"),
                 CallbackQueryHandler(handler.end_admin, pattern="^end_admin$"),
             ],
             VIEWING_USERS: [

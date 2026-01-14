@@ -159,3 +159,31 @@ class AdminMessages:
             "Se ha creado una copia de seguridad exitosamente.\n"
             "📁 Archivo: {filename}"
         )
+    
+    # ============================================
+    # LOGS
+    # ============================================
+    
+    class Logs:
+        """Mensajes de gestión de logs."""
+        
+        HEADER = "📋 **Logs del Sistema**\n\n"
+        
+        NO_LOGS = (
+            "📭 **Sin Logs**\n\n"
+            "No hay archivos de logs disponibles."
+        )
+        
+        LOGS_DISPLAY = (
+            "📋 **Últimas Líneas de Log**\n\n"
+            "```{logs_content}```\n\n"
+            "📅 *Extraído: {timestamp}*"
+        )
+        
+        LOGS_ERROR = (
+            "❌ **Error al Leer Logs**\n\n"
+            "No se pudieron leer los archivos de log.\n"
+            "Error: {error}"
+        )
+        
+        LOGS_CLEARED = "🧹 **Logs Limpiados**\n\nLos archivos de log han sido limpiados exitosamente."
