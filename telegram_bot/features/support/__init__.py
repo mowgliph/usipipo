@@ -25,9 +25,11 @@ spec.loader.exec_module(module)
 SupportHandler = module.SupportHandler
 get_support_handlers = module.get_support_handlers
 get_support_callback_handlers = module.get_support_callback_handlers
+get_support_conversation_handler = module.get_support_conversation_handler
 
 __all__ = [
     'SupportHandler',
-    'get_support_handlers', 
-    'get_support_callback_handlers'
+    'get_support_handlers',
+    'get_support_callback_handlers',
+    'get_support_conversation_handler'
 ]
