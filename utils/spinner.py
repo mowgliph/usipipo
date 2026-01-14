@@ -62,6 +62,34 @@ class SpinnerManager:
             return f"🌀 {base_message}"
     
     @staticmethod
+    async def safe_reply_text(update: Update, text: str, parse_mode: str = "Markdown"):
+        """
+        Método seguro para responder mensajes que funciona tanto con mensajes como callbacks.
+        
+        Args:
+            update: Objeto Update de Telegram
+            text: Texto del mensaje
+            parse_mode: Modo de parseo
+        """
+        try:
+            if update.callback_query:
+                # Para callbacks, editar el mensaje
+                await update.callback_query.edit_message_text(
+                    text=text,
+                    parse_mode=parse_mode
+                )
+            elif update.message:
+                # Para mensajes normales, responder
+                await update.message.reply_text(
+                    text=text,
+                    parse_mode=parse_mode
+                )
+            else:
+                logger.error("❌ No se puede responder: ni update.message ni update.callback_query disponibles")
+        except Exception as e:
+            logger.error(f"❌ Error en safe_reply_text: {e}")
+
+    @staticmethod
     async def send_spinner_message(
         update: Update,
         operation_type: str = "default",
@@ -82,16 +110,26 @@ class SpinnerManager:
             message_text = custom_message or SpinnerManager.get_random_spinner_message(operation_type)
             logger.info(f"🌀 Preparando spinner: {message_text}")
             
-            # Verificar si update.message existe
-            if not update.message:
-                logger.error("❌ No se puede enviar spinner: update.message es None")
-                return None
+            spinner_message = None
             
-            # Enviar mensaje de spinner
-            spinner_message = await update.message.reply_text(
-                text=message_text,
-                parse_mode="Markdown"
-            )
+            # Verificar si es un callback query o un mensaje normal
+            if update.callback_query:
+                # Para callbacks, necesitamos responder al callback query primero
+                await update.callback_query.answer()
+                # Luego editar el mensaje del callback
+                spinner_message = await update.callback_query.edit_message_text(
+                    text=message_text,
+                    parse_mode="Markdown"
+                )
+            elif update.message:
+                # Para mensajes normales, responder al mensaje
+                spinner_message = await update.message.reply_text(
+                    text=message_text,
+                    parse_mode="Markdown"
+                )
+            else:
+                logger.error("❌ No se puede enviar spinner: ni update.message ni update.callback_query disponibles")
+                return None
             
             logger.info(f"✅ Spinner enviado: {message_text} (ID: {spinner_message.message_id})")
             return spinner_message.message_id
@@ -244,7 +282,8 @@ def with_spinner(
                 # Mostrar duración si se solicita
                 if show_duration and start_time and context:
                     duration = time.time() - start_time
-                    await update.message.reply_text(
+                    await SpinnerManager.safe_reply_text(
+                        update,
                         f"✅ Operación completada en {duration:.2f}s"
                     )
                  
@@ -261,7 +300,8 @@ def with_spinner(
                         await SpinnerManager.delete_spinner_message(
                             context, chat_id, spinner_message_id
                         )
-                        await update.message.reply_text(
+                        await SpinnerManager.safe_reply_text(
+                            update,
                             "❌ Ocurrió un error durante la operación. Por favor, intenta nuevamente."
                         )
                     except Exception as delete_error:
@@ -372,7 +412,8 @@ def with_animated_spinner(
                         await SpinnerManager.delete_spinner_message(
                             context, chat_id, spinner_message_id
                         )
-                        await update.message.reply_text(
+                        await SpinnerManager.safe_reply_text(
+                            update,
                             "❌ Ocurrió un error durante la operación. Por favor, intenta nuevamente."
                         )
                     except:

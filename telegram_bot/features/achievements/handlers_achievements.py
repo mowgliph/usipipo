@@ -28,11 +28,9 @@ class AchievementsHandler(ListPattern):
         """
         super().__init__(achievement_service, "AchievementService")
 
-    @safe_callback_query
-    @database_spinner
     @database_operation
-    async def achievements_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Maneja el menú principal de logros."""
+    async def achievements_menu_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja el menú principal de logros para mensajes."""
         user_id = update.effective_user.id
         
         # Obtener resumen del usuario
@@ -53,6 +51,36 @@ class AchievementsHandler(ListPattern):
         
         await self._reply_message(
             update,
+            text=message,
+            reply_markup=AchievementsKeyboards.achievements_menu(),
+            parse_mode="Markdown"
+        )
+
+    @safe_callback_query
+    @database_spinner
+    @database_operation
+    async def achievements_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Maneja el menú principal de logros para callbacks."""
+        user_id = update.effective_user.id
+        
+        # Obtener resumen del usuario
+        summary = await self.service.get_user_summary(user_id)
+        
+        if not summary:
+            # Inicializar logros si no existen
+            await self.service.initialize_user_achievements(user_id)
+            summary = await self.service.get_user_summary(user_id)
+        
+        # Formatear mensaje principal
+        message = AchievementsMessages.Menu.MAIN.format(
+            completed=summary.get('completed_achievements', 0),
+            total=summary.get('total_achievements', 0),
+            stars=summary.get('total_reward_stars', 0),
+            pending=summary.get('pending_rewards', 0)
+        )
+        
+        await self._edit_message_with_keyboard(
+            update, context,
             text=message,
             reply_markup=AchievementsKeyboards.achievements_menu(),
             parse_mode="Markdown"
@@ -82,6 +110,7 @@ class AchievementsHandler(ListPattern):
             parse_mode="Markdown"
         )
 
+    @safe_callback_query
     @database_spinner
     async def achievements_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra la lista de logros disponibles."""
@@ -122,6 +151,7 @@ class AchievementsHandler(ListPattern):
         except Exception as e:
             await self._handle_error(update, context, e, "achievements_list")
 
+    @safe_callback_query
     @database_spinner
     async def claim_reward(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Reclama una recompensa de logro."""
@@ -154,6 +184,7 @@ class AchievementsHandler(ListPattern):
         except Exception as e:
             await self._handle_error(update, context, e, "claim_reward")
 
+    @safe_callback_query
     @database_spinner
     async def achievements_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra el leaderboard de logros."""
@@ -196,8 +227,8 @@ def get_achievements_handlers(achievement_service: AchievementService):
     handler = AchievementsHandler(achievement_service)
     
     return [
-        MessageHandler(filters.Regex("^🏆 Logros$"), handler.achievements_menu),
-        CommandHandler("achievements", handler.achievements_menu),
+        MessageHandler(filters.Regex("^🏆 Logros$"), handler.achievements_menu_message),
+        CommandHandler("achievements", handler.achievements_menu_message),
     ]
 
 
