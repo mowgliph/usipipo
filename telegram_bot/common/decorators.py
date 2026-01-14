@@ -9,7 +9,7 @@ from functools import wraps
 from telegram import Update
 from telegram.ext import ContextTypes
 from utils.logger import logger
-from utils.spinner import with_spinner, database_spinner, vpn_spinner
+from utils.spinner import with_spinner, database_spinner, vpn_spinner, database_spinner_callback
 from .messages import CommonMessages
 
 
@@ -120,7 +120,7 @@ user_operation = handle_errors("operación de usuario")
 
 # Combined decorators
 @safe_callback_query
-@database_spinner
+@database_spinner_callback
 @database_operation
 def safe_database_operation(func):
     """Combined decorator for safe database operations."""

@@ -12,7 +12,7 @@ from application.services.vpn_service import VpnService
 from .messages_shop import ShopMessages
 from .keyboards_shop import ShopKeyboards
 from utils.logger import logger
-from utils.spinner import with_spinner, SpinnerManager
+from utils.spinner import shop_spinner_callback
 
 # Estados de conversación
 SHOP_MENU = 0
@@ -38,8 +38,8 @@ class ShopHandler:
         self.vpn_service = vpn_service
         logger.info("🛍️ ShopHandler inicializado")
 
-    @with_spinner()
-    async def show_shop_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    @shop_spinner_callback
+    async def show_shop_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """
         Muestra el menú principal de la tienda.
         """
@@ -60,38 +60,33 @@ class ShopHandler:
             keyboard = ShopKeyboards.main_menu()
             
             if query:
-                await query.edit_message_text(
+                # Para callbacks, usar el nuevo método de reemplazo
+                await SpinnerManager.replace_spinner_with_message(
+                    update, context, spinner_message_id,
                     text=message,
                     reply_markup=keyboard,
                     parse_mode="Markdown"
                 )
             else:
+                # Para mensajes normales, responder normalmente
                 await update.message.reply_text(
                     text=message,
                     reply_markup=keyboard,
                     parse_mode="Markdown"
                 )
-            
-            return SHOP_MENU
-            
+                
         except Exception as e:
             logger.error(f"Error en show_shop_menu: {e}")
-            error_message = ShopMessages.Error.SYSTEM_ERROR
-            
             if query:
                 await query.edit_message_text(
-                    text=error_message,
-                    reply_markup=ShopKeyboards.back_to_operations(),
+                    text="❌ Error cargando el menú. Por favor, intenta nuevamente.",
                     parse_mode="Markdown"
                 )
             else:
                 await update.message.reply_text(
-                    text=error_message,
-                    reply_markup=ShopKeyboards.back_to_operations(),
+                    text="❌ Error cargando el menú. Por favor, intenta nuevamente.",
                     parse_mode="Markdown"
                 )
-            
-            return ConversationHandler.END
 
     async def show_vip_plans(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
