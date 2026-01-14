@@ -55,7 +55,7 @@ class AdminHandler(BaseConversationHandler):
         )
         return ADMIN_MENU
 
-    @with_spinner
+    @with_spinner()
     async def show_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra lista de usuarios."""
         query = update.callback_query
@@ -87,7 +87,7 @@ class AdminHandler(BaseConversationHandler):
             await self._handle_error(update, context, e, "show_users")
             return ADMIN_MENU
 
-    @with_spinner
+    @with_spinner()
     async def show_keys(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra lista de llaves VPN."""
         query = update.callback_query
@@ -119,7 +119,7 @@ class AdminHandler(BaseConversationHandler):
             await self._handle_error(update, context, e, "show_keys")
             return ADMIN_MENU
 
-    @with_spinner
+    @with_spinner()
     async def show_server_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra estado del servidor."""
         query = update.callback_query
@@ -149,7 +149,7 @@ class AdminHandler(BaseConversationHandler):
             await self._handle_error(update, context, e, "show_server_status")
             return ADMIN_MENU
 
-    @with_spinner
+    @with_spinner()
     async def logs_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra los logs del sistema."""
         user = update.effective_user

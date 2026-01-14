@@ -134,7 +134,7 @@ def safe_vpn_operation(func):
     return func
 
 @safe_callback_query
-@with_spinner
+@with_spinner()
 @handle_errors("operación")
 def safe_general_operation(func):
     """Combined decorator for safe general operations."""

@@ -38,7 +38,7 @@ class ShopHandler:
         self.vpn_service = vpn_service
         logger.info("🛍️ ShopHandler inicializado")
 
-    @with_spinner
+    @with_spinner()
     async def show_shop_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Muestra el menú principal de la tienda.
