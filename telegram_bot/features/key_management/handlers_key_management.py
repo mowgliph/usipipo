@@ -10,6 +10,7 @@ from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, fil
 from application.services.vpn_service import VpnService
 from .messages_key_management import KeyManagementMessages
 from .keyboards_key_management import KeyManagementKeyboards
+from telegram_bot.features.user_management.keyboards_user_management import UserManagementKeyboards
 from config import settings
 from utils.logger import logger
 from telegram_bot.common.base_handler import BaseHandler
@@ -268,11 +269,14 @@ class KeyManagementHandler(BaseHandler):
         """
         query = update.callback_query
         await self._safe_answer_query(query)
-         
+        
+        user = update.effective_user
+        is_admin = user.id == int(settings.ADMIN_ID)
+        
         await self._safe_edit_message(
             query, context,
-            text=KeyManagementMessages.BACK_TO_MAIN,
-            reply_markup=KeyManagementKeyboards.back_to_main_menu(),
+            text="👇 Menú Principal",
+            reply_markup=UserManagementKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
         )
 
@@ -308,6 +312,8 @@ def get_key_management_callback_handlers(vpn_service: VpnService):
     handler = KeyManagementHandler(vpn_service)
     
     return [
+        CallbackQueryHandler(handler.show_key_submenu, pattern="^key_management$"),
+        CallbackQueryHandler(handler.back_to_main_menu, pattern="^main_menu$"),
         CallbackQueryHandler(handler.show_keys_by_type, pattern="^keys_"),
         CallbackQueryHandler(handler.show_key_details, pattern="^key_details_"),
         CallbackQueryHandler(handler.show_key_statistics, pattern="^key_stats$"),

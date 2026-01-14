@@ -11,6 +11,7 @@ from application.services.vpn_service import VpnService
 from application.services.referral_service import ReferralService
 from .messages_operations import OperationsMessages
 from .keyboards_operations import OperationsKeyboards
+from telegram_bot.features.user_management.keyboards_user_management import UserManagementKeyboards
 from config import settings
 from utils.logger import logger
 
@@ -61,30 +62,59 @@ class OperationsHandler:
                 referral_earnings=user.total_referral_earnings
             )
             
-            await update.message.reply_text(
-                text=text,
-                reply_markup=OperationsKeyboards.operations_menu(),
-                parse_mode="Markdown"
-            )
+            # Manejar tanto mensaje como callback
+            if update.message:
+                await update.message.reply_text(
+                    text=text,
+                    reply_markup=OperationsKeyboards.operations_menu(),
+                    parse_mode="Markdown"
+                )
+            elif update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.edit_message_text(
+                    text=text,
+                    reply_markup=OperationsKeyboards.operations_menu(),
+                    parse_mode="Markdown"
+                )
             
         except Exception as e:
             logger.error(f"Error en mi_balance: {e}")
-            await update.message.reply_text(
-                text=OperationsMessages.Error.SYSTEM_ERROR,
-                reply_markup=OperationsKeyboards.operations_menu(),
-                parse_mode="Markdown"
-            )
+            error_text = OperationsMessages.Error.SYSTEM_ERROR
+            
+            if update.message:
+                await update.message.reply_text(
+                    text=error_text,
+                    reply_markup=OperationsKeyboards.operations_menu(),
+                    parse_mode="Markdown"
+                )
+            elif update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.edit_message_text(
+                    text=error_text,
+                    reply_markup=OperationsKeyboards.operations_menu(),
+                    parse_mode="Markdown"
+                )
 
     async def referidos(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Muestra el sistema de referidos.
         """
         if not self.referral_service:
-            await update.message.reply_text(
-                text=OperationsMessages.Error.SERVICE_UNAVAILABLE,
-                reply_markup=OperationsKeyboards.operations_menu(),
-                parse_mode="Markdown"
-            )
+            error_text = OperationsMessages.Error.SERVICE_UNAVAILABLE
+            
+            if update.message:
+                await update.message.reply_text(
+                    text=error_text,
+                    reply_markup=OperationsKeyboards.operations_menu(),
+                    parse_mode="Markdown"
+                )
+            elif update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.edit_message_text(
+                    text=error_text,
+                    reply_markup=OperationsKeyboards.operations_menu(),
+                    parse_mode="Markdown"
+                )
             return
             
         user_id = update.effective_user.id
@@ -105,30 +135,52 @@ class OperationsHandler:
                 commission=10
             )
             
-            await update.message.reply_text(
-                text=text,
-                reply_markup=OperationsKeyboards.referral_actions(),
-                parse_mode="Markdown"
-            )
+            # Manejar tanto mensaje como callback
+            if update.message:
+                await update.message.reply_text(
+                    text=text,
+                    reply_markup=OperationsKeyboards.referral_actions(),
+                    parse_mode="Markdown"
+                )
+            elif update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.edit_message_text(
+                    text=text,
+                    reply_markup=OperationsKeyboards.referral_actions(),
+                    parse_mode="Markdown"
+                )
             
         except Exception as e:
             logger.error(f"Error en referidos: {e}")
-            await update.message.reply_text(
-                text=OperationsMessages.Error.SYSTEM_ERROR,
-                reply_markup=OperationsKeyboards.operations_menu(),
-                parse_mode="Markdown"
-            )
+            error_text = OperationsMessages.Error.SYSTEM_ERROR
+            
+            if update.message:
+                await update.message.reply_text(
+                    text=error_text,
+                    reply_markup=OperationsKeyboards.operations_menu(),
+                    parse_mode="Markdown"
+                )
+            elif update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.edit_message_text(
+                    text=error_text,
+                    reply_markup=OperationsKeyboards.operations_menu(),
+                    parse_mode="Markdown"
+                )
 
-    async def atras(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def back_to_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
-        Maneja el botón 'Atrás' para volver al menú principal.
+        Maneja el botón 'Volver' para volver al menú principal.
         """
+        query = update.callback_query
+        await query.answer()
+        
         user = update.effective_user
         is_admin = user.id == int(settings.ADMIN_ID)
         
-        await update.message.reply_text(
+        await query.edit_message_text(
             text="👇 Menú Principal",
-            reply_markup=OperationsKeyboards.back_to_main_menu(is_admin=is_admin),
+            reply_markup=UserManagementKeyboards.main_menu(is_admin=is_admin),
             parse_mode="Markdown"
         )
 
@@ -237,7 +289,12 @@ def get_operations_callback_handlers(vpn_service: VpnService, referral_service: 
     
     return [
         CallbackQueryHandler(handler.operations_menu_callback, pattern="^operations_menu$"),
+        CallbackQueryHandler(handler.operations_menu_callback, pattern="^operations$"),
+        CallbackQueryHandler(handler.back_to_main_menu, pattern="^main_menu$"),
+        CallbackQueryHandler(handler.mi_balance, pattern="^balance$"),
+        CallbackQueryHandler(handler.referidos, pattern="^referrals$"),
         CallbackQueryHandler(handler.show_vip_plans, pattern="^vip_plans$"),
         CallbackQueryHandler(handler.show_game_menu, pattern="^game_menu$"),
         CallbackQueryHandler(handler.show_transactions, pattern="^transactions$"),
+        CallbackQueryHandler(handler.show_transactions, pattern="^rewards$"),  # Usar mismo handler para recompensas
     ]

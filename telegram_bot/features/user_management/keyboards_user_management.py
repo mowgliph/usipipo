@@ -24,7 +24,7 @@ class UserManagementKeyboards:
         """
         keyboard = [
             [
-                InlineKeyboardButton("🛡️ Mis Llaves", callback_data="operations"),
+                InlineKeyboardButton("🛡️ Mis Llaves", callback_data="key_management"),
                 InlineKeyboardButton("📊 Estado", callback_data="status")
             ],
             [
