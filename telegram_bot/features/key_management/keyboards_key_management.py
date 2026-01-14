@@ -86,7 +86,7 @@ class KeyManagementKeyboards:
         return InlineKeyboardMarkup(keyboard)
 
     @staticmethod
-    def key_actions(key_id: int, is_active: bool) -> InlineKeyboardMarkup:
+    def key_actions(key_id: str, is_active: bool) -> InlineKeyboardMarkup:
         """
         Teclado de acciones para una llave específica.
         
@@ -173,7 +173,7 @@ class KeyManagementKeyboards:
         return InlineKeyboardMarkup(keyboard)
 
     @staticmethod
-    def confirm_action(action: str, key_id: int) -> InlineKeyboardMarkup:
+    def confirm_action(action: str, key_id: str) -> InlineKeyboardMarkup:
         """
         Teclado de confirmación para acciones peligrosas.
         
@@ -193,7 +193,7 @@ class KeyManagementKeyboards:
         return InlineKeyboardMarkup(keyboard)
 
     @staticmethod
-    def key_config(key_id: int) -> InlineKeyboardMarkup:
+    def key_config(key_id: str) -> InlineKeyboardMarkup:
         """
         Teclado de configuración para una llave.
         
@@ -219,7 +219,7 @@ class KeyManagementKeyboards:
         return InlineKeyboardMarkup(keyboard)
 
     @staticmethod
-    def statistics_options(key_id: int = None) -> InlineKeyboardMarkup:
+    def statistics_options(key_id: str = None) -> InlineKeyboardMarkup:
         """
         Teclado de opciones de estadísticas.
         

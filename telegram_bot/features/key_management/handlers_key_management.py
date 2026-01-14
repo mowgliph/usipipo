@@ -163,8 +163,8 @@ class KeyManagementHandler(BaseHandler):
         query = update.callback_query
         await self._safe_answer_query(query)
          
-        # Extraer key_id del callback_data
-        key_id = int(query.data.split("_")[-1])
+        # Extraer key_id del callback_data (es un UUID string, no int)
+        key_id = query.data.split("_")[-1]
         user_id = update.effective_user.id
          
         try:
@@ -285,6 +285,129 @@ class KeyManagementHandler(BaseHandler):
         )
 
 
+    async def back_to_keys(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Vuelve al submenú de gestión de llaves.
+        """
+        # Reutilizar el método show_key_submenu para volver al menú (maneja el query internamente)
+        await self.show_key_submenu(update, context)
+
+    async def handle_key_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Maneja acciones específicas sobre llaves (suspender, reactivar, eliminar, etc.).
+        """
+        query = update.callback_query
+        await self._safe_answer_query(query)
+        
+        # Extraer acción y key_id del callback_data
+        parts = query.data.split("_")
+        action = parts[1] if len(parts) > 1 else ""
+        key_id = parts[2] if len(parts) > 2 else ""
+        user_id = update.effective_user.id
+        
+        try:
+            key = await self.vpn_service.get_key_by_id(key_id)
+            
+            if not key or key.user_id != user_id:
+                message = KeyManagementMessages.KEY_NOT_FOUND
+                keyboard = KeyManagementKeyboards.back_to_submenu()
+            else:
+                # Ejecutar acción según el tipo
+                if action == "suspend":
+                    key.is_active = False
+                    await self.vpn_service.update_key(key)
+                    message = KeyManagementMessages.Actions.KEY_SUSPENDED
+                    
+                elif action == "reactivate":
+                    key.is_active = True
+                    await self.vpn_service.update_key(key)
+                    message = KeyManagementMessages.Actions.KEY_REACTIVATED
+                    
+                elif action == "delete":
+                    await self.vpn_service.delete_key(key_id)
+                    message = KeyManagementMessages.Actions.KEY_DELETED
+                    keyboard = KeyManagementKeyboards.back_to_submenu()
+                    
+                elif action == "config":
+                    # Mostrar configuración de la llave
+                    await self.show_key_config(update, context)
+                    return
+                    
+                elif action == "stats":
+                    # Mostrar estadísticas específicas de la llave
+                    await self.show_key_statistics(update, context)
+                    return
+                    
+                else:
+                    message = KeyManagementMessages.Error.INVALID_ACTION
+                    keyboard = KeyManagementKeyboards.back_to_submenu()
+                
+                # Si no se ha definido keyboard, usar el de detalles
+                if 'keyboard' not in locals():
+                    keyboard = KeyManagementKeyboards.key_actions(key_id, key.is_active)
+            
+            await self._safe_edit_message(
+                query, context,
+                text=message,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error en acción de llave {action}: {e}")
+            await self._safe_edit_message(
+                query, context,
+                text=KeyManagementMessages.Error.OPERATION_FAILED.format(error=str(e)),
+                reply_markup=KeyManagementKeyboards.back_to_submenu(),
+                parse_mode="Markdown"
+            )
+
+    async def show_key_config(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Muestra la configuración de una llave específica.
+        """
+        query = update.callback_query
+        await self._safe_answer_query(query)
+        
+        # Extraer key_id del callback_data
+        key_id = query.data.split("_")[-1]
+        user_id = update.effective_user.id
+        
+        try:
+            key = await self.vpn_service.get_key_by_id(key_id)
+            
+            if not key or key.user_id != user_id:
+                message = KeyManagementMessages.KEY_NOT_FOUND
+                keyboard = KeyManagementKeyboards.back_to_submenu()
+            else:
+                message = (
+                    f"⚙️ **Configuración de {key.name}**\n\n"
+                    f"📡 **Protocolo:** {key.key_type.upper()}\n"
+                    f"🖥️ **Servidor:** {key.server or 'N/A'}\n"
+                    f"🔑 **ID Externo:** {key.external_id}\n"
+                    f"📊 **Límite:** {key.data_limit_gb:.2f} GB\n"
+                    f"🔄 **Reseteo:** {key.billing_reset_at.strftime('%d/%m/%Y')}\n\n"
+                    f"Selecciona una opción:"
+                )
+                keyboard = KeyManagementKeyboards.key_config(key_id)
+            
+            await self._safe_edit_message(
+                query, context,
+                text=message,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error mostrando configuración: {e}")
+            await self._safe_edit_message(
+                query, context,
+                text=KeyManagementMessages.Error.SYSTEM_ERROR,
+                reply_markup=KeyManagementKeyboards.back_to_submenu(),
+                parse_mode="Markdown"
+            )
+
+
 def get_key_management_handlers(vpn_service: VpnService):
     """
     Retorna los handlers de gestión de llaves.
@@ -322,4 +445,15 @@ def get_key_management_callback_handlers(vpn_service: VpnService):
         CallbackQueryHandler(handler.show_key_details, pattern="^key_details_"),
         CallbackQueryHandler(handler.show_key_statistics, pattern="^key_stats$"),
         CallbackQueryHandler(handler.back_to_main_menu, pattern="^back_to_main$"),
+        # Add missing handlers for key actions
+        CallbackQueryHandler(handler.back_to_keys, pattern="^back_to_keys$"),
+        CallbackQueryHandler(handler.handle_key_action, pattern="^key_suspend_"),
+        CallbackQueryHandler(handler.handle_key_action, pattern="^key_reactivate_"),
+        CallbackQueryHandler(handler.handle_key_action, pattern="^key_delete_"),
+        CallbackQueryHandler(handler.handle_key_action, pattern="^key_config_"),
+        CallbackQueryHandler(handler.show_key_config, pattern="^key_view_config_"),
+        CallbackQueryHandler(handler.handle_key_action, pattern="^key_rename_"),
+        CallbackQueryHandler(handler.handle_key_action, pattern="^key_qr_"),
+        CallbackQueryHandler(handler.handle_key_action, pattern="^key_change_server_"),
+        CallbackQueryHandler(handler.handle_key_action, pattern="^key_extend_"),
     ]
