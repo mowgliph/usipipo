@@ -317,7 +317,8 @@ class VpnService:
             return await self.revoke_key(key_uuid)
         except Exception as e:
             logger.error(f"Error eliminando llave {key_id}: {e}")
-            return False
+            # Relanzar la excepción para que el handler pueda manejarla
+            raise Exception(str(e))
 
     async def deactivate_inactive_key(self, key_id: uuid.UUID) -> bool:
         """Desactiva una llave por inactividad (soft delete)."""

@@ -324,9 +324,17 @@ class KeyManagementHandler(BaseHandler):
                     message = KeyManagementMessages.Actions.KEY_REACTIVATED
                     
                 elif action == "delete":
-                    await self.vpn_service.delete_key(key_id)
-                    message = KeyManagementMessages.Actions.KEY_DELETED
-                    keyboard = KeyManagementKeyboards.back_to_submenu()
+                    try:
+                        await self.vpn_service.delete_key(key_id)
+                        message = KeyManagementMessages.Actions.KEY_DELETED
+                        keyboard = KeyManagementKeyboards.back_to_submenu()
+                    except Exception as e:
+                        if "Debes realizar al menos un depósito para eliminar claves" in str(e):
+                            message = KeyManagementMessages.Error.DELETE_NOT_ALLOWED
+                            keyboard = KeyManagementKeyboards.back_to_submenu()
+                        else:
+                            message = KeyManagementMessages.Error.OPERATION_FAILED.format(error=str(e))
+                            keyboard = KeyManagementKeyboards.back_to_submenu()
                     
                 elif action == "config":
                     # Mostrar configuración de la llave

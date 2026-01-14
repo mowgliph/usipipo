@@ -138,6 +138,13 @@ class KeyManagementMessages:
             "Error: {error}"
         )
         
+        DELETE_NOT_ALLOWED = (
+            "🚫 **Eliminación No Permitida**\n\n"
+            "Para eliminar llaves, debes haber realizado al menos un depósito.\n\n"
+            "💰 **Realiza un depósito** para desbloquear esta función.\n\n"
+            "📍 Ve a → 💳 Depositar"
+        )
+        
         INVALID_ACTION = (
             "❌ **Acción Inválida**\n\n"
             "La acción solicitada no es válida para esta llave."
