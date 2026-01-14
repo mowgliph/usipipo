@@ -34,6 +34,7 @@ class VpnKey:
     
     data_limit_bytes: int = 10 * 1024**3  # 10 GB por defecto
     billing_reset_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: Optional[datetime] = None  # Fecha de expiración de la clave
 
     def __post_init__(self):
         """
@@ -76,6 +77,18 @@ class VpnKey:
             self.billing_reset_at = self.billing_reset_at.replace(tzinfo=timezone.utc)
         elif self.billing_reset_at:
             self.billing_reset_at = self.billing_reset_at.astimezone(timezone.utc)
+        
+        if isinstance(self.expires_at, str):
+            try:
+                self.expires_at = datetime.fromisoformat(self.expires_at)
+            except ValueError:
+                self.expires_at = None
+        
+        # Normalizar expires_at a UTC aware si existe
+        if self.expires_at and self.expires_at.tzinfo is None:
+            self.expires_at = self.expires_at.replace(tzinfo=timezone.utc)
+        elif self.expires_at:
+            self.expires_at = self.expires_at.astimezone(timezone.utc)
 
     def __repr__(self):
         return f"<VpnKey(name={self.name}, type={self.key_type}, active={self.is_active})>"
@@ -123,3 +136,16 @@ class VpnKey:
         # Ambas fechas ahora tienen timezone, comparación directa
         result = now > billing_reset + timedelta(days=30)
         return result
+    
+    @property
+    def server(self) -> str:
+        """
+        Retorna el nombre del servidor basado en el tipo de clave.
+        Proporciona una forma consistente de obtener información del servidor.
+        """
+        if self.key_type == KeyType.OUTLINE:
+            return "Outline Server"
+        elif self.key_type == KeyType.WIREGUARD:
+            return "WireGuard Server"
+        else:
+            return "Unknown Server"
