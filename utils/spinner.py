@@ -193,7 +193,7 @@ def with_spinner(
                     update = arg
                 elif i == 1:  # Context suele ser el segundo argumento en handlers
                     # Verificación más robusta para ContextTypes.DEFAULT_TYPE
-                    if hasattr(arg, 'bot') and hasattr(arg, 'application'):
+                    if hasattr(arg, 'bot'):
                         context = arg
             
             # Si no hay update, no podemos mostrar spinner

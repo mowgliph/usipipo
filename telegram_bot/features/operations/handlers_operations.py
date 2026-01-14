@@ -270,7 +270,7 @@ def get_operations_handlers(vpn_service: VpnService, referral_service: ReferralS
         CommandHandler("game", handler.show_game_menu),
         MessageHandler(filters.Regex("^👥 Referidos$"), handler.referidos),
         CommandHandler("referrals", handler.referidos),
-        MessageHandler(filters.Regex("^🔙 Atrás$"), handler.atras),
+        MessageHandler(filters.Regex("^🔙 Atrás$"), handler.back_to_main_menu),
     ]
 
 
