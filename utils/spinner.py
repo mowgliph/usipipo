@@ -62,6 +62,56 @@ class SpinnerManager:
             return f"🌀 {base_message}"
     
     @staticmethod
+    async def replace_spinner_with_message(
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        spinner_message_id: int,
+        text: str,
+        reply_markup=None,
+        parse_mode: str = "Markdown"
+    ):
+        """
+        Reemplaza el spinner con el mensaje final del handler.
+        
+        Args:
+            update: Objeto Update de Telegram
+            context: Contexto del bot
+            spinner_message_id: ID del mensaje spinner a eliminar
+            text: Texto del mensaje final
+            reply_markup: Teclado del mensaje final
+            parse_mode: Modo de parseo
+        """
+        try:
+            chat_id = update.effective_chat.id
+            
+            # Primero eliminar el spinner
+            if spinner_message_id:
+                logger.info(f"🗑️  Eliminando spinner ID: {spinner_message_id}")
+                success = await SpinnerManager.delete_spinner_message(
+                    context, chat_id, spinner_message_id
+                )
+                logger.info(f"🗑️  Spinner eliminado: {success}")
+            
+            # Luego mostrar el mensaje final usando el método apropiado
+            if update.callback_query:
+                # Para callbacks, editar el mensaje original
+                await update.callback_query.edit_message_text(
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode=parse_mode
+                )
+            elif update.message:
+                # Para mensajes normales, responder
+                await update.message.reply_text(
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode=parse_mode
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error reemplazando spinner: {e}")
+
+    @staticmethod
     async def safe_reply_text(update: Update, text: str, parse_mode: str = "Markdown"):
         """
         Método seguro para responder mensajes que funciona tanto con mensajes como callbacks.
@@ -73,7 +123,7 @@ class SpinnerManager:
         """
         try:
             if update.callback_query:
-                # Para callbacks, editar el mensaje
+                # Para callbacks, editar el mensaje original (después de eliminar el spinner)
                 await update.callback_query.edit_message_text(
                     text=text,
                     parse_mode=parse_mode
@@ -114,10 +164,10 @@ class SpinnerManager:
             
             # Verificar si es un callback query o un mensaje normal
             if update.callback_query:
-                # Para callbacks, necesitamos responder al callback query primero
+                # Para callbacks, responder al callback query y enviar nuevo mensaje
                 await update.callback_query.answer()
-                # Luego editar el mensaje del callback
-                spinner_message = await update.callback_query.edit_message_text(
+                # Enviar nuevo mensaje temporal para el spinner
+                spinner_message = await update.callback_query.message.reply_text(
                     text=message_text,
                     parse_mode="Markdown"
                 )
@@ -270,12 +320,20 @@ def with_spinner(
                         await asyncio.sleep(1.0 - duration)
                  
                 # Eliminar spinner si se envió correctamente
+                # Para callbacks, el handler debe encargarse de reemplazar el spinner
+                # Para mensajes normales, eliminamos el spinner temporal
                 if spinner_message_id and context:
-                    logger.info(f"🗑️  Eliminando spinner ID: {spinner_message_id}")
-                    success = await SpinnerManager.delete_spinner_message(
-                        context, chat_id, spinner_message_id
-                    )
-                    logger.info(f"🗑️  Spinner eliminado: {success}")
+                    if update.callback_query:
+                        # Para callbacks, no eliminar el spinner automáticamente
+                        # El handler debe reemplazarlo con su contenido
+                        logger.info(f"🔄 Spinner para callback será reemplazado por el handler")
+                    else:
+                        # Para mensajes normales, eliminar el spinner temporal
+                        logger.info(f"🗑️  Eliminando spinner ID: {spinner_message_id}")
+                        success = await SpinnerManager.delete_spinner_message(
+                            context, chat_id, spinner_message_id
+                        )
+                        logger.info(f"🗑️  Spinner eliminado: {success}")
                 else:
                     logger.warning(f"⚠️  No se pudo eliminar spinner - ID: {spinner_message_id}, Context: {context is not None}")
                  
@@ -429,6 +487,75 @@ def with_animated_spinner(
 def database_spinner(func: Callable) -> Callable:
     """Spinner específico para operaciones de base de datos."""
     return with_spinner("database")(func)
+
+def database_spinner_callback(func: Callable) -> Callable:
+    """
+    Spinner específico para operaciones de base de datos en callbacks.
+    Pasa el spinner_message_id al handler para que pueda reemplazarlo.
+    """
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs) -> Any:
+        # Extraer update y context de los argumentos
+        update = None
+        context = None
+
+        # Buscar update y context en argumentos posicionales
+        for arg in args:
+            if isinstance(arg, Update):
+                update = arg
+            elif hasattr(arg, 'bot'):
+                context = arg
+
+        # También buscar en kwargs por si acaso
+        if 'context' in kwargs and hasattr(kwargs['context'], 'bot'):
+            context = kwargs['context']
+        if 'update' in kwargs and isinstance(kwargs['update'], Update):
+            update = kwargs['update']
+        
+        # Si no hay update o no es callback, usar el spinner normal
+        if not update or not update.callback_query:
+            return await database_spinner(func)(self, *args, **kwargs)
+        
+        chat_id = update.effective_chat.id
+        spinner_message_id = None
+        
+        try:
+            logger.info(f"🌀 Iniciando spinner para {func.__name__}")
+            
+            # Enviar spinner
+            spinner_message_id = await SpinnerManager.send_spinner_message(
+                update, "database"
+            )
+            
+            logger.info(f"🌀 Spinner enviado con ID: {spinner_message_id}")
+             
+            # Ejecutar la función original pasando el spinner_message_id
+            result = await func(self, update, context, spinner_message_id, *args[3:], **kwargs)
+             
+            return result
+             
+        except Exception as e:
+            logger.error(f"❌ Error en función con spinner callback {func.__name__}: {e}")
+            
+            # Intentar eliminar spinner y mostrar error
+            if spinner_message_id and context:
+                try:
+                    logger.info(f"🗑️  Intentando eliminar spinner después de error")
+                    await SpinnerManager.delete_spinner_message(
+                        context, chat_id, spinner_message_id
+                    )
+                    await SpinnerManager.safe_reply_text(
+                        update,
+                        "❌ Ocurrió un error durante la operación. Por favor, intenta nuevamente."
+                    )
+                except Exception as delete_error:
+                    logger.error(f"❌ Error eliminando spinner: {delete_error}")
+                    pass
+             
+            # Re-lanzar la excepción para manejo normal
+            raise e
+    
+    return wrapper
 
 def vpn_spinner(func: Callable) -> Callable:
     """Spinner específico para operaciones VPN."""

@@ -11,7 +11,7 @@ from application.services.achievement_service import AchievementService
 from .messages_achievements import AchievementsMessages
 from .keyboards_achievements import AchievementsKeyboards
 from utils.logger import logger
-from utils.spinner import database_spinner
+from utils.spinner import database_spinner_callback, SpinnerManager
 from telegram_bot.common.decorators import safe_callback_query, database_operation
 from telegram_bot.common.patterns import ListPattern
 
@@ -57,9 +57,9 @@ class AchievementsHandler(ListPattern):
         )
 
     @safe_callback_query
-    @database_spinner
+    @database_spinner_callback
     @database_operation
-    async def achievements_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def achievements_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """Maneja el menú principal de logros para callbacks."""
         user_id = update.effective_user.id
         
@@ -79,17 +79,18 @@ class AchievementsHandler(ListPattern):
             pending=summary.get('pending_rewards', 0)
         )
         
-        await self._edit_message_with_keyboard(
-            update, context,
+        # Reemplazar spinner con el mensaje final
+        await SpinnerManager.replace_spinner_with_message(
+            update, context, spinner_message_id,
             text=message,
             reply_markup=AchievementsKeyboards.achievements_menu(),
             parse_mode="Markdown"
         )
 
     @safe_callback_query
-    @database_spinner
+    @database_spinner_callback
     @database_operation
-    async def achievements_progress(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def achievements_progress(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """Muestra el progreso general de logros."""
         user_id = update.effective_user.id
         
@@ -103,16 +104,17 @@ class AchievementsHandler(ListPattern):
             pending=summary.get('pending_rewards', 0)
         )
         
-        await self._edit_message_with_keyboard(
-            update, context,
+        # Reemplazar spinner con el mensaje final
+        await SpinnerManager.replace_spinner_with_message(
+            update, context, spinner_message_id,
             text=message,
             reply_markup=AchievementsKeyboards.back_to_menu(),
             parse_mode="Markdown"
         )
 
     @safe_callback_query
-    @database_spinner
-    async def achievements_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    @database_spinner_callback
+    async def achievements_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """Muestra la lista de logros disponibles."""
         query = update.callback_query
         await self._safe_answer_query(query)
@@ -141,8 +143,9 @@ class AchievementsHandler(ListPattern):
                         status = "✅" if achievement.completed else "⏳"
                         message += f"{status} {achievement.title}\n"
 
-            await self._safe_edit_message(
-                query, context,
+            # Reemplazar spinner con el mensaje final
+            await SpinnerManager.replace_spinner_with_message(
+                update, context, spinner_message_id,
                 text=message,
                 reply_markup=AchievementsKeyboards.back_to_menu(),
                 parse_mode="Markdown"
@@ -152,8 +155,8 @@ class AchievementsHandler(ListPattern):
             await self._handle_error(update, context, e, "achievements_list")
 
     @safe_callback_query
-    @database_spinner
-    async def claim_reward(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    @database_spinner_callback
+    async def claim_reward(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """Reclama una recompensa de logro."""
         query = update.callback_query
         await self._safe_answer_query(query)
@@ -174,8 +177,9 @@ class AchievementsHandler(ListPattern):
             else:
                 message = AchievementsMessages.Reward.ALREADY_CLAIMED
 
-            await self._safe_edit_message(
-                query, context,
+            # Reemplazar spinner con el mensaje final
+            await SpinnerManager.replace_spinner_with_message(
+                update, context, spinner_message_id,
                 text=message,
                 reply_markup=AchievementsKeyboards.back_to_menu(),
                 parse_mode="Markdown"
@@ -185,8 +189,8 @@ class AchievementsHandler(ListPattern):
             await self._handle_error(update, context, e, "claim_reward")
 
     @safe_callback_query
-    @database_spinner
-    async def achievements_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    @database_spinner_callback
+    async def achievements_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """Muestra el leaderboard de logros."""
         query = update.callback_query
         await self._safe_answer_query(query)
@@ -203,8 +207,9 @@ class AchievementsHandler(ListPattern):
                     medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
                     message += f"\n{medal} **{entry['name']}** - {entry['total_achievements']} logros, {entry['total_stars']} ⭐"
 
-            await self._safe_edit_message(
-                query, context,
+            # Reemplazar spinner con el mensaje final
+            await SpinnerManager.replace_spinner_with_message(
+                update, context, spinner_message_id,
                 text=message,
                 reply_markup=AchievementsKeyboards.back_to_menu(),
                 parse_mode="Markdown"
