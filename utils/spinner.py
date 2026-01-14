@@ -488,6 +488,144 @@ def database_spinner(func: Callable) -> Callable:
     """Spinner específico para operaciones de base de datos."""
     return with_spinner("database")(func)
 
+def shop_spinner_callback(func: Callable) -> Callable:
+    """
+    Spinner específico para operaciones de shop en callbacks.
+    Pasa el spinner_message_id al handler para que pueda reemplazarlo.
+    """
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs) -> Any:
+        # Extraer update y context de los argumentos
+        update = None
+        context = None
+
+        # Buscar update y context en argumentos posicionales
+        for arg in args:
+            if isinstance(arg, Update):
+                update = arg
+            elif hasattr(arg, 'bot'):
+                context = arg
+
+        # También buscar en kwargs por si acaso
+        if 'context' in kwargs and hasattr(kwargs['context'], 'bot'):
+            context = kwargs['context']
+        if 'update' in kwargs and isinstance(kwargs['update'], Update):
+            update = kwargs['update']
+        
+        # Si no hay update o no es callback, usar el spinner normal
+        if not update or not update.callback_query:
+            return await with_spinner("loading")(func)(self, *args, **kwargs)
+        
+        chat_id = update.effective_chat.id
+        spinner_message_id = None
+        
+        try:
+            logger.info(f"🌀 Iniciando spinner para {func.__name__}")
+            
+            # Enviar spinner
+            spinner_message_id = await SpinnerManager.send_spinner_message(
+                update, "loading"
+            )
+            
+            logger.info(f"🌀 Spinner enviado con ID: {spinner_message_id}")
+             
+            # Ejecutar la función original pasando el spinner_message_id
+            result = await func(self, update, context, spinner_message_id, *args[3:], **kwargs)
+             
+            return result
+             
+        except Exception as e:
+            logger.error(f"❌ Error en función con spinner callback {func.__name__}: {e}")
+            
+            # Intentar eliminar spinner y mostrar error
+            if spinner_message_id and context:
+                try:
+                    logger.info(f"🗑️  Intentando eliminar spinner después de error")
+                    await SpinnerManager.delete_spinner_message(
+                        context, chat_id, spinner_message_id
+                    )
+                    await SpinnerManager.safe_reply_text(
+                        update,
+                        "❌ Ocurrió un error durante la operación. Por favor, intenta nuevamente."
+                    )
+                except Exception as delete_error:
+                    logger.error(f"❌ Error eliminando spinner: {delete_error}")
+                    pass
+             
+            # Re-lanzar la excepción para manejo normal
+            raise e
+    
+    return wrapper
+
+def admin_spinner_callback(func: Callable) -> Callable:
+    """
+    Spinner específico para operaciones administrativas en callbacks.
+    Pasa el spinner_message_id al handler para que pueda reemplazarlo.
+    """
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs) -> Any:
+        # Extraer update y context de los argumentos
+        update = None
+        context = None
+
+        # Buscar update y context en argumentos posicionales
+        for arg in args:
+            if isinstance(arg, Update):
+                update = arg
+            elif hasattr(arg, 'bot'):
+                context = arg
+
+        # También buscar en kwargs por si acaso
+        if 'context' in kwargs and hasattr(kwargs['context'], 'bot'):
+            context = kwargs['context']
+        if 'update' in kwargs and isinstance(kwargs['update'], Update):
+            update = kwargs['update']
+        
+        # Si no hay update o no es callback, usar el spinner normal
+        if not update or not update.callback_query:
+            return await with_spinner("loading")(func)(self, *args, **kwargs)
+        
+        chat_id = update.effective_chat.id
+        spinner_message_id = None
+        
+        try:
+            logger.info(f"🌀 Iniciando spinner para {func.__name__}")
+            
+            # Enviar spinner
+            spinner_message_id = await SpinnerManager.send_spinner_message(
+                update, "loading"
+            )
+            
+            logger.info(f"🌀 Spinner enviado con ID: {spinner_message_id}")
+             
+            # Ejecutar la función original pasando el spinner_message_id
+            result = await func(self, update, context, spinner_message_id, *args[3:], **kwargs)
+             
+            return result
+             
+        except Exception as e:
+            logger.error(f"❌ Error en función con spinner callback {func.__name__}: {e}")
+            
+            # Intentar eliminar spinner y mostrar error
+            if spinner_message_id and context:
+                try:
+                    logger.info(f"🗑️  Intentando eliminar spinner después de error")
+                    await SpinnerManager.delete_spinner_message(
+                        context, chat_id, spinner_message_id
+                    )
+                    await SpinnerManager.safe_reply_text(
+                        update,
+                        "❌ Ocurrió un error durante la operación. Por favor, intenta nuevamente."
+                    )
+                except Exception as delete_error:
+                    logger.error(f"❌ Error eliminando spinner: {delete_error}")
+                    pass
+             
+            # Re-lanzar la excepción para manejo normal
+            raise e
+    
+    return wrapper
+
 def database_spinner_callback(func: Callable) -> Callable:
     """
     Spinner específico para operaciones de base de datos en callbacks.

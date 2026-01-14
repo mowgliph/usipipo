@@ -12,7 +12,7 @@ from application.services.vpn_service import VpnService
 from .messages_shop import ShopMessages
 from .keyboards_shop import ShopKeyboards
 from utils.logger import logger
-from utils.spinner import with_spinner
+from utils.spinner import with_spinner, SpinnerManager
 
 # Estados de conversación
 SHOP_MENU = 0

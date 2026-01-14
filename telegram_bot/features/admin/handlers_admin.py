@@ -12,7 +12,7 @@ from .messages_admin import AdminMessages
 from .keyboards_admin import AdminKeyboards
 from config import settings
 from utils.logger import logger
-from utils.spinner import with_spinner
+from utils.spinner import admin_spinner_callback, SpinnerManager
 from telegram_bot.common.base_handler import BaseConversationHandler
 from datetime import datetime
 from pathlib import Path
@@ -55,8 +55,8 @@ class AdminHandler(BaseConversationHandler):
         )
         return ADMIN_MENU
 
-    @with_spinner()
-    async def show_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    @admin_spinner_callback
+    async def show_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """Muestra lista de usuarios."""
         query = update.callback_query
         await self._safe_answer_query(query)
@@ -75,8 +75,9 @@ class AdminHandler(BaseConversationHandler):
                 if len(users) > 20:
                     message += f"\n... y {len(users) - 20} más usuarios"
 
-            await self._safe_edit_message(
-                query, context,
+            # Reemplazar spinner con el mensaje final
+            await SpinnerManager.replace_spinner_with_message(
+                update, context, spinner_message_id,
                 text=message,
                 reply_markup=AdminKeyboards.back_to_menu(),
                 parse_mode="Markdown"
@@ -87,8 +88,8 @@ class AdminHandler(BaseConversationHandler):
             await self._handle_error(update, context, e, "show_users")
             return ADMIN_MENU
 
-    @with_spinner()
-    async def show_keys(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    @admin_spinner_callback
+    async def show_keys(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """Muestra lista de llaves VPN."""
         query = update.callback_query
         await self._safe_answer_query(query)
@@ -101,14 +102,15 @@ class AdminHandler(BaseConversationHandler):
             else:
                 message = AdminMessages.Keys.HEADER
                 for key in keys[:20]:  # Limitar a 20 llaves
-                    status = "🟢 Activa" if key.is_active else "🔴 Inactiva"
-                    message += f"\n🔑 {key.name} ({key.type.upper()}) - {key.user_id}\n   {status}\n"
+                    status = "✅ Activa" if key.is_active else "❌ Inactiva"
+                    message += f"\n🔑 {key.key_name or 'N/A'} ({key.user_id})\n   {status}\n"
 
                 if len(keys) > 20:
                     message += f"\n... y {len(keys) - 20} más llaves"
 
-            await self._safe_edit_message(
-                query, context,
+            # Reemplazar spinner con el mensaje final
+            await SpinnerManager.replace_spinner_with_message(
+                update, context, spinner_message_id,
                 text=message,
                 reply_markup=AdminKeyboards.back_to_menu(),
                 parse_mode="Markdown"
@@ -119,8 +121,8 @@ class AdminHandler(BaseConversationHandler):
             await self._handle_error(update, context, e, "show_keys")
             return ADMIN_MENU
 
-    @with_spinner()
-    async def show_server_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    @admin_spinner_callback
+    async def show_server_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE, spinner_message_id: int = None):
         """Muestra estado del servidor."""
         query = update.callback_query
         await self._safe_answer_query(query)
@@ -137,8 +139,9 @@ class AdminHandler(BaseConversationHandler):
             message += f"\n📈 **CPU:** {stats.get('cpu_usage', 'N/A')}%"
             message += f"\n🌐 **Red:** {stats.get('network_usage', 'N/A')}"
 
-            await self._safe_edit_message(
-                query, context,
+            # Reemplazar spinner con el mensaje final
+            await SpinnerManager.replace_spinner_with_message(
+                update, context, spinner_message_id,
                 text=message,
                 reply_markup=AdminKeyboards.back_to_menu(),
                 parse_mode="Markdown"
