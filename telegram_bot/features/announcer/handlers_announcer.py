@@ -394,6 +394,30 @@ class AnnouncerHandler(BaseConversationHandler):
                 parse_mode="Markdown"
             )
 
+    async def back_to_announcer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Vuelve al menú principal de anuncios.
+        """
+        return await self.show_announcer_menu(update, context)
+    
+    async def back_to_operations(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Vuelve al menú de operaciones.
+        """
+        query = update.callback_query
+        await query.answer()
+        
+        message = "🔙 Volviendo al menú principal..."
+        keyboard = None  # Aquí iría el teclado del menú principal
+        
+        await query.edit_message_text(
+            text=message,
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+        
+        return ConversationHandler.END
+
     # Métodos privados
     async def _check_announcer_role(self, user_id: int) -> bool:
         """Verifica si el usuario tiene rol de anunciante."""
