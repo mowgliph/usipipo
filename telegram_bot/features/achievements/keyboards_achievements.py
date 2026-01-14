@@ -6,7 +6,7 @@ Version: 2.0.0 - Feature-based architecture
 """
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from common.keyboards import CommonKeyboards
+from telegram_bot.common.keyboards import CommonKeyboards
 
 
 class AchievementsKeyboards:
