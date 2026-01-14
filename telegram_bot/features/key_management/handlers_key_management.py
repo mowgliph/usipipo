@@ -138,7 +138,7 @@ class KeyManagementHandler(BaseHandler):
                 # Agregar información de cada llave
                 for key in filtered_keys:
                     status = "🟢 Activa" if key.is_active else "🔴 Inactiva"
-                    message += f"\n🔑 {key.name}\n   📊 {key.usage_gb}/{key.limit_gb} GB\n   {status}\n"
+                    message += f"\n🔑 {key.name}\n   📊 {key.used_gb:.2f}/{key.data_limit_gb:.2f} GB\n   {status}\n"
              
             await self._safe_edit_message(
                 query, context,
@@ -174,14 +174,14 @@ class KeyManagementHandler(BaseHandler):
                 message = KeyManagementMessages.KEY_NOT_FOUND
             else:
                 status = "🟢 Activa" if key.is_active else "🔴 Inactiva"
-                usage_percentage = (key.usage_gb / key.limit_gb) * 100 if key.limit_gb > 0 else 0
+                usage_percentage = (key.used_gb / key.data_limit_gb) * 100 if key.data_limit_gb > 0 else 0
                  
                 message = KeyManagementMessages.KEY_DETAILS.format(
                     name=key.name,
                     type=key.key_type.upper(),
                     server=key.server or "N/A",
-                    usage=key.usage_gb,
-                    limit=key.limit_gb,
+                    usage=key.used_gb,
+                    limit=key.data_limit_gb,
                     percentage=usage_percentage,
                     status=status,
                     created=key.created_at.strftime("%d/%m/%Y") if key.created_at else "N/A",
@@ -225,8 +225,8 @@ class KeyManagementHandler(BaseHandler):
                 # Calcular estadísticas
                 total_keys = len(keys)
                 active_keys = len([k for k in keys if k.is_active])
-                total_usage = sum(k.usage_gb for k in keys)
-                total_limit = sum(k.limit_gb for k in keys)
+                total_usage = sum(k.used_gb for k in keys)
+                total_limit = sum(k.data_limit_gb for k in keys)
                 overall_percentage = (total_usage / total_limit * 100) if total_limit > 0 else 0
                  
                 # Estadísticas por tipo
@@ -241,8 +241,8 @@ class KeyManagementHandler(BaseHandler):
                     percentage=overall_percentage,
                     outline_count=len(outline_keys),
                     wireguard_count=len(wireguard_keys),
-                    outline_usage=sum(k.usage_gb for k in outline_keys),
-                    wireguard_usage=sum(k.usage_gb for k in wireguard_keys)
+                    outline_usage=sum(k.used_gb for k in outline_keys),
+                    wireguard_usage=sum(k.used_gb for k in wireguard_keys)
                 )
              
             keyboard = KeyManagementKeyboards.back_to_submenu()
