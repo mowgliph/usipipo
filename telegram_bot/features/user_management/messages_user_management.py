@@ -59,6 +59,30 @@ class UserManagementMessages:
         )
     
     # ============================================
+    # INFO
+    # ============================================
+    
+    class Info:
+        """Mensajes de información del usuario."""
+        
+        HEADER = "ℹ️ **Información de tu Cuenta**"
+        
+        USER_INFO = (
+            "ℹ️ **Información Detallada**\n\n"
+            "👤 **Usuario:** {name}\n"
+            "🆔 **ID:** {user_id}\n"
+            "👥 **Username:** @{username}\n"
+            "📅 **Registro:** {join_date}\n"
+            "🟢 **Estado:** {status}\n"
+            "👑 **Plan:** {plan}\n"
+            "🔑 **Llaves:** {keys_used}/{keys_total}\n"
+            "📊 **Datos usados:** {data_used}\n"
+            "💰 **Balance:** {balance} estrellas\n"
+            "🎮 **Nivel:** {level}\n"
+            "🏆 **Logros:** {achievements}"
+        )
+    
+    # ============================================
     # ERRORS
     # ============================================
     
@@ -74,4 +98,9 @@ class UserManagementMessages:
         STATUS_FAILED = (
             "❌ **Error obteniendo estado**\n\n"
             "No pude cargar tu información. Intenta más tarde."
+        )
+        
+        INFO_FAILED = (
+            "❌ **Error obteniendo información**\n\n"
+            "No pude cargar tu información detallada. Intenta más tarde."
         )

@@ -171,6 +171,104 @@ class UserManagementHandler:
                     reply_markup=UserManagementKeyboards.main_menu()
                 )
 
+    async def info_handler(self, update: Update, _context: ContextTypes.DEFAULT_TYPE):
+        """
+        Muestra información detallada del usuario.
+        """
+        telegram_id = update.effective_user.id
+        user_name = update.effective_user.username or update.effective_user.first_name
+        full_name = update.effective_user.first_name or ""
+        if update.effective_user.last_name:
+            full_name = f"{full_name} {update.effective_user.last_name}".strip()
+
+        try:
+            # Obtener datos completos del usuario
+            status_data = await self.vpn_service.get_user_status(telegram_id)
+            user_entity = status_data.get("user")
+            
+            if not user_entity:
+                await update.message.reply_text(
+                    text=UserManagementMessages.Error.INFO_FAILED,
+                    reply_markup=UserManagementKeyboards.main_menu()
+                )
+                return
+
+            # Formatear fecha de unión
+            join_date = "N/A"
+            if hasattr(user_entity, 'created_at') and user_entity.created_at:
+                join_date = user_entity.created_at.strftime("%Y-%m-%d")
+
+            # Determinar estado
+            status_text = "Inactivo ⚠️"
+            if (getattr(user_entity, 'is_active', False) or
+                    getattr(user_entity, 'status', None) == 'active'):
+                status_text = "Activo ✅"
+
+            # Obtener información adicional del usuario y claves
+            keys = status_data.get("keys", [])
+            keys_used = len([k for k in keys if getattr(k, 'is_active', True)])
+            keys_total = user_entity.max_keys
+            data_used = f"{status_data.get('total_used_gb', 0):.2f} GB"
+            balance = user_entity.balance_stars
+            
+            # Determinar plan
+            plan = "VIP" if user_entity.is_vip_active() else "Gratis"
+            
+            # Obtener nivel y logros del servicio de logros
+            level = 1
+            achievements = 0
+            
+            if self.achievement_service:
+                try:
+                    # Obtener resumen de logros del usuario
+                    achievement_summary = await self.achievement_service.get_user_summary(telegram_id)
+                    if achievement_summary:
+                        achievements = achievement_summary.get('completed_achievements', 0)
+                        
+                        # Calcular nivel basado en logros completados (cada 5 logros = 1 nivel)
+                        level = max(1, (achievements // 5) + 1)
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ Error obteniendo logros para usuario {telegram_id}: {e}")
+                    # Usar valores por defecto si hay error
+                    level = 1
+                    achievements = 0
+
+            # Construir mensaje de información
+            text = (
+                UserManagementMessages.Info.HEADER + "\n\n" +
+                UserManagementMessages.Info.USER_INFO.format(
+                    name=full_name,
+                    user_id=telegram_id,
+                    username=update.effective_user.username or "N/A",
+                    join_date=join_date,
+                    status=status_text,
+                    plan=plan,
+                    keys_used=keys_used,
+                    keys_total=keys_total,
+                    data_used=data_used,
+                    balance=balance,
+                    level=level,
+                    achievements=achievements
+                )
+            )
+
+            # Determinar si es admin para el menú
+            is_admin_menu = telegram_id == int(settings.ADMIN_ID)
+
+            await update.message.reply_text(
+                text=text,
+                reply_markup=UserManagementKeyboards.main_menu(is_admin=is_admin_menu),
+                parse_mode="Markdown"
+            )
+
+        except (AttributeError, ValueError, KeyError) as e:
+            logger.error(f"❌ Error en info_handler para usuario {telegram_id}: {e}")
+            await update.message.reply_text(
+                text=UserManagementMessages.Error.INFO_FAILED,
+                reply_markup=UserManagementKeyboards.main_menu()
+            )
+
     def _format_admin_dashboard(self, user_name: str, stats: dict) -> str:
         """
         Formatea el panel de control administrativo.
@@ -202,6 +300,8 @@ def get_user_management_handlers(vpn_service: VpnService,
     return [
         # Comando /start
         CommandHandler("start", handler.start_handler),
+        # Comando /info
+        CommandHandler("info", handler.info_handler),
         # Botón de estado
         MessageHandler(filters.Regex("^📊 Estado$"), handler.status_handler),
         # Comando /status

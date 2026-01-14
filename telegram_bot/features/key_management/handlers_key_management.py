@@ -26,6 +26,7 @@ class KeyManagementHandler(BaseHandler):
             vpn_service: Servicio de VPN
         """
         super().__init__(vpn_service, "VpnService")
+        self.vpn_service = vpn_service
         logger.info("🔑 KeyManagementHandler inicializado")
 
     async def show_key_submenu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
