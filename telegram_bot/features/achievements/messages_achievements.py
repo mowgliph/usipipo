@@ -5,7 +5,7 @@ Author: uSipipo Team
 Version: 2.0.0 - Feature-based architecture
 """
 
-from common.messages import CommonMessages
+from telegram_bot.common.messages import CommonMessages
 
 
 class AchievementsMessages:
