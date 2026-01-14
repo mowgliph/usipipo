@@ -12,12 +12,11 @@ from .messages_achievements import AchievementsMessages
 from .keyboards_achievements import AchievementsKeyboards
 from utils.logger import logger
 from utils.spinner import database_spinner
-from telegram_bot.common.base_handler import BaseHandler
 from telegram_bot.common.decorators import safe_callback_query, database_operation
 from telegram_bot.common.patterns import ListPattern
 
 
-class AchievementsHandler(BaseHandler, ListPattern):
+class AchievementsHandler(ListPattern):
     """Handler para sistema de logros."""
     
     def __init__(self, achievement_service: AchievementService):
