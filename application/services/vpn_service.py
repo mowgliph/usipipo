@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from utils.logger import logger
 
-from domain.entities.user import User
+from domain.entities.user import User, UserRole
 from domain.entities.vpn_key import VpnKey
 from domain.interfaces.iuser_repository import IUserRepository
 from domain.interfaces.ikey_repository import IKeyRepository
@@ -31,9 +31,12 @@ class VpnService:
             user = User(telegram_id=telegram_id)
             await self.user_repo.save(user)
 
-        existing_keys = await self.key_repo.get_by_user_id(telegram_id)
-        if len(existing_keys) >= user.max_keys:
-            raise Exception(f"Límite de llaves alcanzado ({user.max_keys})")
+        # Verificar si el usuario puede crear más llaves (incluye regla para admins)
+        if not user.can_create_more_keys():
+            if user.role == UserRole.ADMIN:
+                raise Exception("Error inesperado: los administradores deberían poder crear ilimitadas")
+            else:
+                raise Exception(f"Límite de llaves alcanzado ({user.max_keys})")
 
         if key_type.lower() == "outline":
             infra_data = await self.outline_client.create_key(key_name)

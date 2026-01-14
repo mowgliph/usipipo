@@ -86,14 +86,24 @@ class User:
         """
         Lógica de negocio: Verifica si el usuario tiene permiso 
         para generar una nueva llave según su límite.
+        Los administradores pueden crear ilimitadas.
         """
+        # Los administradores pueden crear ilimitadas
+        if self.role == UserRole.ADMIN:
+            return True
+            
         active_keys = [k for k in self.keys if getattr(k, 'is_active', True)]
         return len(active_keys) < self.max_keys
     
     def can_delete_keys(self) -> bool:
         """
         Lógica de negocio: Solo usuarios que han recargado pueden eliminar claves.
+        Los administradores pueden eliminar sin restricciones.
         """
+        # Los administradores pueden eliminar sin restricciones
+        if self.role == UserRole.ADMIN:
+            return True
+            
         return self.total_deposited > 0
     
     def is_vip_active(self) -> bool:
