@@ -46,14 +46,14 @@ class OperationsHandler:
         Muestra el balance del usuario.
         """
         user_id = update.effective_user.id
-        
+
         try:
-            user_status = await self.vpn_service.get_user_status(user_id)
+            user_status = await self.vpn_service.get_user_status(user_id, current_user_id=user_id)
             user = user_status["user"]
-            
+
             # Verificar si el atributo total_spent existe, de lo contrario usar 0
             total_spent = getattr(user, 'total_spent', 0)
-            
+
             text = OperationsMessages.Balance.DISPLAY.format(
                 name=user.full_name or user.username or f"Usuario {user.telegram_id}",
                 balance=user.balance_stars,
@@ -61,7 +61,7 @@ class OperationsHandler:
                 total_spent=total_spent,
                 referral_earnings=user.total_referral_earnings
             )
-            
+
             # Manejar tanto mensaje como callback
             if update.message:
                 await update.message.reply_text(
@@ -76,11 +76,11 @@ class OperationsHandler:
                     reply_markup=OperationsKeyboards.operations_menu(),
                     parse_mode="Markdown"
                 )
-            
+
         except Exception as e:
             logger.error(f"Error en mi_balance: {e}")
             error_text = OperationsMessages.Error.SYSTEM_ERROR
-            
+
             if update.message:
                 await update.message.reply_text(
                     text=error_text,

@@ -17,18 +17,19 @@ from utils.logger import logger
 from domain.entities.achievement import Achievement, UserAchievement, UserStats, AchievementType
 from domain.interfaces.iachievement_repository import IAchievementRepository, IUserStatsRepository
 from .models import AchievementModel, UserAchievementModel, UserStatsModel
+from .base_repository import BaseSupabaseRepository
 
-class AchievementRepository(IAchievementRepository):
+class AchievementRepository(BaseSupabaseRepository, IAchievementRepository):
     """Implementación del repositorio de logros con SQLAlchemy Async."""
     
     def __init__(self, session: AsyncSession):
         """
         Inicializa el repositorio con una sesión de base de datos.
-        
+
         Args:
             session: Sesión async de SQLAlchemy.
         """
-        self.session = session
+        super().__init__(session)
     
     def _model_to_entity(self, model: AchievementModel) -> Achievement:
         """Convierte un modelo SQLAlchemy a entidad de dominio."""
@@ -44,21 +45,23 @@ class AchievementRepository(IAchievementRepository):
             is_active=model.is_active
         )
     
-    async def get_all_achievements(self) -> List[Achievement]:
+    async def get_all_achievements(self, current_user_id: int) -> List[Achievement]:
         """Obtiene todos los logros activos."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(AchievementModel).where(AchievementModel.is_active == True)
             result = await self.session.execute(query)
             models = result.scalars().all()
-            
+
             return [self._model_to_entity(m) for m in models]
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo todos los logros: {e}")
             return []
-    
-    async def get_achievement_by_id(self, achievement_id: str) -> Optional[Achievement]:
+
+    async def get_achievement_by_id(self, achievement_id: str, current_user_id: int) -> Optional[Achievement]:
         """Obtiene un logro por su ID."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(AchievementModel).where(
                 and_(
@@ -68,18 +71,19 @@ class AchievementRepository(IAchievementRepository):
             )
             result = await self.session.execute(query)
             model = result.scalar_one_or_none()
-            
+
             if model is None:
                 return None
-            
+
             return self._model_to_entity(model)
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo logro {achievement_id}: {e}")
             return None
-    
-    async def get_achievements_by_type(self, achievement_type: AchievementType) -> List[Achievement]:
+
+    async def get_achievements_by_type(self, achievement_type: AchievementType, current_user_id: int) -> List[Achievement]:
         """Obtiene logros por tipo."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(AchievementModel).where(
                 and_(
@@ -89,20 +93,21 @@ class AchievementRepository(IAchievementRepository):
             )
             result = await self.session.execute(query)
             models = result.scalars().all()
-            
+
             return [self._model_to_entity(m) for m in models]
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo logros por tipo {achievement_type}: {e}")
             return []
-    
-    async def get_user_achievements(self, user_id: int) -> List[UserAchievement]:
+
+    async def get_user_achievements(self, user_id: int, current_user_id: int) -> List[UserAchievement]:
         """Obtiene todos los logros de un usuario."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserAchievementModel).where(UserAchievementModel.user_id == user_id)
             result = await self.session.execute(query)
             models = result.scalars().all()
-            
+
             return [
                 UserAchievement(
                     user_id=m.user_id,
@@ -115,13 +120,14 @@ class AchievementRepository(IAchievementRepository):
                 )
                 for m in models
             ]
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo logros del usuario {user_id}: {e}")
             return []
-    
-    async def get_user_achievement(self, user_id: int, achievement_id: str) -> Optional[UserAchievement]:
+
+    async def get_user_achievement(self, user_id: int, achievement_id: str, current_user_id: int) -> Optional[UserAchievement]:
         """Obtiene un logro específico de un usuario."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserAchievementModel).where(
                 and_(
@@ -131,10 +137,10 @@ class AchievementRepository(IAchievementRepository):
             )
             result = await self.session.execute(query)
             model = result.scalar_one_or_none()
-            
+
             if model is None:
                 return None
-            
+
             return UserAchievement(
                 user_id=model.user_id,
                 achievement_id=model.achievement_id,
@@ -144,13 +150,14 @@ class AchievementRepository(IAchievementRepository):
                 reward_claimed=model.reward_claimed or False,
                 reward_claimed_at=model.reward_claimed_at
             )
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo logro {achievement_id} del usuario {user_id}: {e}")
             return None
-    
-    async def create_user_achievement(self, user_achievement: UserAchievement) -> UserAchievement:
+
+    async def create_user_achievement(self, user_achievement: UserAchievement, current_user_id: int) -> UserAchievement:
         """Crea un nuevo registro de logro para usuario."""
+        await self._set_current_user(current_user_id)
         try:
             model = UserAchievementModel(
                 user_id=user_achievement.user_id,
@@ -161,20 +168,21 @@ class AchievementRepository(IAchievementRepository):
                 reward_claimed=user_achievement.reward_claimed or False,
                 reward_claimed_at=user_achievement.reward_claimed_at
             )
-            
+
             self.session.add(model)
             await self.session.commit()
-            
+
             logger.debug(f"💾 Logro creado para usuario {user_achievement.user_id}: {user_achievement.achievement_id}")
             return user_achievement
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"❌ Error creando logro para usuario {user_achievement.user_id}: {e}")
             raise
-    
-    async def update_user_achievement(self, user_achievement: UserAchievement) -> UserAchievement:
+
+    async def update_user_achievement(self, user_achievement: UserAchievement, current_user_id: int) -> UserAchievement:
         """Actualiza el progreso de un logro de usuario."""
+        await self._set_current_user(current_user_id)
         try:
             query = (
                 update(UserAchievementModel)
@@ -193,20 +201,21 @@ class AchievementRepository(IAchievementRepository):
                     updated_at=func.now()
                 )
             )
-            
+
             await self.session.execute(query)
             await self.session.commit()
-            
+
             logger.debug(f"✏️ Logro actualizado para usuario {user_achievement.user_id}: {user_achievement.achievement_id}")
             return user_achievement
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"❌ Error actualizando logro para usuario {user_achievement.user_id}: {e}")
             raise
-    
-    async def get_completed_achievements(self, user_id: int) -> List[UserAchievement]:
+
+    async def get_completed_achievements(self, user_id: int, current_user_id: int) -> List[UserAchievement]:
         """Obtiene logros completados por un usuario."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserAchievementModel).where(
                 and_(
@@ -216,7 +225,7 @@ class AchievementRepository(IAchievementRepository):
             )
             result = await self.session.execute(query)
             models = result.scalars().all()
-            
+
             return [
                 UserAchievement(
                     user_id=m.user_id,
@@ -229,13 +238,14 @@ class AchievementRepository(IAchievementRepository):
                 )
                 for m in models
             ]
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo logros completados del usuario {user_id}: {e}")
             return []
-    
-    async def get_pending_rewards(self, user_id: int) -> List[UserAchievement]:
+
+    async def get_pending_rewards(self, user_id: int, current_user_id: int) -> List[UserAchievement]:
         """Obtiene logros completados con recompensas no reclamadas."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserAchievementModel).where(
                 and_(
@@ -246,7 +256,7 @@ class AchievementRepository(IAchievementRepository):
             )
             result = await self.session.execute(query)
             models = result.scalars().all()
-            
+
             return [
                 UserAchievement(
                     user_id=m.user_id,
@@ -259,7 +269,7 @@ class AchievementRepository(IAchievementRepository):
                 )
                 for m in models
             ]
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo recompensas pendientes del usuario {user_id}: {e}")
             return []
@@ -271,11 +281,11 @@ class UserStatsRepository(IUserStatsRepository):
     def __init__(self, session: AsyncSession):
         """
         Inicializa el repositorio con una sesión de base de datos.
-        
+
         Args:
             session: Sesión async de SQLAlchemy.
         """
-        self.session = session
+        super().__init__(session)
     
     def _model_to_entity(self, model: UserStatsModel) -> UserStats:
         """Convierte un modelo SQLAlchemy a entidad de dominio."""
@@ -292,24 +302,26 @@ class UserStatsRepository(IUserStatsRepository):
             created_at=model.created_at
         )
     
-    async def get_user_stats(self, user_id: int) -> Optional[UserStats]:
+    async def get_user_stats(self, user_id: int, current_user_id: int) -> Optional[UserStats]:
         """Obtiene las estadísticas de un usuario."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserStatsModel).where(UserStatsModel.user_id == user_id)
             result = await self.session.execute(query)
             model = result.scalar_one_or_none()
-            
+
             if model is None:
                 return None
-            
+
             return self._model_to_entity(model)
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo estadísticas del usuario {user_id}: {e}")
             return None
-    
-    async def create_user_stats(self, user_stats: UserStats) -> UserStats:
+
+    async def create_user_stats(self, user_stats: UserStats, current_user_id: int) -> UserStats:
         """Crea estadísticas iniciales para un usuario."""
+        await self._set_current_user(current_user_id)
         try:
             logger.debug(f"🔍 Attempting to create user_stats for user_id {user_stats.user_id}")
 
@@ -337,9 +349,10 @@ class UserStatsRepository(IUserStatsRepository):
             await self.session.rollback()
             logger.error(f"❌ Error creando estadísticas para usuario {user_stats.user_id}: {e}")
             raise
-    
-    async def update_user_stats(self, user_stats: UserStats) -> UserStats:
+
+    async def update_user_stats(self, user_stats: UserStats, current_user_id: int) -> UserStats:
         """Actualiza las estadísticas de un usuario."""
+        await self._set_current_user(current_user_id)
         try:
             query = (
                 update(UserStatsModel)
@@ -356,20 +369,22 @@ class UserStatsRepository(IUserStatsRepository):
                     updated_at=func.now()
                 )
             )
-            
+
             await self.session.execute(query)
             await self.session.commit()
-            
+
             logger.debug(f"✏️ Estadísticas actualizadas para usuario {user_stats.user_id}")
             return user_stats
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"❌ Error actualizando estadísticas para usuario {user_stats.user_id}: {e}")
             raise
-    
-    async def get_leaderboard_by_type(self, achievement_type: AchievementType, limit: int = 10) -> List[Dict]:
+
+    async def get_leaderboard_by_type(self, achievement_type: AchievementType, limit: int = 10, current_user_id: int = None) -> List[Dict]:
         """Obtiene ranking de usuarios por tipo de logro."""
+        if current_user_id:
+            await self._set_current_user(current_user_id)
         try:
             # Mapear tipos de logro a campos de estadísticas
             field_mapping = {
@@ -381,13 +396,13 @@ class UserStatsRepository(IUserStatsRepository):
                 AchievementType.GAMES_WON: UserStatsModel.total_games_won,
                 AchievementType.VIP_MONTHS: UserStatsModel.vip_months_purchased
             }
-            
+
             if achievement_type not in field_mapping:
                 logger.warning(f"⚠️ Tipo de logro no mapeado: {achievement_type}")
                 return []
-            
+
             field = field_mapping[achievement_type]
-            
+
             query = (
                 select(
                     UserStatsModel.user_id,
@@ -396,10 +411,10 @@ class UserStatsRepository(IUserStatsRepository):
                 .order_by(field.desc())
                 .limit(limit)
             )
-            
+
             result = await self.session.execute(query)
             rows = result.all()
-            
+
             return [
                 {
                     'user_id': row.user_id,
@@ -408,13 +423,15 @@ class UserStatsRepository(IUserStatsRepository):
                 }
                 for index, row in enumerate(rows)
             ]
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo leaderboard para tipo {achievement_type}: {e}")
             return []
-    
-    async def get_top_users_by_achievements(self, limit: int = 10) -> List[Dict]:
+
+    async def get_top_users_by_achievements(self, limit: int = 10, current_user_id: int = None) -> List[Dict]:
         """Obtiene usuarios con más logros completados."""
+        if current_user_id:
+            await self._set_current_user(current_user_id)
         try:
             query = (
                 select(
@@ -426,10 +443,10 @@ class UserStatsRepository(IUserStatsRepository):
                 .order_by(func.count(UserAchievementModel.achievement_id).desc())
                 .limit(limit)
             )
-            
+
             result = await self.session.execute(query)
             rows = result.all()
-            
+
             return [
                 {
                     'user_id': row.user_id,
@@ -438,7 +455,7 @@ class UserStatsRepository(IUserStatsRepository):
                 }
                 for index, row in enumerate(rows)
             ]
-            
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo top usuarios por logros: {e}")
             return []

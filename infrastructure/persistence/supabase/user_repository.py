@@ -16,9 +16,10 @@ from utils.logger import logger
 from domain.entities.user import User, UserStatus
 from domain.interfaces.iuser_repository import IUserRepository
 from .models import UserModel
+from .base_repository import BaseSupabaseRepository
 
 
-class SupabaseUserRepository(IUserRepository):
+class SupabaseUserRepository(BaseSupabaseRepository, IUserRepository):
     """
     Implementación del repositorio de usuarios usando SQLAlchemy Async.
     """
@@ -26,11 +27,11 @@ class SupabaseUserRepository(IUserRepository):
     def __init__(self, session: AsyncSession):
         """
         Inicializa el repositorio con una sesión de base de datos.
-        
+
         Args:
             session: Sesión async de SQLAlchemy.
         """
-        self.session = session
+        super().__init__(session)
 
     def _model_to_entity(self, model: UserModel) -> User:
         """Convierte un modelo SQLAlchemy a entidad de dominio."""
@@ -70,32 +71,34 @@ class SupabaseUserRepository(IUserRepository):
             vip_expires_at=entity.vip_expires_at
         )
 
-    async def get_by_id(self, telegram_id: int) -> Optional[User]:
+    async def get_by_id(self, telegram_id: int, current_user_id: int) -> Optional[User]:
         """Busca un usuario por su ID de Telegram."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserModel).where(UserModel.telegram_id == telegram_id)
             result = await self.session.execute(query)
             model = result.scalar_one_or_none()
-            
+
             if model is None:
                 return None
-            
+
             return self._model_to_entity(model)
-            
+
         except Exception as e:
             logger.error(f"❌ Error al obtener usuario {telegram_id}: {e}")
             return None
 
-    async def get_user(self, telegram_id: int) -> Optional[User]:
+    async def get_user(self, telegram_id: int, current_user_id: int) -> Optional[User]:
         """Alias de get_by_id para compatibilidad."""
-        return await self.get_by_id(telegram_id)
+        return await self.get_by_id(telegram_id, current_user_id)
 
-    async def save(self, user: User) -> User:
+    async def save(self, user: User, current_user_id: int) -> User:
         """Guarda o actualiza los datos del usuario."""
+        await self._set_current_user(current_user_id)
         try:
             # Verificar si existe
             existing = await self.session.get(UserModel, user.telegram_id)
-            
+
             if existing:
                 # Actualizar campos
                 existing.username = user.username
@@ -114,16 +117,16 @@ class SupabaseUserRepository(IUserRepository):
                 elif user.vip_expires_at.tzinfo is None:
                     existing.vip_expires_at = user.vip_expires_at.replace(tzinfo=timezone.utc)
                 else:
-                    existing.vip_expires_at = user.vip_expires_at.astimezone(timezone.utc) 
+                    existing.vip_expires_at = user.vip_expires_at.astimezone(timezone.utc)
             else:
                 # Crear nuevo
                 model = self._entity_to_model(user)
                 self.session.add(model)
-            
+
             await self.session.commit()
             logger.info(f"💾 Usuario {user.telegram_id} guardado correctamente.")
             return user
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"❌ Error al guardar usuario: {e}")
@@ -135,7 +138,8 @@ class SupabaseUserRepository(IUserRepository):
         username: str = None,
         full_name: str = None,
         referral_code: str = None,
-        referred_by: int = None
+        referred_by: int = None,
+        current_user_id: int = None
     ) -> User:
         """Crea un nuevo usuario."""
         if referral_code is None:
@@ -148,42 +152,49 @@ class SupabaseUserRepository(IUserRepository):
             referral_code=referral_code,
             referred_by=referred_by
         )
-        
-        return await self.save(user)
 
-    async def exists(self, telegram_id: int) -> bool:
+        # For user creation, if no current_user_id provided, use the new user's ID
+        if current_user_id is None:
+            current_user_id = user_id
+
+        return await self.save(user, current_user_id)
+
+    async def exists(self, telegram_id: int, current_user_id: int) -> bool:
         """Verifica si el usuario ya está registrado."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserModel.telegram_id).where(
                 UserModel.telegram_id == telegram_id
             )
             result = await self.session.execute(query)
             return result.scalar_one_or_none() is not None
-            
+
         except Exception as e:
             logger.error(f"❌ Error verificando existencia de usuario: {e}")
             return False
 
-    async def get_by_referral_code(self, referral_code: str) -> Optional[User]:
+    async def get_by_referral_code(self, referral_code: str, current_user_id: int) -> Optional[User]:
         """Busca un usuario por su código de referido."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserModel).where(
                 UserModel.referral_code == referral_code
             )
             result = await self.session.execute(query)
             model = result.scalar_one_or_none()
-            
+
             if model is None:
                 return None
-            
+
             return self._model_to_entity(model)
-            
+
         except Exception as e:
             logger.error(f"❌ Error al buscar por referral_code {referral_code}: {e}")
             return None
 
-    async def update_balance(self, telegram_id: int, new_balance: int) -> bool:
+    async def update_balance(self, telegram_id: int, new_balance: int, current_user_id: int) -> bool:
         """Actualiza el balance de estrellas del usuario."""
+        await self._set_current_user(current_user_id)
         try:
             query = (
                 update(UserModel)
@@ -193,21 +204,22 @@ class SupabaseUserRepository(IUserRepository):
             await self.session.execute(query)
             await self.session.commit()
             return True
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"❌ Error al actualizar balance: {e}")
             return False
 
-    async def get_referrals(self, referrer_id: int) -> List[dict]:
+    async def get_referrals(self, referrer_id: int, current_user_id: int) -> List[dict]:
         """Obtiene todos los usuarios referidos (como diccionarios)."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserModel).where(
                 UserModel.referred_by == referrer_id
             )
             result = await self.session.execute(query)
             models = result.scalars().all()
-            
+
             return [
                 {
                     "telegram_id": m.telegram_id,
@@ -217,35 +229,37 @@ class SupabaseUserRepository(IUserRepository):
                 }
                 for m in models
             ]
-            
+
         except Exception as e:
             logger.error(f"❌ Error al obtener referidos: {e}")
             return []
 
-    async def get_referrals_by_user(self, telegram_id: int) -> List[User]:
+    async def get_referrals_by_user(self, telegram_id: int, current_user_id: int) -> List[User]:
         """Obtiene la lista de usuarios referidos como entidades."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserModel).where(
                 UserModel.referred_by == telegram_id
             )
             result = await self.session.execute(query)
             models = result.scalars().all()
-            
+
             return [self._model_to_entity(m) for m in models]
-            
+
         except Exception as e:
             logger.error(f"❌ Error al obtener referidos por usuario {telegram_id}: {e}")
             return []
 
-    async def get_all_users(self) -> List[User]:
+    async def get_all_users(self, current_user_id: int) -> List[User]:
         """Obtiene todos los usuarios registrados."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(UserModel)
             result = await self.session.execute(query)
             models = result.scalars().all()
-            
+
             return [self._model_to_entity(m) for m in models]
-            
+
         except Exception as e:
             logger.error(f"❌ Error al obtener todos los usuarios: {e}")
             return []

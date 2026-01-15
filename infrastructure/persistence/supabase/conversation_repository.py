@@ -17,9 +17,10 @@ from utils.logger import logger
 
 from domain.entities.conversation import Conversation, Message, MessageRole
 from .models import ConversationModel
+from .base_repository import BaseSupabaseRepository
 
 
-class ConversationRepository:
+class ConversationRepository(BaseSupabaseRepository):
     """Implementacion del repositorio de conversaciones con SQLAlchemy Async."""
 
     def __init__(self, session: AsyncSession):
@@ -29,7 +30,7 @@ class ConversationRepository:
         Args:
             session: Sesion async de SQLAlchemy.
         """
-        self.session = session
+        super().__init__(session)
 
     def _model_to_entity(self, model: ConversationModel) -> Conversation:
         """Convierte un modelo SQLAlchemy a entidad de dominio."""
@@ -93,8 +94,9 @@ class ConversationRepository:
             messages=messages_json,
         )
 
-    async def get_active_by_user(self, user_id: int) -> Optional[Conversation]:
+    async def get_active_by_user(self, user_id: int, current_user_id: int) -> Optional[Conversation]:
         """Obtiene la conversacion activa de un usuario."""
+        await self._set_current_user(current_user_id)
         try:
             query = (
                 select(ConversationModel)
@@ -118,8 +120,9 @@ class ConversationRepository:
             logger.error(f"Error al obtener conversacion activa del usuario {user_id}: {e}")
             return None
 
-    async def save(self, conversation: Conversation) -> Conversation:
+    async def save(self, conversation: Conversation, current_user_id: int) -> Conversation:
         """Guarda o actualiza una conversacion."""
+        await self._set_current_user(current_user_id)
         try:
             if conversation.id:
                 existing = await self.session.get(
@@ -156,8 +159,9 @@ class ConversationRepository:
             logger.error(f"Error al guardar conversacion: {e}")
             raise
 
-    async def get_all_active(self) -> List[Conversation]:
+    async def get_all_active(self, current_user_id: int) -> List[Conversation]:
         """Obtiene todas las conversaciones activas."""
+        await self._set_current_user(current_user_id)
         try:
             query = select(ConversationModel).where(
                 ConversationModel.status == "active"
@@ -171,8 +175,9 @@ class ConversationRepository:
             logger.error(f"Error al obtener conversaciones activas: {e}")
             return []
 
-    async def close_conversation(self, conversation_id: uuid.UUID) -> bool:
+    async def close_conversation(self, conversation_id: uuid.UUID, current_user_id: int) -> bool:
         """Cierra una conversacion."""
+        await self._set_current_user(current_user_id)
         try:
             query = (
                 update(ConversationModel)
@@ -190,8 +195,9 @@ class ConversationRepository:
             logger.error(f"Error al cerrar conversacion {conversation_id}: {e}")
             return False
 
-    async def escalate_conversation(self, conversation_id: uuid.UUID) -> bool:
+    async def escalate_conversation(self, conversation_id: uuid.UUID, current_user_id: int) -> bool:
         """Escala una conversacion a soporte humano."""
+        await self._set_current_user(current_user_id)
         try:
             query = (
                 update(ConversationModel)
@@ -209,8 +215,9 @@ class ConversationRepository:
             logger.error(f"Error al escalar conversacion {conversation_id}: {e}")
             return False
 
-    async def get_by_id(self, conversation_id: uuid.UUID) -> Optional[Conversation]:
+    async def get_by_id(self, conversation_id: uuid.UUID, current_user_id: int) -> Optional[Conversation]:
         """Obtiene una conversacion por su ID."""
+        await self._set_current_user(current_user_id)
         try:
             model = await self.session.get(ConversationModel, str(conversation_id))
 
@@ -223,8 +230,10 @@ class ConversationRepository:
             logger.error(f"Error al obtener conversacion {conversation_id}: {e}")
             return None
 
-    async def delete_stale_conversations(self, hours: int = 24) -> int:
+    async def delete_stale_conversations(self, hours: int = 24, current_user_id: int = None) -> int:
         """Elimina conversaciones inactivas."""
+        if current_user_id:
+            await self._set_current_user(current_user_id)
         try:
             cutoff_time = now_utc() - timedelta(hours=hours)
 

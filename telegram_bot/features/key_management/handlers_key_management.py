@@ -35,36 +35,36 @@ class KeyManagementHandler(BaseHandler):
         Muestra el menú principal de gestión de llaves.
         """
         query = update.callback_query
-        
+
         # Handle both command and callback scenarios
         if query is None:
             # This is a direct command, send a new message
             user_id = update.effective_user.id
             try:
-                user_status = await self.vpn_service.get_user_status(user_id)
+                user_status = await self.vpn_service.get_user_status(user_id, current_user_id=user_id)
                 keys = user_status.get("keys", [])
-                
+
                 # Contar llaves por servidor dinámicamente
                 keys_summary = {'total_count': len(keys)}
                 message = KeyManagementMessages.MAIN_MENU
-                
+
                 for protocol in settings.get_vpn_protocols():
                     count = len([k for k in keys if k.key_type.lower() == protocol.lower()])
                     keys_summary[f'{protocol}_count'] = count
-                    
+
                 # Formatear mensaje con conteo
                 message = KeyManagementMessages.MAIN_MENU.format(
                     total_keys=keys_summary['total_count'],
                     outline_count=keys_summary.get('outline_count', 0),
                     wireguard_count=keys_summary.get('wireguard_count', 0)
                 )
-                
+
                 await update.message.reply_text(
                     text=message,
                     reply_markup=KeyManagementKeyboards.main_menu(keys_summary),
                     parse_mode="Markdown"
                 )
-                
+
             except Exception as e:
                 logger.error(f"Error mostrando submenú de llaves: {e}")
                 await update.message.reply_text(
@@ -75,32 +75,32 @@ class KeyManagementHandler(BaseHandler):
             # This is a callback, edit the existing message
             await self._safe_answer_query(query)
             user_id = update.effective_user.id
-             
+
             try:
-                user_status = await self.vpn_service.get_user_status(user_id)
+                user_status = await self.vpn_service.get_user_status(user_id, current_user_id=user_id)
                 keys = user_status.get("keys", [])
-                 
+
                 # Contar llaves por servidor dinámicamente
                 keys_summary = {'total_count': len(keys)}
-                 
+
                 for protocol in settings.get_vpn_protocols():
                     count = len([k for k in keys if k.key_type.lower() == protocol.lower()])
                     keys_summary[f'{protocol}_count'] = count
-                     
+
                 # Formatear mensaje con conteo
                 message = KeyManagementMessages.MAIN_MENU.format(
                     total_keys=keys_summary['total_count'],
                     outline_count=keys_summary.get('outline_count', 0),
                     wireguard_count=keys_summary.get('wireguard_count', 0)
                 )
-                 
+
                 await self._safe_edit_message(
                     query, context,
                     text=message,
                     reply_markup=KeyManagementKeyboards.main_menu(keys_summary),
                     parse_mode="Markdown"
                 )
-                 
+
             except Exception as e:
                 logger.error(f"Error mostrando submenú de llaves: {e}")
                 await self._safe_edit_message(
@@ -116,37 +116,37 @@ class KeyManagementHandler(BaseHandler):
         """
         query = update.callback_query
         await self._safe_answer_query(query)
-         
+
         # Extraer tipo del callback_data
         key_type = query.data.replace("keys_", "")
         user_id = update.effective_user.id
-         
+
         try:
-            user_status = await self.vpn_service.get_user_status(user_id)
+            user_status = await self.vpn_service.get_user_status(user_id, current_user_id=user_id)
             all_keys = user_status.get("keys", [])
-             
+
             # Filtrar llaves por tipo
             filtered_keys = [k for k in all_keys if k.key_type.lower() == key_type.lower()]
-             
+
             if not filtered_keys:
                 message = KeyManagementMessages.NO_KEYS_TYPE.format(type=key_type.upper())
                 keyboard = KeyManagementKeyboards.back_to_submenu()
             else:
                 message = KeyManagementMessages.KEYS_LIST_HEADER.format(type=key_type.upper())
                 keyboard = KeyManagementKeyboards.keys_list(filtered_keys)
-                 
+
                 # Agregar información de cada llave
                 for key in filtered_keys:
                     status = "🟢 Activa" if key.is_active else "🔴 Inactiva"
                     message += f"\n🔑 {key.name}\n   📊 {key.used_gb:.2f}/{key.data_limit_gb:.2f} GB\n   {status}\n"
-             
+
             await self._safe_edit_message(
                 query, context,
                 text=message,
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
-             
+
         except Exception as e:
             logger.error(f"Error mostrando llaves por tipo: {e}")
             await self._safe_edit_message(
@@ -162,20 +162,20 @@ class KeyManagementHandler(BaseHandler):
         """
         query = update.callback_query
         await self._safe_answer_query(query)
-         
+
         # Extraer key_id del callback_data (es un UUID string, no int)
         key_id = query.data.split("_")[-1]
         user_id = update.effective_user.id
-         
+
         try:
-            key = await self.vpn_service.get_key_by_id(key_id)
-             
+            key = await self.vpn_service.get_key_by_id(key_id, current_user_id=user_id)
+
             if not key or key.user_id != user_id:
                 message = KeyManagementMessages.KEY_NOT_FOUND
             else:
                 status = "🟢 Activa" if key.is_active else "🔴 Inactiva"
                 usage_percentage = (key.used_gb / key.data_limit_gb) * 100 if key.data_limit_gb > 0 else 0
-                 
+
                 message = KeyManagementMessages.KEY_DETAILS.format(
                     name=key.name,
                     type=key.key_type.upper(),
@@ -187,16 +187,16 @@ class KeyManagementHandler(BaseHandler):
                     created=key.created_at.strftime("%d/%m/%Y") if key.created_at else "N/A",
                     expires=key.expires_at.strftime("%d/%m/%Y") if key.expires_at else "N/A"
                 )
-                 
+
                 keyboard = KeyManagementKeyboards.key_actions(key_id, key.is_active)
-             
+
             await self._safe_edit_message(
                 query, context,
                 text=message,
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
-             
+
         except Exception as e:
             logger.error(f"Error mostrando detalles de llave: {e}")
             await self._safe_edit_message(
@@ -212,13 +212,13 @@ class KeyManagementHandler(BaseHandler):
         """
         query = update.callback_query
         await self._safe_answer_query(query)
-         
+
         user_id = update.effective_user.id
-         
+
         try:
-            user_status = await self.vpn_service.get_user_status(user_id)
+            user_status = await self.vpn_service.get_user_status(user_id, current_user_id=user_id)
             keys = user_status.get("keys", [])
-             
+
             if not keys:
                 message = KeyManagementMessages.NO_KEYS_STATS
             else:
@@ -228,11 +228,11 @@ class KeyManagementHandler(BaseHandler):
                 total_usage = sum(k.used_gb for k in keys)
                 total_limit = sum(k.data_limit_gb for k in keys)
                 overall_percentage = (total_usage / total_limit * 100) if total_limit > 0 else 0
-                 
+
                 # Estadísticas por tipo
                 outline_keys = [k for k in keys if k.key_type.lower() == "outline"]
                 wireguard_keys = [k for k in keys if k.key_type.lower() == "wireguard"]
-                 
+
                 message = KeyManagementMessages.STATISTICS.format(
                     total_keys=total_keys,
                     active_keys=active_keys,
@@ -244,16 +244,16 @@ class KeyManagementHandler(BaseHandler):
                     outline_usage=sum(k.used_gb for k in outline_keys),
                     wireguard_usage=sum(k.used_gb for k in wireguard_keys)
                 )
-             
+
             keyboard = KeyManagementKeyboards.back_to_submenu()
-             
+
             await self._safe_edit_message(
                 query, context,
                 text=message,
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
-             
+
         except Exception as e:
             logger.error(f"Error mostrando estadísticas: {e}")
             await self._safe_edit_message(
@@ -298,16 +298,16 @@ class KeyManagementHandler(BaseHandler):
         """
         query = update.callback_query
         await self._safe_answer_query(query)
-        
+
         # Extraer acción y key_id del callback_data
         parts = query.data.split("_")
         action = parts[1] if len(parts) > 1 else ""
         key_id = parts[2] if len(parts) > 2 else ""
         user_id = update.effective_user.id
-        
+
         try:
-            key = await self.vpn_service.get_key_by_id(key_id)
-            
+            key = await self.vpn_service.get_key_by_id(key_id, current_user_id=user_id)
+
             if not key or key.user_id != user_id:
                 message = KeyManagementMessages.KEY_NOT_FOUND
                 keyboard = KeyManagementKeyboards.back_to_submenu()
@@ -315,17 +315,17 @@ class KeyManagementHandler(BaseHandler):
                 # Ejecutar acción según el tipo
                 if action == "suspend":
                     key.is_active = False
-                    await self.vpn_service.update_key(key)
+                    await self.vpn_service.update_key(key, current_user_id=user_id)
                     message = KeyManagementMessages.Actions.KEY_SUSPENDED
-                    
+
                 elif action == "reactivate":
                     key.is_active = True
-                    await self.vpn_service.update_key(key)
+                    await self.vpn_service.update_key(key, current_user_id=user_id)
                     message = KeyManagementMessages.Actions.KEY_REACTIVATED
-                    
+
                 elif action == "delete":
                     try:
-                        await self.vpn_service.delete_key(key_id)
+                        await self.vpn_service.delete_key(key_id, current_user_id=user_id)
                         message = KeyManagementMessages.Actions.KEY_DELETED
                         keyboard = KeyManagementKeyboards.back_to_submenu()
                     except Exception as e:
@@ -335,32 +335,32 @@ class KeyManagementHandler(BaseHandler):
                         else:
                             message = KeyManagementMessages.Error.OPERATION_FAILED.format(error=str(e))
                             keyboard = KeyManagementKeyboards.back_to_submenu()
-                    
+
                 elif action == "config":
                     # Mostrar configuración de la llave
                     await self.show_key_config(update, context)
                     return
-                    
+
                 elif action == "stats":
                     # Mostrar estadísticas específicas de la llave
                     await self.show_key_statistics(update, context)
                     return
-                    
+
                 else:
                     message = KeyManagementMessages.Error.INVALID_ACTION
                     keyboard = KeyManagementKeyboards.back_to_submenu()
-                
+
                 # Si no se ha definido keyboard, usar el de detalles
                 if 'keyboard' not in locals():
                     keyboard = KeyManagementKeyboards.key_actions(key_id, key.is_active)
-            
+
             await self._safe_edit_message(
                 query, context,
                 text=message,
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
-            
+
         except Exception as e:
             logger.error(f"Error en acción de llave {action}: {e}")
             await self._safe_edit_message(
@@ -376,14 +376,14 @@ class KeyManagementHandler(BaseHandler):
         """
         query = update.callback_query
         await self._safe_answer_query(query)
-        
+
         # Extraer key_id del callback_data
         key_id = query.data.split("_")[-1]
         user_id = update.effective_user.id
-        
+
         try:
-            key = await self.vpn_service.get_key_by_id(key_id)
-            
+            key = await self.vpn_service.get_key_by_id(key_id, current_user_id=user_id)
+
             if not key or key.user_id != user_id:
                 message = KeyManagementMessages.KEY_NOT_FOUND
                 keyboard = KeyManagementKeyboards.back_to_submenu()
@@ -398,14 +398,14 @@ class KeyManagementHandler(BaseHandler):
                     f"Selecciona una opción:"
                 )
                 keyboard = KeyManagementKeyboards.key_config(key_id)
-            
+
             await self._safe_edit_message(
                 query, context,
                 text=message,
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
-            
+
         except Exception as e:
             logger.error(f"Error mostrando configuración: {e}")
             await self._safe_edit_message(
