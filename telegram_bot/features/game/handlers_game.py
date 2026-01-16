@@ -98,7 +98,7 @@ class GameHandler:
         
         try:
             # Verificar si el usuario tiene giros disponibles
-            spins_left = await self.game_service.get_user_spins(user_id)
+            spins_left = await self.game_service.get_user_spins(user_id, current_user_id=user_id)
             
             if spins_left <= 0:
                 message = GameMessages.SpinWheel.NO_SPINS
@@ -172,7 +172,7 @@ class GameHandler:
         
         try:
             # Obtener pregunta de trivia
-            question = await self.game_service.get_trivia_question(category)
+            question = await self.game_service.get_trivia_question(category, current_user_id=user_id)
             
             if not question:
                 message = GameMessages.Trivia.NO_QUESTIONS
@@ -222,7 +222,7 @@ class GameHandler:
             if user_answer == correct_answer:
                 # Respuesta correcta
                 winnings = 10  # Estrellas por respuesta correcta
-                await self.game_service.add_user_earnings(user_id, winnings)
+                await self.game_service.add_user_earnings(user_id, winnings, current_user_id=user_id)
                 
                 message = GameMessages.Trivia.CORRECT.format(
                     category=category.title(),
@@ -265,7 +265,7 @@ class GameHandler:
         
         try:
             # Obtener desafíos diarios del usuario
-            challenges = await self.game_service.get_user_daily_challenges(user_id)
+            challenges = await self.game_service.get_user_daily_challenges(user_id, current_user_id=user_id)
             
             if not challenges:
                 message = GameMessages.Challenges.NO_CHALLENGES
@@ -306,7 +306,7 @@ class GameHandler:
         
         try:
             # Obtener estadísticas del usuario
-            stats = await self.game_service.get_user_game_stats(user_id)
+            stats = await self.game_service.get_user_game_stats(user_id, current_user_id=user_id)
             
             message = GameMessages.Stats.USER_STATS.format(
                 total_games=stats.get('total_games', 0),
@@ -340,11 +340,12 @@ class GameHandler:
         query = update.callback_query
         await query.answer()
         
+        user_id = update.effective_user.id
+        
         try:
             # Obtener leaderboard
-            leaderboard = await self.game_service.get_game_leaderboard(limit=10)
-            user_id = update.effective_user.id
-            user_rank = await self.game_service.get_user_game_rank(user_id)
+            leaderboard = await self.game_service.get_game_leaderboard(limit=10, current_user_id=user_id)
+            user_rank = await self.game_service.get_user_game_rank(user_id, current_user_id=user_id)
             
             message = GameMessages.Leaderboard.MAIN.format(
                 user_rank=user_rank
@@ -378,7 +379,7 @@ class GameHandler:
         """Simula el juego de la ruleta."""
         try:
             # Verificar giros disponibles
-            spins_left = await self.game_service.get_user_spins(user_id)
+            spins_left = await self.game_service.get_user_spins(user_id, current_user_id=user_id)
             
             if spins_left <= 0:
                 return {'error': 'No spins left'}
@@ -399,12 +400,12 @@ class GameHandler:
             prize = random.choices(prizes, weights=[p['probability'] for p in prizes])[0]
             
             # Actualizar giros y ganancias
-            await self.game_service.use_spin(user_id)
-            await self.game_service.add_user_earnings(user_id, prize['winnings'])
+            await self.game_service.use_spin(user_id, current_user_id=user_id)
+            await self.game_service.add_user_earnings(user_id, prize['winnings'], current_user_id=user_id)
             
             # Obtener estadísticas actualizadas
-            new_balance = await self.game_service.get_user_balance(user_id)
-            new_spins_left = await self.game_service.get_user_spins(user_id)
+            new_balance = await self.game_service.get_user_balance(user_id, current_user_id=user_id)
+            new_spins_left = await self.game_service.get_user_spins(user_id, current_user_id=user_id)
             
             return {
                 'prize': prize['name'],

@@ -120,7 +120,7 @@ class OperationsHandler:
         user_id = update.effective_user.id
         
         try:
-            referral_data = await self.referral_service.get_user_referral_data(user_id)
+            referral_data = await self.referral_service.get_user_referral_data(user_id, current_user_id=user_id)
             
             # Generar el enlace de referido
             referral_code = referral_data.get("code", "N/A")

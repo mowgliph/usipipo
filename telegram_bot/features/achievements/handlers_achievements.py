@@ -34,12 +34,12 @@ class AchievementsHandler(ListPattern):
         user_id = update.effective_user.id
         
         # Obtener resumen del usuario
-        summary = await self.service.get_user_summary(user_id)
+        summary = await self.service.get_user_summary(user_id, current_user_id=user_id)
         
         if not summary:
             # Inicializar logros si no existen
-            await self.service.initialize_user_achievements(user_id)
-            summary = await self.service.get_user_summary(user_id)
+            await self.service.initialize_user_achievements(user_id, current_user_id=user_id)
+            summary = await self.service.get_user_summary(user_id, current_user_id=user_id)
         
         # Formatear mensaje principal
         message = AchievementsMessages.Menu.MAIN.format(
@@ -64,12 +64,12 @@ class AchievementsHandler(ListPattern):
         user_id = update.effective_user.id
         
         # Obtener resumen del usuario
-        summary = await self.service.get_user_summary(user_id)
+        summary = await self.service.get_user_summary(user_id, current_user_id=user_id)
         
         if not summary:
             # Inicializar logros si no existen
-            await self.service.initialize_user_achievements(user_id)
-            summary = await self.service.get_user_summary(user_id)
+            await self.service.initialize_user_achievements(user_id, current_user_id=user_id)
+            summary = await self.service.get_user_summary(user_id, current_user_id=user_id)
         
         # Formatear mensaje principal
         message = AchievementsMessages.Menu.MAIN.format(
@@ -94,7 +94,7 @@ class AchievementsHandler(ListPattern):
         """Muestra el progreso general de logros."""
         user_id = update.effective_user.id
         
-        summary = await self.service.get_user_summary(user_id)
+        summary = await self.service.get_user_summary(user_id, current_user_id=user_id)
         
         message = AchievementsMessages.Progress.OVERVIEW.format(
             completed=summary.get('completed_achievements', 0),
@@ -122,7 +122,7 @@ class AchievementsHandler(ListPattern):
         user_id = update.effective_user.id
 
         try:
-            user_achievements = await self.service.get_user_achievements(user_id)
+            user_achievements = await self.service.get_user_achievements(user_id, current_user_id=user_id)
 
             if not user_achievements:
                 message = AchievementsMessages.List.NO_ACHIEVEMENTS
@@ -167,7 +167,7 @@ class AchievementsHandler(ListPattern):
             # Extraer achievement_id del callback_data
             achievement_id = int(query.data.split("_")[-1])
 
-            result = await self.service.claim_reward(user_id, achievement_id)
+            result = await self.service.claim_reward(user_id, achievement_id, current_user_id=user_id)
 
             if result:
                 message = AchievementsMessages.Reward.CLAIMED.format(

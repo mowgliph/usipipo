@@ -177,7 +177,7 @@ class BroadcastHandler:
         
         try:
             # Obtener estadísticas de audiencia
-            audience_stats = await self.broadcast_service.get_audience_stats(audience)
+            audience_stats = await self.broadcast_service.get_audience_stats(audience, current_user_id=user_id)
             
             message = BroadcastMessages.Confirmation.SEND_CONFIRMATION.format(
                 type=broadcast_type.title(),
@@ -224,7 +224,8 @@ class BroadcastHandler:
                 message=message_content,
                 audience=audience,
                 broadcast_type=broadcast_type,
-                admin_id=update.effective_user.id
+                admin_id=update.effective_user.id,
+                current_user_id=update.effective_user.id
             )
             
             if result['success']:
@@ -268,7 +269,7 @@ class BroadcastHandler:
         
         try:
             # Obtener historial de broadcasts
-            history = await self.broadcast_service.get_broadcast_history(limit=10)
+            history = await self.broadcast_service.get_broadcast_history(limit=10, current_user_id=user_id)
             
             if not history:
                 message = BroadcastMessages.History.NO_HISTORY
@@ -309,7 +310,7 @@ class BroadcastHandler:
         
         try:
             # Obtener estadísticas generales
-            stats = await self.broadcast_service.get_broadcast_stats()
+            stats = await self.broadcast_service.get_broadcast_stats(current_user_id=user_id)
             
             message = BroadcastMessages.Stats.GENERAL_STATS.format(
                 total_broadcasts=stats.get('total_broadcasts', 0),
@@ -345,7 +346,7 @@ class BroadcastHandler:
         
         try:
             # Obtener plantillas disponibles
-            templates = await self.broadcast_service.get_broadcast_templates()
+            templates = await self.broadcast_service.get_broadcast_templates(current_user_id=user_id)
             
             if not templates:
                 message = BroadcastMessages.Templates.NO_TEMPLATES

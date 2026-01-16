@@ -41,9 +41,10 @@ class AdminHandler(BaseConversationHandler):
     async def admin_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra el menú de administración."""
         user = update.effective_user
+        admin_id = user.id
 
         # Verificar si es admin
-        if user.id != int(settings.ADMIN_ID):
+        if admin_id != int(settings.ADMIN_ID):
             await self._reply_message(update, "⚠️ Acceso denegado. Función solo para administradores.", parse_mode="Markdown")
             return ConversationHandler.END
 
@@ -60,9 +61,10 @@ class AdminHandler(BaseConversationHandler):
         """Muestra lista de usuarios."""
         query = update.callback_query
         await self._safe_answer_query(query)
+        admin_id = update.effective_user.id
 
         try:
-            users = await self.service.get_all_users()
+            users = await self.service.get_all_users(current_user_id=admin_id)
 
             if not users:
                 message = AdminMessages.Users.NO_USERS
@@ -93,9 +95,10 @@ class AdminHandler(BaseConversationHandler):
         """Muestra lista de llaves VPN."""
         query = update.callback_query
         await self._safe_answer_query(query)
+        admin_id = update.effective_user.id
 
         try:
-            keys = await self.service.get_all_keys()
+            keys = await self.service.get_all_keys(current_user_id=admin_id)
 
             if not keys:
                 message = AdminMessages.Keys.NO_KEYS
@@ -126,9 +129,10 @@ class AdminHandler(BaseConversationHandler):
         """Muestra estado del servidor."""
         query = update.callback_query
         await self._safe_answer_query(query)
+        admin_id = update.effective_user.id
 
         try:
-            stats = await self.service.get_server_stats()
+            stats = await self.service.get_server_stats(current_user_id=admin_id)
 
             message = AdminMessages.Server.HEADER
             message += f"\n📊 **Usuarios Totales:** {stats.get('total_users', 0)}"
@@ -156,9 +160,10 @@ class AdminHandler(BaseConversationHandler):
     async def logs_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Muestra los logs del sistema."""
         user = update.effective_user
+        admin_id = user.id
 
         # Verificar si es admin
-        if user.id != int(settings.ADMIN_ID):
+        if admin_id != int(settings.ADMIN_ID):
             await self._reply_message(update, AdminMessages.Error.ACCESS_DENIED, parse_mode="Markdown")
             return ConversationHandler.END
 

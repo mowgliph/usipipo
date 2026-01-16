@@ -58,7 +58,7 @@ class AnnouncerHandler(BaseConversationHandler):
                 keyboard = AnnouncerKeyboards.upgrade_to_announcer()
             else:
                 # Obtener estadísticas de campañas
-                stats = await self.announcer_service.get_user_campaign_stats(user_id)
+                stats = await self.announcer_service.get_user_campaign_stats(user_id, current_user_id=user_id)
                 
                 message = AnnouncerMessages.Menu.MAIN.format(
                     total_campaigns=stats.get('total_campaigns', 0),
@@ -192,7 +192,7 @@ class AnnouncerHandler(BaseConversationHandler):
         
         try:
             # Obtener estadísticas de audiencia
-            audience_stats = await self.announcer_service.get_audience_stats(campaign_audience)
+            audience_stats = await self.announcer_service.get_audience_stats(campaign_audience, current_user_id=user_id)
             
             message = AnnouncerMessages.Campaign.CONFIRMATION.format(
                 name=campaign_name,
@@ -239,7 +239,7 @@ class AnnouncerHandler(BaseConversationHandler):
         
         try:
             # Lanzar campaña
-            result = await self.announcer_service.create_campaign(campaign_data)
+            result = await self.announcer_service.create_campaign(campaign_data, current_user_id=user_id)
             
             if result['success']:
                 message = AnnouncerMessages.Campaign.LAUNCH_SUCCESS.format(
@@ -283,7 +283,7 @@ class AnnouncerHandler(BaseConversationHandler):
         
         try:
             # Obtener campañas del usuario
-            campaigns = await self.announcer_service.get_user_campaigns(user_id)
+            campaigns = await self.announcer_service.get_user_campaigns(user_id, current_user_id=user_id)
             
             if not campaigns:
                 message = AnnouncerMessages.Campaign.NO_CAMPAIGNS
@@ -328,7 +328,7 @@ class AnnouncerHandler(BaseConversationHandler):
         
         try:
             # Obtener estadísticas generales
-            stats = await self.announcer_service.get_user_campaign_stats(user_id)
+            stats = await self.announcer_service.get_user_campaign_stats(user_id, current_user_id=user_id)
             
             message = AnnouncerMessages.Stats.CAMPAIGN_STATS.format(
                 total_campaigns=stats.get('total_campaigns', 0),
@@ -364,7 +364,7 @@ class AnnouncerHandler(BaseConversationHandler):
         
         try:
             # Obtener plantillas disponibles
-            templates = await self.announcer_service.get_ad_templates()
+            templates = await self.announcer_service.get_ad_templates(current_user_id=user_id)
             
             if not templates:
                 message = AnnouncerMessages.Templates.NO_TEMPLATES
@@ -425,7 +425,7 @@ class AnnouncerHandler(BaseConversationHandler):
             # Aquí iría la lógica real para verificar rol de anunciante
             # Por ahora, simulamos la verificación
             if self.vpn_service:
-                user_status = await self.vpn_service.get_user_status(user_id)
+                user_status = await self.vpn_service.get_user_status(user_id, current_user_id=user_id)
                 user = user_status.get("user")
                 return user.has_announcer_role if user else False
             return False

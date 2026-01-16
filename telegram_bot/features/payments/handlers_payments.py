@@ -53,7 +53,7 @@ class PaymentsHandler:
         
         try:
             # Obtener balance del usuario
-            balance = await self.payment_service.get_user_balance(user_id)
+            balance = await self.payment_service.get_user_balance(user_id, current_user_id=user_id)
             balance = balance if balance is not None else 0
             
             message = PaymentsMessages.Menu.MAIN.format(balance=balance)
@@ -409,7 +409,7 @@ class PaymentsHandler:
             balance = balance if balance is not None else 0
             
             # Obtener estadísticas del usuario
-            user_status = await self.vpn_service.get_user_status(user_id) if self.vpn_service else {}
+            user_status = await self.vpn_service.get_user_status(user_id, current_user_id=user_id) if self.vpn_service else {}
             user = user_status.get("user", {})
             
             total_deposited = getattr(user, 'total_deposited', 0)
@@ -446,11 +446,11 @@ class PaymentsHandler:
             # Por ahora, simulamos el proceso
             
             # Verificar si el usuario tiene suficiente balance
-            current_balance = await self.payment_service.get_user_balance(user_id)
+            current_balance = await self.payment_service.get_user_balance(user_id, current_user_id=user_id)
             
             if current_balance >= amount:
                 # Descontar balance
-                await self.payment_service.deduct_balance(user_id, amount)
+                await self.payment_service.deduct_balance(user_id, amount, current_user_id=user_id)
                 
                 # Registrar transacción
                 await self._register_transaction(user_id, amount, "balance", "completed")

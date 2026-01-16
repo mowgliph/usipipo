@@ -40,11 +40,13 @@ class AiSupportHandler(BaseConversationHandler):
             int: Estado de la conversación
         """
         user = update.effective_user
+        user_id = user.id
 
         try:
             await self.service.start_conversation(
-                user_id=user.id,
-                user_name=user.first_name
+                user_id=user_id,
+                user_name=user.first_name,
+                current_user_id=user_id
             )
 
             # Marcar en el contexto que estamos en conversación IA
@@ -80,11 +82,13 @@ class AiSupportHandler(BaseConversationHandler):
         await self._safe_answer_query(query)
 
         user = update.effective_user
+        user_id = user.id
 
         try:
             await self.service.start_conversation(
-                user_id=user.id,
-                user_name=user.first_name
+                user_id=user_id,
+                user_name=user.first_name,
+                current_user_id=user_id
             )
 
             # Marcar en el contexto que estamos en conversación IA
@@ -130,7 +134,8 @@ class AiSupportHandler(BaseConversationHandler):
 
             ai_response = await self.service.send_message(
                 user_id=user_id,
-                user_message=user_message
+                user_message=user_message,
+                current_user_id=user_id
             )
 
             await self._reply_message(
@@ -181,7 +186,7 @@ class AiSupportHandler(BaseConversationHandler):
         context.user_data['in_ai_conversation'] = False
         
         try:
-            await self.service.end_conversation(user_id)
+            await self.service.end_conversation(user_id, current_user_id=user_id)
 
             # Manejar tanto mensajes como callbacks
             if update.message:
